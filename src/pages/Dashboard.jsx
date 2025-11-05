@@ -33,6 +33,12 @@ const Dashboard = () => {
   const [newLocationName, setNewLocationName] = useState("");
   const [isAddingLocationTo, setIsAddingLocationTo] = useState(null);
 
+  // Quick Edit state
+  const [quickName, setQuickName] = useState("");
+  const [quickFromId, setQuickFromId] = useState("");
+  const [quickQty, setQuickQty] = useState(1);
+  const [quickTo, setQuickTo] = useState("");
+
   const handleAddOrUpdate = () => {
     if (!newItem.name || !newItem.location || newItem.quantity <= 0) return;
     if (newItem.rentalEnd && newItem.rentalStart > newItem.rentalEnd) return;
@@ -105,26 +111,60 @@ const Dashboard = () => {
     const trimmed = newLocationName.trim();
     if (!trimmed) return;
 
-    // Create a dummy entry to register the new location
+    // Create a dummy entry to register the new location (keeps existing behaviour)
     addEquipment({
       name: "__placeholder__",
       location: trimmed,
       status: "Available",
-      quantity: 0, // won't be shown or counted
+      quantity: 0,
       updatedBy: user?.username || "admin",
     });
 
-    // Set it in the relevant field
+    // Route the new location into the appropriate field depending on caller
     if (isAddingLocationTo === "new") {
       setNewItem((prev) => ({ ...prev, location: trimmed }));
     } else if (isAddingLocationTo === "move") {
       setMoveData((prev) => ({ ...prev, newLocation: trimmed }));
+    } else if (isAddingLocationTo === "quick") {
+      setQuickTo(trimmed);
     }
 
-    // Cleanup
     setNewLocationName("");
     setIsAddingLocationTo(null);
     setShowAddLocationModal(false);
+  };
+
+  // Quick Edit helpers
+  const names = Array.from(
+    new Set(
+      equipment.map((e) => e.name).filter((n) => n && n !== "__placeholder__")
+    )
+  ).sort();
+
+  const entriesForName = (name) =>
+    equipment.filter((e) => e.name === name && e.name !== "__placeholder__");
+
+  const handleQuickNameChange = (name) => {
+    setQuickName(name);
+    setQuickFromId("");
+    setQuickQty(1);
+    setQuickTo("");
+  };
+
+  const handleQuickFromChange = (id) => {
+    setQuickFromId(id);
+    const entry = equipment.find((e) => String(e.id) === String(id));
+    setQuickQty(entry ? entry.quantity || 1 : 1);
+  };
+
+  const handleQuickMove = () => {
+    if (!quickName || !quickFromId || !quickTo || quickQty <= 0) return;
+    moveEquipment(Number(quickFromId), Number(quickQty), quickTo);
+    // clear
+    setQuickName("");
+    setQuickFromId("");
+    setQuickQty(1);
+    setQuickTo("");
   };
 
   return (
@@ -133,9 +173,6 @@ const Dashboard = () => {
 
       <div className="bg-surface rounded-xl p-6 shadow-md overflow-x-auto">
         <div className="min-w-[700px]">
-          <div className="mb-2 text-sm text-gray-400 font-medium">
-            Total Entries: {equipment.length}
-          </div>
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-gray-600">
@@ -151,7 +188,7 @@ const Dashboard = () => {
             </thead>
             <tbody>
               {equipment
-                .filter((item) => item.name !== "__placeholder__") // 👈 filters out dummy entries
+                .filter((item) => item.name !== "__placeholder__")
                 .map((item) => (
                   <tr key={item.id} className="border-b border-gray-700">
                     <td className="p-2 text-accent font-medium">{item.name}</td>
@@ -228,6 +265,7 @@ const Dashboard = () => {
             ))}
             <option value="__add_new__">➕ Add new location...</option>
           </select>
+
           <input
             type="number"
             placeholder="Qty"
@@ -280,6 +318,84 @@ const Dashboard = () => {
               Cancel
             </button>
           )}
+        </div>
+      </div>
+
+      {/* Quick Edit Section */}
+      <div className="bg-surface p-6 rounded-xl w-full shadow-md">
+        <h3 className="text-xl font-bold mb-4 text-center text-accent">
+          Quick Edit
+        </h3>
+        <div className="flex justify-center gap-4 mb-8">
+          <select
+            value={quickName}
+            onChange={(e) => handleQuickNameChange(e.target.value)}
+            className="px-4 py-2 rounded w-[220px] text-black"
+          >
+            <option value="">Select item</option>
+            {names.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={quickFromId}
+            onChange={(e) => handleQuickFromChange(e.target.value)}
+            className="px-4 py-2 rounded w-[220px] text-black"
+            disabled={!quickName}
+          >
+            <option value="">From (location - qty)</option>
+            {entriesForName(quickName).map((entry) => (
+              <option key={entry.id} value={entry.id}>
+                {entry.location} — {entry.quantity || 1}
+              </option>
+            ))}
+          </select>
+
+          <input
+            type="number"
+            min="1"
+            max={
+              equipment.find((e) => String(e.id) === String(quickFromId))
+                ?.quantity || 1
+            }
+            value={quickQty}
+            onChange={(e) => setQuickQty(parseInt(e.target.value) || 1)}
+            className="px-4 py-2 rounded w-[120px] text-black text-center"
+            disabled={!quickFromId}
+          />
+
+          <select
+            value={quickTo}
+            onChange={(e) => {
+              if (e.target.value === "__add_new__") {
+                setIsAddingLocationTo("quick");
+                setShowAddLocationModal(true);
+              } else {
+                setQuickTo(e.target.value);
+              }
+            }}
+            className="px-4 py-2 rounded w-[220px] text-black"
+            disabled={!quickFromId}
+          >
+            <option value="">To (location)</option>
+            {allLocations.map((loc) => (
+              <option key={loc} value={loc}>
+                {loc}
+              </option>
+            ))}
+            <option value="__add_new__">➕ Add new location...</option>
+          </select>
+
+          <button
+            onClick={handleQuickMove}
+            className="bg-sky-400 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded w-[140px]"
+            disabled={!quickName || !quickFromId || !quickTo}
+          >
+            Quick Move
+          </button>
         </div>
       </div>
 
