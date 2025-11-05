@@ -1,32 +1,31 @@
 import { NavLink } from "react-router-dom";
 
 const Sidebar = () => {
-  const linkBase = "block px-4 py-2 rounded-lg transition-colors duration-150";
-  const activeStyles =
-    "bg-background border border-accent text-accent font-semibold";
-  const inactiveStyles = "text-muted hover:text-accent";
-
   return (
-    <div className="w-64 bg-surface border-r border-gray-700 h-full p-4 flex flex-col shadow-md">
-      <h2 className="text-xl font-bold mb-4 text-accent">GripTrack</h2>
-      <nav className="flex flex-col space-y-2">
-        <NavLink
-          to="/"
-          end
-          className={({ isActive }) =>
-            `${linkBase} ${isActive ? activeStyles : inactiveStyles}`
-          }
-        >
-          Dashboard
-        </NavLink>
-        <NavLink
-          to="/login"
-          className={({ isActive }) =>
-            `${linkBase} ${isActive ? activeStyles : inactiveStyles}`
-          }
-        >
-          Login
-        </NavLink>
+    <div className="w-64 bg-surface border-r border-gray-700 h-full px-0 pt-4 pb-6 flex flex-col shadow-md">
+      <h2 className="text-xl font-bold mb-6 px-4 text-accent">GripTrack</h2>
+      <nav className="flex flex-col gap-0.5">
+        {[
+          { label: "Dashboard", path: "/" },
+          { label: "Equipment", path: "/equipment" },
+          { label: "Requests", path: "/requests" },
+          { label: "Logout", path: "/logout" },
+        ].map((item) => (
+          <NavLink
+            key={item.path}
+            to={item.path}
+            end
+            className={({ isActive }) =>
+              `w-full px-4 py-2 text-left transition-colors ${
+                isActive
+                  ? "bg-accent/20 text-accent font-semibold"
+                  : "text-text/60 hover:text-accent"
+              }`
+            }
+          >
+            {item.label}
+          </NavLink>
+        ))}
       </nav>
     </div>
   );
