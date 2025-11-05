@@ -1,33 +1,28 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import EquipmentContext from "./EquipmentContext";
 
+const STORAGE_KEY = "equipmentData";
+
 const EquipmentProvider = ({ children }) => {
-  const [equipment, setEquipment] = useState([
-    {
-      id: 1,
-      name: "Camera A",
-      location: "Truck 1",
-      status: "Available",
-      updatedBy: "admin",
-    },
-    {
-      id: 2,
-      name: "Tripod B",
-      location: "Truck 2",
-      status: "Out",
-      updatedBy: "admin",
-    },
-    {
-      id: 3,
-      name: "Mic C",
-      location: "Storage",
-      status: "Damaged",
-      updatedBy: "admin",
-    },
-  ]);
+  const [equipment, setEquipment] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(equipment));
+  }, [equipment]);
 
   const addEquipment = (item) => {
-    setEquipment((prev) => [...prev, { ...item, id: Date.now() }]);
+    setEquipment((prev) => [
+      ...prev,
+      {
+        ...item,
+        id: Date.now(),
+        rentalStart: item.rentalStart || "",
+        rentalEnd: item.rentalEnd || "",
+      },
+    ]);
   };
 
   const updateEquipment = (id, updates) => {

@@ -10,7 +10,7 @@ export default {
         warning: "#ffd600", // Yellow for “Out”
         danger: "#ff4d4d", // Red for “Damaged”
         success: "#2ecc71", // Green for “Available”
-        text: "#d1d5db", // Light grey for text
+        text: "#9ca3af", // Light grey for text
       },
       fontFamily: {
         sans: ["Inter", "sans-serif"], // Optional: clean UI font

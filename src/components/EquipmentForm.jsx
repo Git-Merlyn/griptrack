@@ -55,7 +55,7 @@ const EquipmentForm = () => {
 
       <button
         type="submit"
-        className="bg-accent text-white px-4 h-10 rounded hover:brightness-110"
+        className="bg-accent text-text px-4 h-10 rounded hover:brightness-110"
       >
         Add
       </button>
