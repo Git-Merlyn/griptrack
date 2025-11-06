@@ -326,7 +326,7 @@ const Dashboard = () => {
         <h3 className="text-xl font-bold mb-4 text-center text-accent">
           Quick Edit
         </h3>
-        <div className="flex justify-center gap-4 mb-8">
+        <div className="flex flex-wrap justify-center gap-4 mb-8">
           <select
             value={quickName}
             onChange={(e) => handleQuickNameChange(e.target.value)}
@@ -391,7 +391,7 @@ const Dashboard = () => {
 
           <button
             onClick={handleQuickMove}
-            className="bg-sky-400 hover:bg-sky-500 text-white font-bold py-2 px-4 rounded w-[140px]"
+            className="bg-accent hover:bg-cyan-400 text-white font-bold py-2 px-4 rounded w-[140px]"
             disabled={!quickName || !quickFromId || !quickTo}
           >
             Quick Move
