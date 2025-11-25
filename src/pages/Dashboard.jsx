@@ -1,4 +1,5 @@
-import React, { useContext, useState } from "react";
+import React, { useContext, useState, useEffect } from "react";
+import UploadPDFModal from "../components/UploadPDFModal";
 import EquipmentContext from "../context/EquipmentContext";
 import UserContext from "../context/UserContext";
 
@@ -9,6 +10,10 @@ const Dashboard = () => {
     deleteEquipment,
     updateEquipment,
     moveEquipment,
+    // importSummaryMessage and clearImportSummary are optional — if your EquipmentContext
+    // provides them they will be used to show an import toast after PDF imports.
+    importSummaryMessage,
+    clearImportSummary,
   } = useContext(EquipmentContext);
   const { user } = useContext(UserContext);
 
@@ -17,6 +22,7 @@ const Dashboard = () => {
   ).sort();
 
   const [newItem, setNewItem] = useState({
+    itemId: "",
     name: "",
     location: "",
     status: "Available",
@@ -32,12 +38,28 @@ const Dashboard = () => {
   const [showAddLocationModal, setShowAddLocationModal] = useState(false);
   const [newLocationName, setNewLocationName] = useState("");
   const [isAddingLocationTo, setIsAddingLocationTo] = useState(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [importInProgress, setImportInProgress] = useState(false);
 
   // Quick Edit state
   const [quickName, setQuickName] = useState("");
   const [quickFromId, setQuickFromId] = useState("");
   const [quickQty, setQuickQty] = useState(1);
   const [quickTo, setQuickTo] = useState("");
+
+  // Toast for import summary
+  const [showToast, setShowToast] = useState(false);
+
+  useEffect(() => {
+    if (importSummaryMessage) {
+      setShowToast(true);
+      const t = setTimeout(() => {
+        setShowToast(false);
+        if (typeof clearImportSummary === "function") clearImportSummary();
+      }, 4000);
+      return () => clearTimeout(t);
+    }
+  }, [importSummaryMessage, clearImportSummary]);
 
   const handleAddOrUpdate = () => {
     if (!newItem.name || !newItem.location || newItem.quantity <= 0) return;
@@ -54,6 +76,7 @@ const Dashboard = () => {
     }
 
     setNewItem({
+      itemId: "",
       name: "",
       location: "",
       status: "Available",
@@ -65,6 +88,7 @@ const Dashboard = () => {
 
   const handleEdit = (item) => {
     setNewItem({
+      itemId: item.itemId || "",
       name: item.name,
       location: item.location,
       status: item.status,
@@ -78,6 +102,7 @@ const Dashboard = () => {
   const handleCancelEdit = () => {
     setEditingId(null);
     setNewItem({
+      itemId: "",
       name: "",
       location: "",
       status: "Available",
@@ -167,15 +192,69 @@ const Dashboard = () => {
     setQuickTo("");
   };
 
+  const handlePdfUpload = (items) => {
+    if (!Array.isArray(items) || items.length === 0) return;
+
+    items.forEach((item) => {
+      if (!item.name || !item.location || item.quantity <= 0) return;
+
+      addEquipment({
+        itemId: item.id || "",
+        name: item.name,
+        location: item.location,
+        status: "Available",
+        rentalStart: item.startDate || "",
+        rentalEnd: item.endDate || "",
+        quantity: item.quantity || 1,
+        updatedBy: user?.username || "admin",
+      });
+    });
+  };
+
   return (
     <div className="p-8 flex flex-col gap-6 text-text relative">
       <h2 className="text-3xl font-bold text-accent">Dashboard</h2>
+      <button
+        onClick={() => setShowUploadModal(true)}
+        disabled={importInProgress}
+        className={`absolute top-8 right-8 px-4 py-2 rounded text-white ${
+          importInProgress ? "bg-gray-500" : "bg-accent hover:bg-cyan-400"
+        }`}
+      >
+        {importInProgress ? "Importing..." : "Upload PDF"}
+      </button>
+
+      {/* Toast / Import summary */}
+      {showToast && importSummaryMessage && (
+        <div className="fixed right-6 top-6 z-50">
+          <div className="bg-surface border border-gray-700 text-text px-4 py-3 rounded shadow-md flex items-start gap-3 max-w-sm">
+            <div className="flex-1">
+              <div className="font-semibold text-accent">Import Complete</div>
+              <div className="text-sm text-gray-300">
+                {importSummaryMessage}
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setShowToast(false);
+                if (typeof clearImportSummary === "function")
+                  clearImportSummary();
+              }}
+              className="text-gray-400 hover:text-gray-200 ml-2"
+              aria-label="dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="bg-surface rounded-xl p-6 shadow-md overflow-x-auto">
         <div className="min-w-[700px]">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-gray-600">
+                <th className="p-2 whitespace-nowrap">Item ID</th>
                 <th className="p-2 whitespace-nowrap">Name</th>
                 <th className="p-2 whitespace-nowrap">Location</th>
                 <th className="p-2 whitespace-nowrap">Status</th>
@@ -191,6 +270,9 @@ const Dashboard = () => {
                 .filter((item) => item.name !== "__placeholder__")
                 .map((item) => (
                   <tr key={item.id} className="border-b border-gray-700">
+                    <td className="p-2 text-sm text-gray-300">
+                      {item.itemId || "-"}
+                    </td>
                     <td className="p-2 text-accent font-medium">{item.name}</td>
                     <td className="p-2">{item.location}</td>
                     <td
@@ -238,6 +320,13 @@ const Dashboard = () => {
           {editingId ? "Edit Equipment" : "Add New Equipment"}
         </h3>
         <div className="flex flex-wrap gap-2">
+          <input
+            type="text"
+            placeholder="Item ID"
+            value={newItem.itemId}
+            onChange={(e) => setNewItem({ ...newItem, itemId: e.target.value })}
+            className="flex-1 min-w-[150px] px-3 py-2 rounded bg-white text-black"
+          />
           <input
             type="text"
             placeholder="Name"
@@ -496,6 +585,15 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
+      )}
+      {showUploadModal && (
+        <UploadPDFModal
+          isOpen={showUploadModal}
+          onClose={() => setShowUploadModal(false)}
+          onUpload={handlePdfUpload}
+          setImportInProgress={setImportInProgress}
+          allLocations={allLocations}
+        />
       )}
     </div>
   );
