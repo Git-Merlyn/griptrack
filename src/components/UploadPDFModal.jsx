@@ -29,6 +29,112 @@ const UploadPDFModal = ({
     }
   }, [pdfParsingStatus]);
 
+  const parseCsvLine = (line) => {
+    // Basic CSV line parser supporting quotes
+    const out = [];
+    let cur = "";
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (ch === "," && !inQuotes) {
+        out.push(cur);
+        cur = "";
+      } else {
+        cur += ch;
+      }
+    }
+    out.push(cur);
+    return out;
+  };
+
+  const extractDataFromCSV = async (file) => {
+    try {
+      setPdfParsingStatus && setPdfParsingStatus("parsing");
+      setImportInProgress && setImportInProgress(true);
+
+      const text = await file.text();
+      const lines = text
+        .split(/\r?\n/)
+        .map((l) => l.trimEnd())
+        .filter((l) => l.length > 0);
+
+      if (lines.length < 2) {
+        setPdfParsingStatus && setPdfParsingStatus("error");
+        alert("CSV appears empty or missing rows.");
+        return;
+      }
+
+      const header = parseCsvLine(lines[0]).map((h) => String(h).trim());
+      const idxCategory = header.findIndex(
+        (h) => h.toLowerCase() === "category"
+      );
+      const idxName = header.findIndex((h) => h.toLowerCase() === "name");
+      const idxQty = header.findIndex(
+        (h) => h.toLowerCase() === "quantity" || h.toLowerCase() === "qty"
+      );
+
+      if (idxName === -1) {
+        setPdfParsingStatus && setPdfParsingStatus("error");
+        alert("CSV missing required column: Name");
+        return;
+      }
+
+      const items = [];
+      let currentCategory = "";
+
+      for (let i = 1; i < lines.length; i++) {
+        const cols = parseCsvLine(lines[i]);
+        const rawCategory =
+          idxCategory >= 0 ? String(cols[idxCategory] ?? "").trim() : "";
+        const rawName = String(cols[idxName] ?? "").trim();
+        const rawQty = idxQty >= 0 ? String(cols[idxQty] ?? "").trim() : "";
+
+        // Section/header rows: category set but no name -> set current category and skip
+        if (!rawName) {
+          if (rawCategory) currentCategory = rawCategory;
+          continue;
+        }
+
+        // Subcategory rows: category + name -> update current category
+        if (rawCategory) currentCategory = rawCategory;
+
+        const qty = parseInt(rawQty, 10);
+
+        items.push({
+          id: "", // internal-only; CSV doesn't provide item IDs
+          name: rawName,
+          category: currentCategory || "",
+          quantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
+          startDate: "",
+          endDate: "",
+          location: "",
+        });
+      }
+
+      if (items.length > 0) {
+        setParsedData(items);
+        setPdfParsingStatus && setPdfParsingStatus("done");
+      } else {
+        setPdfParsingStatus && setPdfParsingStatus("error");
+        alert("No importable rows found in CSV.");
+      }
+    } catch (err) {
+      console.error("CSV parse error", err);
+      setPdfParsingStatus && setPdfParsingStatus("error");
+      alert("There was an error reading the CSV. See console for details.");
+    } finally {
+      setImportInProgress && setImportInProgress(false);
+    }
+  };
+
   const extractDataFromPDF = async (file) => {
     try {
       if (setPdfParsingStatus) setPdfParsingStatus("parsing");
@@ -69,6 +175,7 @@ const UploadPDFModal = ({
         items.push({
           id: m[1].trim(),
           name: m[2].trim(),
+          category: "",
           quantity: parseInt(m[3], 10) || 1,
           startDate: shipDate,
           endDate: returnDate,
@@ -99,7 +206,11 @@ const UploadPDFModal = ({
 
   const handleFileChange = (event) => {
     const file = event.target.files && event.target.files[0];
-    if (file) extractDataFromPDF(file);
+    if (!file) return;
+    const name = (file.name || "").toLowerCase();
+    const isCsv = file.type === "text/csv" || name.endsWith(".csv");
+    if (isCsv) return extractDataFromCSV(file);
+    return extractDataFromPDF(file);
   };
 
   const handleLocationChange = (index, value) => {
@@ -152,11 +263,15 @@ const UploadPDFModal = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Upload PDF Rental List">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Upload Rental List (PDF/CSV)"
+    >
       <div className="flex flex-col gap-4">
         <input
           type="file"
-          accept="application/pdf"
+          accept="application/pdf,text/csv,.csv"
           onChange={handleFileChange}
         />
 
@@ -174,7 +289,7 @@ const UploadPDFModal = ({
         )}
         {pdfParsingStatus === "error" && (
           <div className="text-red-500 font-medium">
-            Error parsing PDF. Please try again or upload a cleaner version.
+            Error parsing PDF/CSV. Please try again or upload a cleaner version.
           </div>
         )}
         {pdfParsingStatus === "done" && parsedData.length === 0 && (
@@ -210,8 +325,8 @@ const UploadPDFModal = ({
               <table className="w-full text-left border">
                 <thead>
                   <tr className="bg-gray-200 text-gray-800">
-                    <th className="p-2">Item ID</th>
                     <th className="p-2">Description</th>
+                    <th className="p-2">Category</th>
                     <th className="p-2">Quantity</th>
                     <th className="p-2">Start Date</th>
                     <th className="p-2">End Date</th>
@@ -220,9 +335,9 @@ const UploadPDFModal = ({
                 </thead>
                 <tbody>
                   {parsedData.map((item, index) => (
-                    <tr key={`${item.id}-${index}`}>
-                      <td className="p-2">{item.id}</td>
+                    <tr key={`${item.id || item.name}-${index}`}>
                       <td className="p-2">{item.name}</td>
+                      <td className="p-2">{item.category || "-"}</td>
                       <td className="p-2">{item.quantity}</td>
                       <td className="p-2">{item.startDate}</td>
                       <td className="p-2">{item.endDate}</td>
