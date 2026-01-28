@@ -2,10 +2,28 @@ import { createContext, useState, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 const EquipmentContext = createContext();
+const DEFAULT_LOCATIONS = [
+  "G1",
+  "G2",
+  "G3",
+  "Akerley Studio",
+  "Morris Studio",
+  "Splinter Unit",
+  "Dean’s Storage",
+  "Whites",
+];
 
 export const EquipmentProvider = ({ children }) => {
   const [equipmentData, setEquipmentData] = useState([]);
   const [locations, setLocations] = useState([]);
+
+  // Always-available + database-derived locations (deduped)
+  const allLocations = Array.from(
+    new Set([
+      ...DEFAULT_LOCATIONS,
+      ...(Array.isArray(locations) ? locations : []),
+    ])
+  ).sort();
   const [uploadedPDFItems, setUploadedPDFItems] = useState([]);
   const [pdfUploadModalOpen, setPdfUploadModalOpen] = useState(false);
   const [pdfParsingStatus, setPdfParsingStatus] = useState("idle");
@@ -29,6 +47,7 @@ export const EquipmentProvider = ({ children }) => {
     return {
       item_id: itemId ? String(itemId) : null,
       name: String(item?.name ?? "").trim() || "(Unnamed)",
+      category: String(item?.category ?? "").trim() || null,
       quantity: Number.isFinite(Number(item?.quantity))
         ? Number(item.quantity)
         : 1,
@@ -52,6 +71,7 @@ export const EquipmentProvider = ({ children }) => {
 
     // Legacy fields expected by the current Dashboard.jsx
     itemId: row.item_id ?? "",
+    category: row.category ?? "",
     status: row.status ?? "Available",
     rentalStart: row.start_date ?? null,
     rentalEnd: row.end_date ?? null,
@@ -184,6 +204,7 @@ export const EquipmentProvider = ({ children }) => {
     const updatePayload = {
       item_id: patch?.itemId ?? patch?.item_id ?? undefined,
       name: patch?.name ?? undefined,
+      category: patch?.category ?? undefined,
       quantity:
         patch?.quantity !== undefined ? Number(patch.quantity) : undefined,
       location: patch?.location ?? undefined,
@@ -253,6 +274,7 @@ export const EquipmentProvider = ({ children }) => {
     await addEquipment({
       itemId: current.itemId,
       name: current.name,
+      category: current.category ?? "",
       quantity: moveQty,
       location: newLocation,
       status: current.status ?? "Available",
@@ -304,6 +326,7 @@ export const EquipmentProvider = ({ children }) => {
         moveEquipment,
         clearImportSummary,
         locations,
+        allLocations,
         setLocations,
         uploadedPDFItems,
         setUploadedPDFItems,

@@ -90,6 +90,31 @@ const UploadPDFModal = ({
       const items = [];
       let currentCategory = "";
 
+      let currentItemName = "";
+
+      const normalizeCondition = (s) =>
+        String(s || "")
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, " ");
+
+      const prettyStatus = (s) =>
+        normalizeCondition(s)
+          .split(" ")
+          .filter(Boolean)
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(" ");
+
+      const conditionWords = new Set([
+        "unopened",
+        "partial",
+        "nearly empty",
+        "nearlyempty",
+        "almost empty",
+        "opened",
+        "empty",
+      ]);
+
       for (let i = 1; i < lines.length; i++) {
         const cols = parseCsvLine(lines[i]);
         const rawCategory =
@@ -103,15 +128,42 @@ const UploadPDFModal = ({
           continue;
         }
 
-        // Subcategory rows: category + name -> update current category
+        // Keep category sticky if present
         if (rawCategory) currentCategory = rawCategory;
 
+        // If this is an item header row (name present, qty missing), remember it and skip creating an item
+        if (!rawQty) {
+          currentItemName = rawName;
+          continue;
+        }
+
+        const nameLower = normalizeCondition(rawName);
+
+        // If the "name" cell is actually a condition/status row (Unopened/Partial/etc), apply it to last item name
+        if (conditionWords.has(nameLower) && currentItemName) {
+          const qty = parseInt(rawQty, 10);
+          items.push({
+            id: "", // internal-only
+            name: currentItemName,
+            category: currentCategory || "",
+            status: prettyStatus(rawName),
+            quantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
+            startDate: "",
+            endDate: "",
+            location: "",
+          });
+          continue;
+        }
+
+        // Otherwise, treat as a normal inventory row
+        currentItemName = rawName;
         const qty = parseInt(rawQty, 10);
 
         items.push({
           id: "", // internal-only; CSV doesn't provide item IDs
           name: rawName,
           category: currentCategory || "",
+          status: "Available",
           quantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
           startDate: "",
           endDate: "",
@@ -327,6 +379,7 @@ const UploadPDFModal = ({
                   <tr className="bg-gray-200 text-gray-800">
                     <th className="p-2">Description</th>
                     <th className="p-2">Category</th>
+                    <th className="p-2">Status</th>
                     <th className="p-2">Quantity</th>
                     <th className="p-2">Start Date</th>
                     <th className="p-2">End Date</th>
@@ -338,6 +391,7 @@ const UploadPDFModal = ({
                     <tr key={`${item.id || item.name}-${index}`}>
                       <td className="p-2">{item.name}</td>
                       <td className="p-2">{item.category || "-"}</td>
+                      <td className="p-2">{item.status || "-"}</td>
                       <td className="p-2">{item.quantity}</td>
                       <td className="p-2">{item.startDate}</td>
                       <td className="p-2">{item.endDate}</td>

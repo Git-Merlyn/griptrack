@@ -6,6 +6,7 @@ import UserContext from "../context/UserContext";
 const Dashboard = () => {
   const {
     equipment,
+    allLocations: contextLocations,
     addEquipment,
     deleteEquipment,
     updateEquipment,
@@ -47,10 +48,20 @@ const Dashboard = () => {
 
   const allLocations = Array.from(
     new Set([
+      ...(Array.isArray(contextLocations) ? contextLocations : []),
       ...equipment.map((e) => e.location).filter(Boolean),
       ...customLocations.filter(Boolean),
     ])
   ).sort();
+
+  const statusOptions = Array.from(
+    new Set([
+      "Available",
+      "Out",
+      "Damaged",
+      ...equipment.map((e) => e.status).filter(Boolean),
+    ])
+  ).sort((a, b) => String(a).localeCompare(String(b)));
 
   const [newItem, setNewItem] = useState({
     itemId: "",
@@ -81,6 +92,28 @@ const Dashboard = () => {
 
   // Toast for import summary
   const [showToast, setShowToast] = useState(false);
+  // Bulk select mode
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]); // array of item.id strings
+  const [bulkLocation, setBulkLocation] = useState("");
+
+  // Table sorting
+  const [sortKey, setSortKey] = useState("name");
+  const [sortDir, setSortDir] = useState("asc"); // 'asc' | 'desc'
+
+  const toggleSort = (key) => {
+    if (sortKey === key) {
+      setSortDir((prevDir) => (prevDir === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortKey(key);
+    setSortDir("asc");
+  };
+
+  const sortArrow = (key) => {
+    if (sortKey !== key) return "";
+    return sortDir === "asc" ? " ▲" : " ▼";
+  };
 
   useEffect(() => {
     if (importSummaryMessage) {
@@ -160,15 +193,90 @@ const Dashboard = () => {
   };
 
   const statusClass = (status) => {
-    switch (status) {
-      case "Available":
-        return "text-success";
-      case "Out":
-        return "text-warning";
-      case "Damaged":
-        return "text-danger";
-      default:
-        return "text-text";
+    const s = String(status || "")
+      .trim()
+      .toLowerCase();
+    if (s === "available") return "text-success";
+    if (s === "out") return "text-warning";
+    if (s === "damaged") return "text-danger";
+    // Anything else (Unopened/Partial/Nearly Empty/etc)
+    return "text-text";
+  };
+
+  const handleInlineChange = (field, value) => {
+    setNewItem((prev) => ({ ...prev, [field]: value }));
+  };
+  const isSelected = (id) => selectedIds.includes(String(id));
+
+  const toggleSelected = (id) => {
+    const sid = String(id);
+    setSelectedIds((prev) =>
+      prev.includes(sid) ? prev.filter((x) => x !== sid) : [...prev, sid]
+    );
+  };
+
+  const selectAllVisible = () => {
+    const ids = sortedEquipment.map((it) => String(it.id));
+    setSelectedIds(ids);
+  };
+
+  const clearSelection = () => setSelectedIds([]);
+
+  useEffect(() => {
+    if (!bulkMode) {
+      setSelectedIds([]);
+      setBulkLocation("");
+    }
+  }, [bulkMode]);
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Delete ${selectedIds.length} selected item(s)?`)) return;
+
+    try {
+      for (const id of selectedIds) {
+        await Promise.resolve(deleteEquipment(id));
+      }
+      window.toast?.success?.(`Deleted ${selectedIds.length} item(s)`);
+      clearSelection();
+    } catch (e) {
+      console.error(e);
+      window.toast?.error?.(e?.message || "Bulk delete failed");
+    }
+  };
+
+  const handleBulkSetLocation = async () => {
+    if (selectedIds.length === 0) return;
+    if (!bulkLocation) return;
+
+    try {
+      for (const id of selectedIds) {
+        const row = equipment.find((e) => String(e.id) === String(id));
+        if (!row) continue;
+
+        await Promise.resolve(
+          updateEquipment(row.id, {
+            itemId: row.itemId || "",
+            name: row.name,
+            category: row.category || "",
+            location: bulkLocation,
+            status: row.status || "Available",
+            rentalStart: row.rentalStart || "",
+            rentalEnd: row.rentalEnd || "",
+            quantity: row.quantity || 1,
+            updatedBy: user?.username || "admin",
+          })
+        );
+      }
+
+      window.toast?.success?.(
+        `Updated location for ${selectedIds.length} item(s)`
+      );
+      setBulkLocation("");
+      clearSelection();
+    } catch (e) {
+      console.error(e);
+      window.toast?.error?.(e?.message || "Bulk location update failed");
     }
   };
 
@@ -213,6 +321,8 @@ const Dashboard = () => {
       setMoveData((prev) => ({ ...prev, newLocation: trimmed }));
     } else if (isAddingLocationTo === "quick") {
       setQuickTo(trimmed);
+    } else if (isAddingLocationTo === "bulk") {
+      setBulkLocation(trimmed);
     }
 
     setNewLocationName("");
@@ -286,8 +396,9 @@ const Dashboard = () => {
       addEquipment({
         itemId: item.id || "",
         name: item.name,
+        category: item.category || "", // ✅ add this
         location: item.location,
-        status: "Available",
+        status: item.status || "Available", // ✅ optional but recommended
         rentalStart: item.startDate || "",
         rentalEnd: item.endDate || "",
         quantity: item.quantity || 1,
@@ -295,6 +406,47 @@ const Dashboard = () => {
       });
     });
   };
+
+  const visibleEquipment = equipment.filter(
+    (item) => item.name !== "__placeholder__"
+  );
+
+  const sortedEquipment = [...visibleEquipment].sort((a, b) => {
+    const dir = sortDir === "asc" ? 1 : -1;
+
+    const getVal = (row) => {
+      switch (sortKey) {
+        case "qty":
+          return Number(row.quantity) || 0;
+        case "start":
+          return row.rentalStart || "";
+        case "end":
+          return row.rentalEnd || "";
+        case "status":
+          return row.status || "";
+        case "location":
+          return row.location || "";
+        case "category":
+          return row.category || "";
+        case "updatedBy":
+          return row.updatedBy || "";
+        case "name":
+        default:
+          return row.name || "";
+      }
+    };
+
+    const av = getVal(a);
+    const bv = getVal(b);
+
+    if (typeof av === "number" && typeof bv === "number") {
+      return (av - bv) * dir;
+    }
+
+    return (
+      String(av).toLowerCase().localeCompare(String(bv).toLowerCase()) * dir
+    );
+  });
 
   return (
     <div className="p-8 flex flex-col gap-6 text-text relative">
@@ -336,70 +488,373 @@ const Dashboard = () => {
       )}
 
       <div className="bg-surface rounded-xl p-6 shadow-md overflow-x-auto">
+        {/* Bulk toolbar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setBulkMode((v) => !v)}
+              className="px-3 py-2 rounded bg-gray-700 text-white hover:bg-gray-600"
+            >
+              {bulkMode ? "Exit Multi-Select" : "Multi-Select"}
+            </button>
+
+            {bulkMode && (
+              <span className="text-sm text-gray-300">
+                Selected:{" "}
+                <span className="font-semibold">{selectedIds.length}</span>
+              </span>
+            )}
+          </div>
+
+          {bulkMode && (
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={bulkLocation}
+                onChange={(e) => {
+                  if (e.target.value === "__add_new__") {
+                    setIsAddingLocationTo("bulk");
+                    setShowAddLocationModal(true);
+                  } else {
+                    setBulkLocation(e.target.value);
+                  }
+                }}
+                className="px-3 py-2 rounded bg-white text-black min-w-[220px]"
+              >
+                <option value="">Set location for selected...</option>
+                {allLocations.map((loc) => (
+                  <option key={loc} value={loc}>
+                    {loc}
+                  </option>
+                ))}
+                <option value="__add_new__">➕ Add new location...</option>
+              </select>
+
+              <button
+                type="button"
+                onClick={handleBulkSetLocation}
+                disabled={selectedIds.length === 0 || !bulkLocation}
+                className={`px-3 py-2 rounded text-slate-100 ${
+                  selectedIds.length === 0 || !bulkLocation
+                    ? "bg-gray-600"
+                    : "bg-accent hover:bg-cyan-400"
+                }`}
+              >
+                Apply
+              </button>
+
+              <button
+                type="button"
+                onClick={handleBulkDelete}
+                disabled={selectedIds.length === 0}
+                className={`px-3 py-2 rounded text-white ${
+                  selectedIds.length === 0
+                    ? "bg-gray-600"
+                    : "bg-red-600 hover:bg-red-500"
+                }`}
+              >
+                Delete
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Table */}
         <div className="min-w-[700px]">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-gray-600">
-                <th className="p-2 whitespace-nowrap">Name</th>
-                <th className="p-2 whitespace-nowrap">Category</th>
-                <th className="p-2 whitespace-nowrap">Location</th>
-                <th className="p-2 whitespace-nowrap">Status</th>
-                <th className="p-2 whitespace-nowrap">Qty</th>
-                <th className="p-2 whitespace-nowrap">Start</th>
-                <th className="p-2 whitespace-nowrap">End</th>
-                <th className="p-2 whitespace-nowrap">Updated By</th>
+                {bulkMode && (
+                  <th className="p-2 whitespace-nowrap">
+                    <input
+                      type="checkbox"
+                      checked={
+                        sortedEquipment.length > 0 &&
+                        selectedIds.length === sortedEquipment.length
+                      }
+                      onChange={(e) => {
+                        if (e.target.checked) selectAllVisible();
+                        else clearSelection();
+                      }}
+                    />
+                  </th>
+                )}
+
+                <th className="p-2 whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("name")}
+                    className="hover:underline"
+                  >
+                    Name{sortArrow("name")}
+                  </button>
+                </th>
+                <th className="p-2 whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("category")}
+                    className="hover:underline"
+                  >
+                    Category{sortArrow("category")}
+                  </button>
+                </th>
+                <th className="p-2 whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("location")}
+                    className="hover:underline"
+                  >
+                    Location{sortArrow("location")}
+                  </button>
+                </th>
+                <th className="p-2 whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("status")}
+                    className="hover:underline"
+                  >
+                    Status{sortArrow("status")}
+                  </button>
+                </th>
+                <th className="p-2 whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("qty")}
+                    className="hover:underline"
+                  >
+                    Qty{sortArrow("qty")}
+                  </button>
+                </th>
+                <th className="p-2 whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("start")}
+                    className="hover:underline"
+                  >
+                    Start{sortArrow("start")}
+                  </button>
+                </th>
+                <th className="p-2 whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("end")}
+                    className="hover:underline"
+                  >
+                    End{sortArrow("end")}
+                  </button>
+                </th>
+                <th className="p-2 whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => toggleSort("updatedBy")}
+                    className="hover:underline"
+                  >
+                    Updated By{sortArrow("updatedBy")}
+                  </button>
+                </th>
                 <th className="p-2 whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {equipment
-                .filter((item) => item.name !== "__placeholder__")
-                .map((item, idx) => (
-                  <tr
-                    key={`${item.id}-${item.location}-${item.name}-${idx}`}
-                    className="border-b border-gray-700"
-                  >
-                    <td className="p-2 text-accent font-medium">{item.name}</td>
-                    <td className="p-2">{item.category || "-"}</td>
-                    <td className="p-2">{item.location}</td>
-                    <td
-                      className={`p-2 font-semibold ${statusClass(
-                        item.status
-                      )}`}
-                    >
-                      {item.status}
+              {sortedEquipment.map((item, idx) => (
+                <tr
+                  key={`${item.id}-${item.location}-${item.name}-${idx}`}
+                  className="border-b border-gray-700"
+                >
+                  {bulkMode && (
+                    <td className="p-2">
+                      <input
+                        type="checkbox"
+                        checked={isSelected(item.id)}
+                        onChange={() => toggleSelected(item.id)}
+                      />
                     </td>
-                    <td className="p-2">{item.quantity || 1}</td>
-                    <td className="p-2">{item.rentalStart || "-"}</td>
-                    <td className="p-2">{item.rentalEnd || "-"}</td>
-                    <td className="p-2">{item.updatedBy}</td>
-                    <td className="p-2 whitespace-nowrap">
-                      <button
-                        onClick={() => handleEdit(item)}
-                        className="text-blue-400 hover:underline"
-                      >
-                        Edit
-                      </button>
-                      <span className="mx-1 text-gray-400">|</span>
-                      <button
-                        onClick={() => {
-                          setMovingItem({ ...item });
-                          setMoveData({ qty: 1, newLocation: "" });
+                  )}
+
+                  <td className="p-2 text-accent font-medium">
+                    {editingId === item.id ? (
+                      <input
+                        type="text"
+                        value={newItem.name}
+                        onChange={(e) =>
+                          handleInlineChange("name", e.target.value)
+                        }
+                        className="w-full px-2 py-1 rounded bg-white text-black"
+                      />
+                    ) : (
+                      item.name
+                    )}
+                  </td>
+
+                  <td className="p-2">
+                    {editingId === item.id ? (
+                      <input
+                        type="text"
+                        value={newItem.category}
+                        onChange={(e) =>
+                          handleInlineChange("category", e.target.value)
+                        }
+                        className="w-full px-2 py-1 rounded bg-white text-black"
+                      />
+                    ) : (
+                      item.category || "-"
+                    )}
+                  </td>
+
+                  <td className="p-2">
+                    {editingId === item.id ? (
+                      <select
+                        value={newItem.location}
+                        onChange={(e) => {
+                          if (e.target.value === "__add_new__") {
+                            setIsAddingLocationTo("new");
+                            setShowAddLocationModal(true);
+                          } else {
+                            handleInlineChange("location", e.target.value);
+                          }
                         }}
-                        className="text-yellow-400 hover:underline"
+                        className="w-full px-2 py-1 rounded bg-white text-black"
                       >
-                        Move
-                      </button>
-                      <span className="mx-1 text-gray-400">|</span>
-                      <button
-                        onClick={() => deleteEquipment(item.id)}
-                        className="text-red-400 hover:underline"
+                        <option value="">Select location</option>
+                        {allLocations.map((loc) => (
+                          <option key={loc} value={loc}>
+                            {loc}
+                          </option>
+                        ))}
+                        <option value="__add_new__">
+                          ➕ Add new location...
+                        </option>
+                      </select>
+                    ) : (
+                      item.location
+                    )}
+                  </td>
+
+                  <td
+                    className={`p-2 font-semibold ${statusClass(item.status)}`}
+                  >
+                    {editingId === item.id ? (
+                      <select
+                        value={newItem.status}
+                        onChange={(e) =>
+                          handleInlineChange("status", e.target.value)
+                        }
+                        className="w-full px-2 py-1 rounded bg-white text-black font-normal"
                       >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                        {statusOptions.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      item.status
+                    )}
+                  </td>
+
+                  <td className="p-2">
+                    {editingId === item.id ? (
+                      <input
+                        type="number"
+                        min="1"
+                        value={newItem.quantity}
+                        onChange={(e) =>
+                          handleInlineChange(
+                            "quantity",
+                            parseInt(e.target.value, 10) || 1
+                          )
+                        }
+                        className="w-full px-2 py-1 rounded bg-white text-black"
+                      />
+                    ) : (
+                      item.quantity || 1
+                    )}
+                  </td>
+
+                  <td className="p-2">
+                    {editingId === item.id ? (
+                      <input
+                        type="date"
+                        value={newItem.rentalStart || ""}
+                        onChange={(e) =>
+                          handleInlineChange("rentalStart", e.target.value)
+                        }
+                        className="w-full px-2 py-1 rounded bg-white text-black"
+                      />
+                    ) : (
+                      item.rentalStart || "-"
+                    )}
+                  </td>
+
+                  <td className="p-2">
+                    {editingId === item.id ? (
+                      <input
+                        type="date"
+                        value={newItem.rentalEnd || ""}
+                        onChange={(e) =>
+                          handleInlineChange("rentalEnd", e.target.value)
+                        }
+                        className="w-full px-2 py-1 rounded bg-white text-black"
+                      />
+                    ) : (
+                      item.rentalEnd || "-"
+                    )}
+                  </td>
+
+                  <td className="p-2">{item.updatedBy}</td>
+
+                  <td className="p-2 whitespace-nowrap">
+                    {editingId === item.id ? (
+                      <>
+                        <button
+                          onClick={handleAddOrUpdate}
+                          className="text-green-400 hover:underline"
+                        >
+                          Save
+                        </button>
+                        <span className="mx-1 text-gray-400">|</span>
+                        <button
+                          onClick={handleCancelEdit}
+                          className="text-gray-300 hover:underline"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handleEdit(item)}
+                          disabled={editingId !== null}
+                          className={`text-blue-400 hover:underline ${
+                            editingId !== null
+                              ? "opacity-50 cursor-not-allowed"
+                              : ""
+                          }`}
+                        >
+                          Edit
+                        </button>
+                        <span className="mx-1 text-gray-400">|</span>
+                        <button
+                          onClick={() => {
+                            setMovingItem({ ...item });
+                            setMoveData({ qty: 1, newLocation: "" });
+                          }}
+                          className="text-yellow-400 hover:underline"
+                        >
+                          Move
+                        </button>
+                        <span className="mx-1 text-gray-400">|</span>
+                        <button
+                          onClick={() => deleteEquipment(item.id)}
+                          className="text-red-400 hover:underline"
+                        >
+                          Delete
+                        </button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -465,9 +920,11 @@ const Dashboard = () => {
             onChange={(e) => setNewItem({ ...newItem, status: e.target.value })}
             className="flex-1 min-w-[150px] px-3 py-2 rounded bg-white text-black"
           >
-            <option value="Available">Available</option>
-            <option value="Out">Out</option>
-            <option value="Damaged">Damaged</option>
+            {statusOptions.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
           </select>
           <input
             type="date"
