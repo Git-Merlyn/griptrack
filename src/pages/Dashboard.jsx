@@ -17,8 +17,39 @@ const Dashboard = () => {
   } = useContext(EquipmentContext);
   const { user } = useContext(UserContext);
 
+  // Custom locations (so we don't pollute inventory with __placeholder__ rows)
+  const [customLocations, setCustomLocations] = useState([]);
+
+  // Load custom locations once
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("griptrack_custom_locations");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) setCustomLocations(parsed);
+      }
+    } catch (e) {
+      console.warn("Failed to load custom locations", e);
+    }
+  }, []);
+
+  // Persist custom locations
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "griptrack_custom_locations",
+        JSON.stringify(customLocations)
+      );
+    } catch (e) {
+      console.warn("Failed to save custom locations", e);
+    }
+  }, [customLocations]);
+
   const allLocations = Array.from(
-    new Set(equipment.map((e) => e.location).filter(Boolean))
+    new Set([
+      ...equipment.map((e) => e.location).filter(Boolean),
+      ...customLocations.filter(Boolean),
+    ])
   ).sort();
 
   const [newItem, setNewItem] = useState({
@@ -60,6 +91,18 @@ const Dashboard = () => {
       return () => clearTimeout(t);
     }
   }, [importSummaryMessage, clearImportSummary]);
+
+  // Escape hatch: close any open modal/backdrop with Escape
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key !== "Escape") return;
+      setShowUploadModal(false);
+      setShowAddLocationModal(false);
+      setMovingItem(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const handleAddOrUpdate = () => {
     if (!newItem.name || !newItem.location || newItem.quantity <= 0) return;
@@ -125,24 +168,38 @@ const Dashboard = () => {
     }
   };
 
-  const handleMoveSubmit = () => {
+  const handleMoveSubmit = async () => {
     if (!movingItem || moveData.qty <= 0 || !moveData.newLocation) return;
-    moveEquipment(movingItem.id, moveData.qty, moveData.newLocation);
-    setMovingItem(null);
-    setMoveData({ qty: 1, newLocation: "" });
+    try {
+      console.log("[MoveSubmit] movingItem", movingItem);
+      window.toast?.info?.(
+        `MoveSubmit id=${movingItem?.id} itemId=${
+          movingItem?.itemId || "-"
+        } name=${movingItem?.name || "-"}`
+      );
+      await moveEquipment(
+        Number(movingItem.id),
+        Number(moveData.qty),
+        moveData.newLocation
+      );
+      setMovingItem(null);
+      setMoveData({ qty: 1, newLocation: "" });
+    } catch (e) {
+      console.error(e);
+      window.toast?.error?.(e?.message || "Move failed");
+    }
   };
 
   const handleAddNewLocation = () => {
     const trimmed = newLocationName.trim();
     if (!trimmed) return;
 
-    // Create a dummy entry to register the new location (keeps existing behaviour)
-    addEquipment({
-      name: "__placeholder__",
-      location: trimmed,
-      status: "Available",
-      quantity: 0,
-      updatedBy: user?.username || "admin",
+    // Register location without polluting inventory
+    setCustomLocations((prev) => {
+      const exists = prev.some(
+        (l) => String(l).toLowerCase() === String(trimmed).toLowerCase()
+      );
+      return exists ? prev : [...prev, trimmed];
     });
 
     // Route the new location into the appropriate field depending on caller
@@ -178,18 +235,42 @@ const Dashboard = () => {
 
   const handleQuickFromChange = (id) => {
     setQuickFromId(id);
-    const entry = equipment.find((e) => String(e.id) === String(id));
-    setQuickQty(entry ? entry.quantity || 1 : 1);
   };
 
-  const handleQuickMove = () => {
-    if (!quickName || !quickFromId || !quickTo || quickQty <= 0) return;
-    moveEquipment(Number(quickFromId), Number(quickQty), quickTo);
-    // clear
-    setQuickName("");
-    setQuickFromId("");
-    setQuickQty(1);
-    setQuickTo("");
+  const handleQuickMove = async () => {
+    if (!quickName || !quickFromId || !quickTo) return;
+
+    const entry = equipment.find((e) => String(e.id) === String(quickFromId));
+
+    if (!entry) {
+      window.toast?.error?.(
+        "Quick move failed: could not resolve selected item"
+      );
+      return;
+    }
+
+    const max = Number(entry.quantity) || 1;
+    const qtyToMove = Math.min(Math.max(Number(quickQty) || 1, 1), max);
+
+    try {
+      console.log("[QuickMove] entry", entry);
+      window.toast?.info?.(
+        `QuickMove id=${entry?.id} itemId=${entry?.itemId || "-"} name=${
+          entry?.name || "-"
+        }`
+      );
+      await moveEquipment(entry.id, qtyToMove, quickTo);
+      window.toast?.success?.(`Moved ${qtyToMove} to ${quickTo}`);
+
+      // clear
+      setQuickName("");
+      setQuickFromId("");
+      setQuickQty(1);
+      setQuickTo("");
+    } catch (e) {
+      console.error(e);
+      window.toast?.error?.(e?.message || "Quick move failed");
+    }
   };
 
   const handlePdfUpload = (items) => {
@@ -214,6 +295,9 @@ const Dashboard = () => {
   return (
     <div className="p-8 flex flex-col gap-6 text-text relative">
       <h2 className="text-3xl font-bold text-accent">Dashboard</h2>
+      <div className="text-xs text-gray-500 mb-2">
+        Dashboard build: QUICKFIX-01
+      </div>
       <button
         onClick={() => setShowUploadModal(true)}
         disabled={importInProgress}
@@ -268,8 +352,11 @@ const Dashboard = () => {
             <tbody>
               {equipment
                 .filter((item) => item.name !== "__placeholder__")
-                .map((item) => (
-                  <tr key={item.id} className="border-b border-gray-700">
+                .map((item, idx) => (
+                  <tr
+                    key={`${item.id}-${item.location}-${item.name}-${idx}`}
+                    className="border-b border-gray-700"
+                  >
                     <td className="p-2 text-sm text-gray-300">
                       {item.itemId || "-"}
                     </td>
@@ -295,7 +382,10 @@ const Dashboard = () => {
                       </button>
                       <span className="mx-1 text-gray-400">|</span>
                       <button
-                        onClick={() => setMovingItem(item)}
+                        onClick={() => {
+                          setMovingItem({ ...item });
+                          setMoveData({ qty: 1, newLocation: "" });
+                        }}
                         className="text-yellow-400 hover:underline"
                       >
                         Move
@@ -436,8 +526,11 @@ const Dashboard = () => {
             disabled={!quickName}
           >
             <option value="">From (location - qty)</option>
-            {entriesForName(quickName).map((entry) => (
-              <option key={entry.id} value={entry.id}>
+            {entriesForName(quickName).map((entry, idx) => (
+              <option
+                key={`${entry.id}-${entry.location}-${idx}`}
+                value={entry.id}
+              >
                 {entry.location} — {entry.quantity || 1}
               </option>
             ))}
@@ -446,12 +539,17 @@ const Dashboard = () => {
           <input
             type="number"
             min="1"
-            max={
-              equipment.find((e) => String(e.id) === String(quickFromId))
-                ?.quantity || 1
-            }
-            value={quickQty}
-            onChange={(e) => setQuickQty(parseInt(e.target.value) || 1)}
+            value={quickQty === "" ? "" : quickQty}
+            onChange={(e) => {
+              const raw = e.target.value;
+              if (raw === "") {
+                setQuickQty("");
+                return;
+              }
+              const v = parseInt(raw, 10);
+              if (!Number.isFinite(v)) return;
+              setQuickQty(v);
+            }}
             className="px-4 py-2 rounded w-[120px] text-black text-center"
             disabled={!quickFromId}
           />
@@ -490,8 +588,14 @@ const Dashboard = () => {
 
       {/* Move Modal */}
       {movingItem && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/60 z-50">
-          <div className="bg-surface p-6 rounded-xl w-[90%] max-w-md shadow-lg">
+        <div
+          className="fixed inset-0 flex items-center justify-center bg-black/60 z-50"
+          onClick={() => setMovingItem(null)}
+        >
+          <div
+            className="bg-surface p-6 rounded-xl w-[90%] max-w-md shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="text-xl font-bold text-accent mb-4">
               Move {movingItem.name}
             </h3>
@@ -554,8 +658,18 @@ const Dashboard = () => {
 
       {/* Add Location Modal */}
       {showAddLocationModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/60 z-50">
-          <div className="bg-surface p-6 rounded-xl w-[90%] max-w-sm shadow-lg">
+        <div
+          className="fixed inset-0 flex items-center justify-center bg-black/60 z-50"
+          onClick={() => {
+            setShowAddLocationModal(false);
+            setNewLocationName("");
+            setIsAddingLocationTo(null);
+          }}
+        >
+          <div
+            className="bg-surface p-6 rounded-xl w-[90%] max-w-sm shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="text-lg font-bold text-accent mb-4">
               Add New Location
             </h3>

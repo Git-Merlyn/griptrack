@@ -4,7 +4,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { AuthProvider } from "./context/AuthProvider";
 import UserProvider from "./context/UserProvider";
-import EquipmentProvider from "./context/EquipmentProvider";
+import { EquipmentProvider } from "./context/EquipmentContext";
 import App from "./App";
 import "./index.css";
 
