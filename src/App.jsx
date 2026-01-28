@@ -5,6 +5,7 @@ import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import MainLayout from "./components/layout/MainLayout";
 import PasswordGate from "./components/PasswordGate";
+import { Analytics } from "@vercel/analytics/react";
 
 const App = () => {
   return (
@@ -16,6 +17,8 @@ const App = () => {
         </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>
+
+      <Analytics />
     </PasswordGate>
   );
 };
