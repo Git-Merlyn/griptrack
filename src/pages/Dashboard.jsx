@@ -55,6 +55,7 @@ const Dashboard = () => {
   const [newItem, setNewItem] = useState({
     itemId: "",
     name: "",
+    category: "",
     location: "",
     status: "Available",
     rentalStart: "",
@@ -121,6 +122,7 @@ const Dashboard = () => {
     setNewItem({
       itemId: "",
       name: "",
+      category: "",
       location: "",
       status: "Available",
       rentalStart: "",
@@ -133,6 +135,7 @@ const Dashboard = () => {
     setNewItem({
       itemId: item.itemId || "",
       name: item.name,
+      category: item.category || "",
       location: item.location,
       status: item.status,
       rentalStart: item.rentalStart || "",
@@ -147,6 +150,7 @@ const Dashboard = () => {
     setNewItem({
       itemId: "",
       name: "",
+      category: "",
       location: "",
       status: "Available",
       rentalStart: "",
@@ -295,9 +299,7 @@ const Dashboard = () => {
   return (
     <div className="p-8 flex flex-col gap-6 text-text relative">
       <h2 className="text-3xl font-bold text-accent">Dashboard</h2>
-      <div className="text-xs text-gray-500 mb-2">
-        Dashboard build: QUICKFIX-01
-      </div>
+      <div className="text-xs text-gray-500 mb-2"></div>
       <button
         onClick={() => setShowUploadModal(true)}
         disabled={importInProgress}
@@ -338,8 +340,8 @@ const Dashboard = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-gray-600">
-                <th className="p-2 whitespace-nowrap">Item ID</th>
                 <th className="p-2 whitespace-nowrap">Name</th>
+                <th className="p-2 whitespace-nowrap">Category</th>
                 <th className="p-2 whitespace-nowrap">Location</th>
                 <th className="p-2 whitespace-nowrap">Status</th>
                 <th className="p-2 whitespace-nowrap">Qty</th>
@@ -357,10 +359,8 @@ const Dashboard = () => {
                     key={`${item.id}-${item.location}-${item.name}-${idx}`}
                     className="border-b border-gray-700"
                   >
-                    <td className="p-2 text-sm text-gray-300">
-                      {item.itemId || "-"}
-                    </td>
                     <td className="p-2 text-accent font-medium">{item.name}</td>
+                    <td className="p-2">{item.category || "-"}</td>
                     <td className="p-2">{item.location}</td>
                     <td
                       className={`p-2 font-semibold ${statusClass(
@@ -412,16 +412,18 @@ const Dashboard = () => {
         <div className="flex flex-wrap gap-2">
           <input
             type="text"
-            placeholder="Item ID"
-            value={newItem.itemId}
-            onChange={(e) => setNewItem({ ...newItem, itemId: e.target.value })}
+            placeholder="Name"
+            value={newItem.name}
+            onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
             className="flex-1 min-w-[150px] px-3 py-2 rounded bg-white text-black"
           />
           <input
             type="text"
-            placeholder="Name"
-            value={newItem.name}
-            onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
+            placeholder="Category"
+            value={newItem.category}
+            onChange={(e) =>
+              setNewItem({ ...newItem, category: e.target.value })
+            }
             className="flex-1 min-w-[150px] px-3 py-2 rounded bg-white text-black"
           />
           <select
