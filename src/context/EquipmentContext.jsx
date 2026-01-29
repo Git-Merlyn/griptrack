@@ -1,6 +1,10 @@
 import { createContext, useState, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 
+// Allow dev/prod separation via env var
+const EQUIPMENT_TABLE =
+  import.meta.env.VITE_EQUIPMENT_TABLE || "equipment_items";
+
 const EquipmentContext = createContext();
 const DEFAULT_LOCATIONS = [
   "G1",
@@ -22,7 +26,7 @@ export const EquipmentProvider = ({ children }) => {
     new Set([
       ...DEFAULT_LOCATIONS,
       ...(Array.isArray(locations) ? locations : []),
-    ])
+    ]),
   ).sort();
   const [uploadedPDFItems, setUploadedPDFItems] = useState([]);
   const [pdfUploadModalOpen, setPdfUploadModalOpen] = useState(false);
@@ -55,10 +59,10 @@ export const EquipmentProvider = ({ children }) => {
         item?.startDate ??
           item?.start_date ??
           item?.rentalStart ??
-          item?.rental_start
+          item?.rental_start,
       ),
       end_date: safeDateOnly(
-        item?.endDate ?? item?.end_date ?? item?.rentalEnd ?? item?.rental_end
+        item?.endDate ?? item?.end_date ?? item?.rentalEnd ?? item?.rental_end,
       ),
       location: String(item?.location ?? "Unassigned").trim() || "Unassigned",
       status: String(item?.status ?? "Available"),
@@ -89,7 +93,7 @@ export const EquipmentProvider = ({ children }) => {
 
   const loadEquipmentFromSupabase = useCallback(async () => {
     const { data, error } = await supabase
-      .from("equipment_items")
+      .from(EQUIPMENT_TABLE)
       .select("*")
       .order("created_at", { ascending: false });
 
@@ -109,7 +113,7 @@ export const EquipmentProvider = ({ children }) => {
         console.error("Failed to load equipment from Supabase", err);
         if (!cancelled) setEquipmentData([]);
         window.toast?.error?.(
-          err?.message || "Failed to load inventory from Supabase"
+          err?.message || "Failed to load inventory from Supabase",
         );
       }
     };
@@ -125,13 +129,13 @@ export const EquipmentProvider = ({ children }) => {
     const loadLocations = async () => {
       try {
         const { data, error } = await supabase
-          .from("equipment_items")
+          .from(EQUIPMENT_TABLE)
           .select("location");
 
         if (error) throw error;
 
         const locs = Array.from(
-          new Set((data || []).map((r) => r.location).filter(Boolean))
+          new Set((data || []).map((r) => r.location).filter(Boolean)),
         ).sort();
 
         setLocations(locs);
@@ -149,7 +153,7 @@ export const EquipmentProvider = ({ children }) => {
     const rowsToInsert = (items ?? []).map(normalizeItemForInsert);
 
     const { data, error } = await supabase
-      .from("equipment_items")
+      .from(EQUIPMENT_TABLE)
       .insert(rowsToInsert)
       .select("*");
 
@@ -172,7 +176,7 @@ export const EquipmentProvider = ({ children }) => {
     if (!rowId) return;
 
     const { error } = await supabase
-      .from("equipment_items")
+      .from(EQUIPMENT_TABLE)
       .delete()
       .eq("id", rowId);
 
@@ -183,7 +187,7 @@ export const EquipmentProvider = ({ children }) => {
     }
 
     setEquipmentData((prev) =>
-      prev.filter((x) => String(x.id) !== String(rowId))
+      prev.filter((x) => String(x.id) !== String(rowId)),
     );
     window.toast?.success?.("Item deleted");
   };
@@ -210,10 +214,10 @@ export const EquipmentProvider = ({ children }) => {
       location: patch?.location ?? undefined,
       status: patch?.status ?? undefined,
       start_date: safeDateOnly(
-        patch?.rentalStart ?? patch?.startDate ?? patch?.start_date
+        patch?.rentalStart ?? patch?.startDate ?? patch?.start_date,
       ),
       end_date: safeDateOnly(
-        patch?.rentalEnd ?? patch?.endDate ?? patch?.end_date
+        patch?.rentalEnd ?? patch?.endDate ?? patch?.end_date,
       ),
       updated_by: String(patch?.updatedBy ?? patch?.updated_by ?? "admin"),
     };
@@ -224,7 +228,7 @@ export const EquipmentProvider = ({ children }) => {
     });
 
     const { data, error } = await supabase
-      .from("equipment_items")
+      .from(EQUIPMENT_TABLE)
       .update(updatePayload)
       .eq("id", rowId)
       .select("*")
@@ -238,7 +242,7 @@ export const EquipmentProvider = ({ children }) => {
 
     const normalized = normalizeRowFromDb(data);
     setEquipmentData((prev) =>
-      prev.map((x) => (String(x.id) === String(rowId) ? normalized : x))
+      prev.map((x) => (String(x.id) === String(rowId) ? normalized : x)),
     );
     window.toast?.success?.("Item updated");
     return normalized;
