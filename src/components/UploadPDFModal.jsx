@@ -92,18 +92,19 @@ const UploadPDFModal = ({
       setImportInProgress && setImportInProgress(true);
 
       const text = await file.text();
-      const lines = text
-        .split(/\r?\n/)
-        .map((l) => l.trimEnd())
-        .filter((l) => l.length > 0);
+      const lines = text.split(/\r?\n/).map((l) => l.trimEnd());
 
-      if (lines.length < 2) {
+      const nonEmptyLines = lines.filter(
+        (l) => String(l || "").trim().length > 0,
+      );
+      if (nonEmptyLines.length < 2) {
         setPdfParsingStatus && setPdfParsingStatus("error");
         alert("CSV appears empty or missing rows.");
         return;
       }
 
-      const header = parseCsvLine(lines[0]).map((h) => String(h).trim());
+      const headerLine = nonEmptyLines[0];
+      const header = parseCsvLine(headerLine).map((h) => String(h).trim());
       const idxCategory = header.findIndex(
         (h) => h.toLowerCase() === "category",
       );
@@ -120,65 +121,69 @@ const UploadPDFModal = ({
 
       const items = [];
       let currentCategory = "";
-      let currentItemName = "";
-
-      const normalizeCondition = (s) =>
-        String(s || "")
-          .trim()
-          .toLowerCase()
-          .replace(/\s+/g, " ");
+      let currentItemName = ""; // base-name header (sticky until blank line)
 
       const prettyStatus = (s) =>
-        normalizeCondition(s)
+        String(s || "")
+          .trim()
+          .replace(/\s+/g, " ")
           .split(" ")
           .filter(Boolean)
           .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
           .join(" ");
 
-      const conditionWords = new Set([
-        "unopened",
-        "partial",
-        "nearly empty",
-        "nearlyempty",
-        "almost empty",
-        "opened",
-        "empty",
-      ]);
+      // Start data parsing after the header line we used
+      const headerIndexInLines = lines.findIndex((l) => l === headerLine);
+      const startIdx = headerIndexInLines >= 0 ? headerIndexInLines + 1 : 1;
 
-      for (let i = 1; i < lines.length; i++) {
-        const cols = parseCsvLine(lines[i]);
+      for (let i = startIdx; i < lines.length; i++) {
+        const line = String(lines[i] ?? "");
+        const trimmedLine = line.trim();
+
+        // A fully blank row resets grouping
+        if (!trimmedLine) {
+          currentItemName = "";
+          continue;
+        }
+
+        const cols = parseCsvLine(line);
         const rawCategory =
           idxCategory >= 0 ? String(cols[idxCategory] ?? "").trim() : "";
         const rawName = String(cols[idxName] ?? "").trim();
         const rawQty = idxQty >= 0 ? String(cols[idxQty] ?? "").trim() : "";
 
-        // Section/header rows: category set but no name -> set current category and skip
-        if (!rawName) {
+        const nameClean = rawName.replace(/\s+/g, " ").trim();
+        const qtyClean = rawQty.replace(/\s+/g, " ").trim();
+
+        // Category header rows: category set but no name
+        // Treat as a section boundary: reset any active base-name grouping
+        if (!nameClean) {
           if (rawCategory) currentCategory = rawCategory;
+          currentItemName = "";
           continue;
         }
 
         // Keep category sticky if present
         if (rawCategory) currentCategory = rawCategory;
 
-        // If this is an item header row (name present, qty missing), remember it and skip creating an item
-        if (!rawQty) {
-          currentItemName = rawName;
+        // Rule: Name but no qty => base item name header; subsequent rows are statuses until a blank line
+        if (nameClean && !qtyClean) {
+          currentItemName = nameClean;
           continue;
         }
 
-        const nameLower = normalizeCondition(rawName);
+        const qty = parseInt(qtyClean, 10);
+        const finalQty = Number.isFinite(qty) && qty > 0 ? qty : 1;
 
-        // If the "name" cell is actually a condition/status row, apply it to last item name
-        if (conditionWords.has(nameLower) && currentItemName) {
-          const qty = parseInt(rawQty, 10);
+        if (currentItemName) {
+          // Status row under the current base name
           items.push({
             id: "",
             name: currentItemName,
             category: currentCategory || "",
-            status: prettyStatus(rawName),
+            status: prettyStatus(nameClean),
             source: "",
-            quantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
+            quantity: finalQty,
             startDate: "",
             endDate: "",
             location: "",
@@ -186,17 +191,14 @@ const UploadPDFModal = ({
           continue;
         }
 
-        // Otherwise, treat as a normal inventory row
-        currentItemName = rawName;
-        const qty = parseInt(rawQty, 10);
-
+        // Normal row when not in a base-name group
         items.push({
           id: "",
-          name: rawName,
+          name: nameClean,
           category: currentCategory || "",
           status: "Available",
           source: "",
-          quantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
+          quantity: finalQty,
           startDate: "",
           endDate: "",
           location: "",
