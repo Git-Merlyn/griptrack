@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect } from "react";
+import React, { useEffect, useState, useContext } from "react";
 import Modal from "./Modal";
 import EquipmentContext from "../context/EquipmentContext";
 import * as pdfjsLib from "pdfjs-dist";
@@ -21,16 +21,12 @@ const UploadPDFModal = ({
   const [parsedData, setParsedData] = useState([]);
   const [defaultLocation, setDefaultLocation] = useState("");
   const [showSpinner, setShowSpinner] = useState(false);
+
   useEffect(() => {
-    if (pdfParsingStatus === "parsing") {
-      setShowSpinner(true);
-    } else {
-      setShowSpinner(false);
-    }
+    setShowSpinner(pdfParsingStatus === "parsing");
   }, [pdfParsingStatus]);
 
   const parseCsvLine = (line) => {
-    // Basic CSV line parser supporting quotes
     const out = [];
     let cur = "";
     let inQuotes = false;
@@ -51,6 +47,7 @@ const UploadPDFModal = ({
         cur += ch;
       }
     }
+
     out.push(cur);
     return out;
   };
@@ -74,11 +71,11 @@ const UploadPDFModal = ({
 
       const header = parseCsvLine(lines[0]).map((h) => String(h).trim());
       const idxCategory = header.findIndex(
-        (h) => h.toLowerCase() === "category"
+        (h) => h.toLowerCase() === "category",
       );
       const idxName = header.findIndex((h) => h.toLowerCase() === "name");
       const idxQty = header.findIndex(
-        (h) => h.toLowerCase() === "quantity" || h.toLowerCase() === "qty"
+        (h) => h.toLowerCase() === "quantity" || h.toLowerCase() === "qty",
       );
 
       if (idxName === -1) {
@@ -89,7 +86,6 @@ const UploadPDFModal = ({
 
       const items = [];
       let currentCategory = "";
-
       let currentItemName = "";
 
       const normalizeCondition = (s) =>
@@ -139,11 +135,11 @@ const UploadPDFModal = ({
 
         const nameLower = normalizeCondition(rawName);
 
-        // If the "name" cell is actually a condition/status row (Unopened/Partial/etc), apply it to last item name
+        // If the "name" cell is actually a condition/status row, apply it to last item name
         if (conditionWords.has(nameLower) && currentItemName) {
           const qty = parseInt(rawQty, 10);
           items.push({
-            id: "", // internal-only
+            id: "",
             name: currentItemName,
             category: currentCategory || "",
             status: prettyStatus(rawName),
@@ -160,7 +156,7 @@ const UploadPDFModal = ({
         const qty = parseInt(rawQty, 10);
 
         items.push({
-          id: "", // internal-only; CSV doesn't provide item IDs
+          id: "",
           name: rawName,
           category: currentCategory || "",
           status: "Available",
@@ -195,47 +191,205 @@ const UploadPDFModal = ({
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
-      let rawText = "";
+      // Build human-ish lines from positioned PDF text chunks
+      const pageToLines = async (page) => {
+        const content = await page.getTextContent();
+        const items = (content.items || [])
+          .map((it) => {
+            const t = it.transform || [];
+            const x = t[4] ?? 0;
+            const y = t[5] ?? 0;
+            return { str: String(it.str || "").trim(), x, y };
+          })
+          .filter((it) => it.str.length > 0);
+
+        // Group by Y within tolerance
+        const Y_TOL = 1.0;
+        const lines = new Map();
+
+        for (const it of items) {
+          let key = null;
+          for (const k of lines.keys()) {
+            if (Math.abs(k - it.y) <= Y_TOL) {
+              key = k;
+              break;
+            }
+          }
+          if (key === null) key = it.y;
+          const arr = lines.get(key) || [];
+          arr.push(it);
+          lines.set(key, arr);
+        }
+
+        const ys = Array.from(lines.keys()).sort((a, b) => b - a);
+        const out = [];
+
+        for (const y of ys) {
+          const row = lines.get(y) || [];
+          row.sort((a, b) => a.x - b.x);
+
+          const line = row
+            .map((r) => r.str)
+            .join(" ")
+            .replace(/\s+/g, " ")
+            .trim();
+
+          if (line) out.push(line);
+        }
+
+        return out;
+      };
+
+      let allLines = [];
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
-        const content = await page.getTextContent();
-        const strings = content.items.map((item) => item.str);
-        rawText += strings.join(" ") + "\n";
+        const lines = await pageToLines(page);
+        allLines = allLines.concat(lines);
       }
 
-      // Debug: inspect the first chunk of text we got from the PDF
-      console.log("PDF rawText snippet:", rawText.slice(0, 500));
+      console.log("PDF lines sample:", allLines.slice(0, 30));
 
-      // Extract Ship Date and Return Date from the full text
+      // Some scanned PDFs/OCR layers merge multiple table rows into one line.
+      // If a line contains multiple equipment codes, split it into one segment per code.
+      const codeGlobalRe = /\b([A-Z]{3,}[A-Z0-9]*\d{3,})\b/g;
+      const splitMergedLines = (lines) => {
+        const out = [];
+        for (const line of lines) {
+          const matches = Array.from(line.matchAll(codeGlobalRe));
+          if (matches.length <= 1) {
+            out.push(line);
+            continue;
+          }
+
+          for (let i = 0; i < matches.length; i++) {
+            const start = matches[i].index ?? 0;
+            const end =
+              i + 1 < matches.length
+                ? (matches[i + 1].index ?? line.length)
+                : line.length;
+            const seg = line.slice(start, end).replace(/\s+/g, " ").trim();
+            if (seg) out.push(seg);
+          }
+        }
+        return out;
+      };
+
+      const normalizedLines = splitMergedLines(allLines);
+
+      const fullTextForDates = allLines.join("\n");
       let shipDate = "";
       let returnDate = "";
 
-      const shipMatch = rawText.match(/Ship Date[:\s]*([0-9./-]+)/i);
+      const shipMatch = fullTextForDates.match(/Ship Date[:\s]*([0-9./-]+)/i);
       if (shipMatch) shipDate = shipMatch[1].trim();
 
-      const returnMatch = rawText.match(/Return Date[:\s]*([0-9./-]+)/i);
+      const returnMatch = fullTextForDates.match(
+        /Return Date[:\s]*([0-9./-]+)/i,
+      );
       if (returnMatch) returnDate = returnMatch[1].trim();
 
       const items = [];
+      const codeRe = /\b([A-Z]{3,}[A-Z0-9]*\d{3,})\b/;
+      const qtyEndRe = /\b(\d+)\s*$/;
 
-      // ITEMCODE must be 3+ letters followed by 3+ digits (e.g., ALLHA0070, STAND0610)
-      const itemPattern =
-        /\b([A-Z]{3,}[A-Z0-9]*[0-9]{3,})\b\s+(.+?)\s+(\d+)(?=\s+[A-Z]{3,}[A-Z0-9]*[0-9]{3,}\b\s+.+?\s+\d+|$)/g;
+      for (const line of normalizedLines) {
+        const codeMatch = line.match(codeRe);
+        if (!codeMatch) continue;
 
-      let m;
-      while ((m = itemPattern.exec(rawText)) !== null) {
+        const code = codeMatch[1].trim();
+
+        // Description is everything after removing the first code token
+        let remainder = line.replace(codeRe, "").trim();
+
+        // Prefer quantity right after the code ONLY when it looks like a standalone qty token.
+        // Avoid stripping leading dimension text like: 1' x 4'
+        let qty = 1;
+
+        const originalRemainder = remainder;
+
+        // Leading qty token (must be followed by whitespace and NOT immediately followed by a quote/apostrophe)
+        const qtyAfterCodeMatch = remainder.match(
+          /^\s*(\d{1,3})\s+(?!['’"”″])/,
+        );
+
+        // Trailing qty token (at end of remainder)
+        const qtyAtEndMatch = remainder.match(qtyEndRe);
+
+        if (qtyAfterCodeMatch) {
+          const leadingToken = qtyAfterCodeMatch[1];
+          const leadingParsed = parseInt(leadingToken, 10);
+
+          // Remove the leading qty token first
+          remainder = remainder.replace(/^\s*\d{1,3}\s+/, "").trim();
+
+          // Heuristic: some OCR layers split 2-digit quantities like "32" into "2" near the code and "3" at the end.
+          // If we see a 1-digit leading token AND a 1-digit trailing token, combine them into a 2-digit quantity.
+          // Only do this when the remainder doesn't look like it's supposed to end with a number.
+          if (
+            leadingToken.length === 1 &&
+            qtyAtEndMatch &&
+            qtyAtEndMatch[1] &&
+            String(qtyAtEndMatch[1]).length === 1
+          ) {
+            const trailingToken = String(qtyAtEndMatch[1]);
+
+            // If the original remainder ends with something like  ... ) 3  (i.e. digit is isolated), treat as split qty digit.
+            const endsWithIsolatedDigit = /(?:\)|[A-Za-z])\s+\d\s*$/.test(
+              originalRemainder,
+            );
+
+            if (endsWithIsolatedDigit) {
+              // OCR can swap digit order depending on how the circled number is represented.
+              // Try both concatenations and pick the larger (more common for rental quantities).
+              const combinedA = parseInt(`${leadingToken}${trailingToken}`, 10);
+              const combinedB = parseInt(`${trailingToken}${leadingToken}`, 10);
+              const combined = Math.max(
+                Number.isFinite(combinedA) ? combinedA : 0,
+                Number.isFinite(combinedB) ? combinedB : 0,
+              );
+
+              if (combined > 0) {
+                qty = combined;
+                // Remove the trailing digit from the remainder as well
+                remainder = remainder.replace(qtyEndRe, "").trim();
+              } else if (Number.isFinite(leadingParsed)) {
+                qty = leadingParsed;
+              }
+            } else if (Number.isFinite(leadingParsed)) {
+              qty = leadingParsed;
+            }
+          } else if (Number.isFinite(leadingParsed)) {
+            qty = leadingParsed;
+          }
+        } else {
+          // Fallback: quantity at end of line
+          if (qtyAtEndMatch) {
+            const parsed = parseInt(qtyAtEndMatch[1], 10);
+            if (Number.isFinite(parsed)) qty = parsed;
+            remainder = remainder.replace(qtyEndRe, "").trim();
+          }
+        }
+
+        let desc = remainder
+          .replace(/\s*-\s*/g, " - ")
+          .replace(/\s+/g, " ")
+          .trim();
+
+        if (!desc || desc.length < 3) continue;
+
         items.push({
-          id: m[1].trim(),
-          name: m[2].trim(),
+          id: code,
+          name: desc,
           category: "",
-          quantity: parseInt(m[3], 10) || 1,
+          status: "Available",
+          quantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
           startDate: shipDate,
           endDate: returnDate,
           location: "",
         });
       }
 
-      console.log("Parsed items from PDF:", items);
+      console.log("Parsed items from PDF (line-based, split-merged):", items);
 
       if (items.length > 0) {
         setParsedData(items);
@@ -243,14 +397,13 @@ const UploadPDFModal = ({
       } else {
         setPdfParsingStatus && setPdfParsingStatus("error");
         alert(
-          "No matching items found in PDF. Try a clearer/digital PDF or check the file format."
+          "No matching items found in PDF. (Line parsing found zero rows.)",
         );
       }
     } catch (err) {
       console.error("PDF parse error", err);
       setPdfParsingStatus && setPdfParsingStatus("error");
       alert("There was an error reading the PDF. See console for details.");
-      return;
     } finally {
       if (setImportInProgress) setImportInProgress(false);
     }
@@ -259,8 +412,10 @@ const UploadPDFModal = ({
   const handleFileChange = (event) => {
     const file = event.target.files && event.target.files[0];
     if (!file) return;
+
     const name = (file.name || "").toLowerCase();
     const isCsv = file.type === "text/csv" || name.endsWith(".csv");
+
     if (isCsv) return extractDataFromCSV(file);
     return extractDataFromPDF(file);
   };
@@ -276,19 +431,18 @@ const UploadPDFModal = ({
   const assignAllLocations = () => {
     if (!defaultLocation) return;
     setParsedData((prev) =>
-      prev.map((it) => ({ ...it, location: defaultLocation }))
+      prev.map((it) => ({ ...it, location: defaultLocation })),
     );
   };
 
   const handleSubmit = () => {
-    // Basic validation: ensure every parsed row has a location
     const missing = parsedData.some(
-      (r) => !r.location || r.location.trim() === ""
+      (r) => !r.location || r.location.trim() === "",
     );
     if (missing) {
       if (
         !confirm(
-          "Some rows have no location assigned. Continue and leave them blank?"
+          "Some rows have no location assigned. Continue and leave them blank?",
         )
       )
         return;
@@ -299,9 +453,10 @@ const UploadPDFModal = ({
       if (setImportInProgress) setImportInProgress(true);
 
       onUpload(parsedData);
+
       if (window.toast) {
         window.toast(
-          `${parsedData.length} item${parsedData.length !== 1 ? "s" : ""} added`
+          `${parsedData.length} item${parsedData.length !== 1 ? "s" : ""} added`,
         );
       }
 
@@ -333,17 +488,20 @@ const UploadPDFModal = ({
             Parsing PDF, please wait...
           </div>
         )}
+
         {pdfParsingStatus === "uploading" && (
           <div className="flex items-center justify-center gap-2 text-blue-500 font-semibold">
             <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
             Uploading items, please wait...
           </div>
         )}
+
         {pdfParsingStatus === "error" && (
           <div className="text-red-500 font-medium">
             Error parsing PDF/CSV. Please try again or upload a cleaner version.
           </div>
         )}
+
         {pdfParsingStatus === "done" && parsedData.length === 0 && (
           <div className="text-yellow-500 font-medium">
             Parsing complete but no items were detected.
@@ -417,7 +575,7 @@ const UploadPDFModal = ({
               </table>
             </div>
 
-            <div className="flex justify-end mt-4">
+            <div className="flexßjustify-end mt-4">
               <button
                 onClick={handleSubmit}
                 className="px-4 py-2 bg-accent text-white rounded"
