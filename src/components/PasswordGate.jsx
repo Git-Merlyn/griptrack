@@ -17,7 +17,7 @@ export default function PasswordGate({ children }) {
 
   const canUseGate = useMemo(
     () => SITE_PASSWORD.trim().length > 0,
-    [SITE_PASSWORD]
+    [SITE_PASSWORD],
   );
 
   function handleSubmit(e) {
@@ -41,28 +41,9 @@ export default function PasswordGate({ children }) {
     }
   }
 
-  function lock() {
-    setUnlocked(false);
-    localStorage.removeItem(STORAGE_KEY);
-    setInput("");
-    setError("");
-    window.toast?.success?.("Locked.");
-  }
-
   if (unlocked) {
     return (
-      <div className="min-h-screen bg-slate-950 text-gray-100">
-        {/* Optional tiny lock button in top-right */}
-        <div className="fixed top-3 right-3 z-50">
-          <button
-            onClick={lock}
-            className="text-xs px-3 py-2 rounded-lg border border-slate-700 hover:bg-slate-900"
-          >
-            Lock
-          </button>
-        </div>
-        {children}
-      </div>
+      <div className="min-h-screen bg-slate-950 text-gray-100">{children}</div>
     );
   }
 
