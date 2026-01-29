@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
+import FeedbackModal from "./Feedback/FeedbackModal";
 
 const Sidebar = () => {
   const navigate = useNavigate();
@@ -7,6 +8,9 @@ const Sidebar = () => {
   // Mobile drawer
   const [isMobile, setIsMobile] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Feedback modal (desktop)
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 768px)");
@@ -51,6 +55,30 @@ const Sidebar = () => {
       >
         Dashboard
       </NavLink>
+
+      {isMobile ? (
+        <NavLink
+          to="/feedback"
+          onClick={() => onDone?.()}
+          className={({ isActive }) =>
+            `w-full px-4 py-2 text-left transition-colors ${
+              isActive
+                ? "bg-accent/20 text-accent font-semibold"
+                : "text-text/60 hover:text-accent"
+            }`
+          }
+        >
+          Beta Feedback
+        </NavLink>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setFeedbackOpen(true)}
+          className="w-full px-4 py-2 text-left transition-colors text-text/60 hover:text-accent"
+        >
+          Beta Feedback
+        </button>
+      )}
 
       <button
         type="button"
@@ -121,6 +149,14 @@ const Sidebar = () => {
     <>
       {isMobile ? <MobileShell /> : null}
       <DesktopSidebar />
+
+      {/* Desktop-only: quick feedback modal */}
+      {!isMobile && (
+        <FeedbackModal
+          isOpen={feedbackOpen}
+          onClose={() => setFeedbackOpen(false)}
+        />
+      )}
     </>
   );
 };
