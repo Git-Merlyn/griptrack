@@ -103,6 +103,18 @@ const Dashboard = () => {
   // Search
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Mobile layout
+  const [isMobile, setIsMobile] = useState(false);
+  const [showMobileEditModal, setShowMobileEditModal] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 768px)");
+    const apply = () => setIsMobile(mq.matches);
+    apply();
+    mq.addEventListener?.("change", apply);
+    return () => mq.removeEventListener?.("change", apply);
+  }, []);
+
   const toggleSort = (key) => {
     if (sortKey === key) {
       setSortDir((prevDir) => (prevDir === "asc" ? "desc" : "asc"));
@@ -474,7 +486,7 @@ const Dashboard = () => {
   }, [filteredVisibleEquipment, sortKey, sortDir]);
 
   return (
-    <div className="p-8 flex flex-col gap-6 text-text relative">
+    <div className="px-3 sm:px-6 md:p-8 flex flex-col gap-6 text-text relative">
       <h2 className="text-3xl font-bold text-accent">Dashboard</h2>
       <div className="text-xs text-gray-500 mb-2"></div>
       <button
@@ -514,8 +526,8 @@ const Dashboard = () => {
 
       <div className="bg-surface rounded-xl p-6 shadow-md overflow-x-auto">
         {/* Bulk toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
             <input
               type="text"
               value={searchQuery}
@@ -602,308 +614,388 @@ const Dashboard = () => {
           )}
         </div>
 
-        {/* Table */}
-        <div className="min-w-[700px]">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-gray-600">
-                {bulkMode && (
-                  <th className="p-2 whitespace-nowrap">
-                    <input
-                      type="checkbox"
-                      checked={
-                        sortedEquipment.length > 0 &&
-                        selectedIds.length === sortedEquipment.length
-                      }
-                      onChange={(e) => {
-                        if (e.target.checked) selectAllVisible();
-                        else clearSelection();
-                      }}
-                    />
-                  </th>
-                )}
+        {/* Inventory List */}
+        {isMobile ? (
+          <div className="flex flex-col gap-3 -mx-1">
+            {sortedEquipment.map((item) => (
+              <div
+                key={String(item.id)}
+                className="bg-surface border border-gray-700 rounded-xl p-4 mx-1"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-accent truncate">
+                      {item.name}
+                    </div>
 
-                <th className="p-2 whitespace-nowrap">
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("name")}
-                    className="hover:underline"
-                  >
-                    Name{sortArrow("name")}
-                  </button>
-                </th>
-                <th className="p-2 whitespace-nowrap">
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("category")}
-                    className="hover:underline"
-                  >
-                    Category{sortArrow("category")}
-                  </button>
-                </th>
-                <th className="p-2 whitespace-nowrap">
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("location")}
-                    className="hover:underline"
-                  >
-                    Location{sortArrow("location")}
-                  </button>
-                </th>
-                <th className="p-2 whitespace-nowrap">
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("status")}
-                    className="hover:underline"
-                  >
-                    Status{sortArrow("status")}
-                  </button>
-                </th>
-                <th className="p-2 whitespace-nowrap">
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("qty")}
-                    className="hover:underline"
-                  >
-                    Qty{sortArrow("qty")}
-                  </button>
-                </th>
-                <th className="p-2 whitespace-nowrap">
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("start")}
-                    className="hover:underline"
-                  >
-                    Start{sortArrow("start")}
-                  </button>
-                </th>
-                <th className="p-2 whitespace-nowrap">
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("end")}
-                    className="hover:underline"
-                  >
-                    End{sortArrow("end")}
-                  </button>
-                </th>
-                <th className="p-2 whitespace-nowrap">
-                  <button
-                    type="button"
-                    onClick={() => toggleSort("updatedBy")}
-                    className="hover:underline"
-                  >
-                    Updated By{sortArrow("updatedBy")}
-                  </button>
-                </th>
-                <th className="p-2 whitespace-nowrap">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedEquipment.map((item, idx) => (
-                <tr
-                  key={`${item.id}-${item.location}-${item.name}-${idx}`}
-                  className="border-b border-gray-700"
-                >
+                    <div className="text-sm text-gray-300 mt-2">
+                      <span className="text-gray-400">Category:</span>{" "}
+                      {item.category || "-"}
+                    </div>
+                    <div className="text-sm text-gray-300">
+                      <span className="text-gray-400">Location:</span>{" "}
+                      {item.location || "-"}
+                    </div>
+                    <div className="text-sm text-gray-300">
+                      <span className="text-gray-400">Status:</span>{" "}
+                      <span className={statusClass(item.status)}>
+                        {item.status || "-"}
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-300">
+                      <span className="text-gray-400">Qty:</span>{" "}
+                      {item.quantity || 1}
+                    </div>
+                    <div className="text-xs text-gray-400 mt-2">
+                      Start: {item.rentalStart || "-"} • End:{" "}
+                      {item.rentalEnd || "-"}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      Updated by: {item.updatedBy || "-"}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleEdit(item);
+                        setShowMobileEditModal(true);
+                      }}
+                      disabled={editingId !== null}
+                      className={`px-3 py-2 rounded-lg border border-blue-500/40 bg-blue-600/20 text-blue-200 ${
+                        editingId !== null
+                          ? "opacity-50 cursor-not-allowed"
+                          : ""
+                      }`}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMovingItem({ ...item });
+                        setMoveData({ qty: 1, newLocation: "" });
+                      }}
+                      className="px-3 py-2 rounded-lg border border-yellow-500/30 bg-yellow-600/15 text-yellow-200"
+                    >
+                      Move
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteEquipment(item.id)}
+                      className="px-3 py-2 rounded-lg border border-red-500/30 bg-red-600/15 text-red-200"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="min-w-[700px]">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-gray-600">
                   {bulkMode && (
-                    <td className="p-2">
+                    <th className="p-2 whitespace-nowrap">
                       <input
                         type="checkbox"
-                        checked={isSelected(item.id)}
-                        onChange={() => toggleSelected(item.id)}
+                        checked={
+                          sortedEquipment.length > 0 &&
+                          selectedIds.length === sortedEquipment.length
+                        }
+                        onChange={(e) => {
+                          if (e.target.checked) selectAllVisible();
+                          else clearSelection();
+                        }}
                       />
-                    </td>
+                    </th>
                   )}
 
-                  <td className="p-2 text-accent font-medium">
-                    {editingId === item.id ? (
-                      <input
-                        type="text"
-                        value={newItem.name}
-                        onChange={(e) =>
-                          handleInlineChange("name", e.target.value)
-                        }
-                        className="w-full px-2 py-1 rounded bg-white text-black"
-                      />
-                    ) : (
-                      item.name
-                    )}
-                  </td>
-
-                  <td className="p-2">
-                    {editingId === item.id ? (
-                      <input
-                        type="text"
-                        value={newItem.category}
-                        onChange={(e) =>
-                          handleInlineChange("category", e.target.value)
-                        }
-                        className="w-full px-2 py-1 rounded bg-white text-black"
-                      />
-                    ) : (
-                      item.category || "-"
-                    )}
-                  </td>
-
-                  <td className="p-2">
-                    {editingId === item.id ? (
-                      <select
-                        value={newItem.location}
-                        onChange={(e) => {
-                          if (e.target.value === "__add_new__") {
-                            setIsAddingLocationTo("new");
-                            setShowAddLocationModal(true);
-                          } else {
-                            handleInlineChange("location", e.target.value);
-                          }
-                        }}
-                        className="w-full px-2 py-1 rounded bg-white text-black"
-                      >
-                        <option value="">Select location</option>
-                        {allLocations.map((loc) => (
-                          <option key={loc} value={loc}>
-                            {loc}
-                          </option>
-                        ))}
-                        <option value="__add_new__">
-                          ➕ Add new location...
-                        </option>
-                      </select>
-                    ) : (
-                      item.location
-                    )}
-                  </td>
-
-                  <td
-                    className={`p-2 font-semibold ${statusClass(item.status)}`}
-                  >
-                    {editingId === item.id ? (
-                      <select
-                        value={newItem.status}
-                        onChange={(e) =>
-                          handleInlineChange("status", e.target.value)
-                        }
-                        className="w-full px-2 py-1 rounded bg-white text-black font-normal"
-                      >
-                        {statusOptions.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      item.status
-                    )}
-                  </td>
-
-                  <td className="p-2">
-                    {editingId === item.id ? (
-                      <input
-                        type="number"
-                        min="1"
-                        value={newItem.quantity}
-                        onChange={(e) =>
-                          handleInlineChange(
-                            "quantity",
-                            parseInt(e.target.value, 10) || 1,
-                          )
-                        }
-                        className="w-full px-2 py-1 rounded bg-white text-black"
-                      />
-                    ) : (
-                      item.quantity || 1
-                    )}
-                  </td>
-
-                  <td className="p-2">
-                    {editingId === item.id ? (
-                      <input
-                        type="date"
-                        value={newItem.rentalStart || ""}
-                        onChange={(e) =>
-                          handleInlineChange("rentalStart", e.target.value)
-                        }
-                        className="w-full px-2 py-1 rounded bg-white text-black"
-                      />
-                    ) : (
-                      item.rentalStart || "-"
-                    )}
-                  </td>
-
-                  <td className="p-2">
-                    {editingId === item.id ? (
-                      <input
-                        type="date"
-                        value={newItem.rentalEnd || ""}
-                        onChange={(e) =>
-                          handleInlineChange("rentalEnd", e.target.value)
-                        }
-                        className="w-full px-2 py-1 rounded bg-white text-black"
-                      />
-                    ) : (
-                      item.rentalEnd || "-"
-                    )}
-                  </td>
-
-                  <td className="p-2">{item.updatedBy}</td>
-
-                  <td className="p-2 whitespace-nowrap">
-                    {editingId === item.id ? (
-                      <>
-                        <button
-                          onClick={handleAddOrUpdate}
-                          className="text-green-400 hover:underline"
-                        >
-                          Save
-                        </button>
-                        <span className="mx-1 text-gray-400">|</span>
-                        <button
-                          onClick={handleCancelEdit}
-                          className="text-gray-300 hover:underline"
-                        >
-                          Cancel
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => handleEdit(item)}
-                          disabled={editingId !== null}
-                          className={`text-blue-400 hover:underline ${
-                            editingId !== null
-                              ? "opacity-50 cursor-not-allowed"
-                              : ""
-                          }`}
-                        >
-                          Edit
-                        </button>
-                        <span className="mx-1 text-gray-400">|</span>
-                        <button
-                          onClick={() => {
-                            setMovingItem({ ...item });
-                            setMoveData({ qty: 1, newLocation: "" });
-                          }}
-                          className="text-yellow-400 hover:underline"
-                        >
-                          Move
-                        </button>
-                        <span className="mx-1 text-gray-400">|</span>
-                        <button
-                          onClick={() => deleteEquipment(item.id)}
-                          className="text-red-400 hover:underline"
-                        >
-                          Delete
-                        </button>
-                      </>
-                    )}
-                  </td>
+                  <th className="p-2 whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => toggleSort("name")}
+                      className="hover:underline"
+                    >
+                      Name{sortArrow("name")}
+                    </button>
+                  </th>
+                  <th className="p-2 whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => toggleSort("category")}
+                      className="hover:underline"
+                    >
+                      Category{sortArrow("category")}
+                    </button>
+                  </th>
+                  <th className="p-2 whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => toggleSort("location")}
+                      className="hover:underline"
+                    >
+                      Location{sortArrow("location")}
+                    </button>
+                  </th>
+                  <th className="p-2 whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => toggleSort("status")}
+                      className="hover:underline"
+                    >
+                      Status{sortArrow("status")}
+                    </button>
+                  </th>
+                  <th className="p-2 whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => toggleSort("qty")}
+                      className="hover:underline"
+                    >
+                      Qty{sortArrow("qty")}
+                    </button>
+                  </th>
+                  <th className="p-2 whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => toggleSort("start")}
+                      className="hover:underline"
+                    >
+                      Start{sortArrow("start")}
+                    </button>
+                  </th>
+                  <th className="p-2 whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => toggleSort("end")}
+                      className="hover:underline"
+                    >
+                      End{sortArrow("end")}
+                    </button>
+                  </th>
+                  <th className="p-2 whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => toggleSort("updatedBy")}
+                      className="hover:underline"
+                    >
+                      Updated By{sortArrow("updatedBy")}
+                    </button>
+                  </th>
+                  <th className="p-2 whitespace-nowrap">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {sortedEquipment.map((item, idx) => (
+                  <tr
+                    key={`${item.id}-${item.location}-${item.name}-${idx}`}
+                    className="border-b border-gray-700"
+                  >
+                    {bulkMode && (
+                      <td className="p-2">
+                        <input
+                          type="checkbox"
+                          checked={isSelected(item.id)}
+                          onChange={() => toggleSelected(item.id)}
+                        />
+                      </td>
+                    )}
+
+                    <td className="p-2 text-accent font-medium">
+                      {editingId === item.id ? (
+                        <input
+                          type="text"
+                          value={newItem.name}
+                          onChange={(e) =>
+                            handleInlineChange("name", e.target.value)
+                          }
+                          className="w-full px-2 py-1 rounded bg-white text-black"
+                        />
+                      ) : (
+                        item.name
+                      )}
+                    </td>
+
+                    <td className="p-2">
+                      {editingId === item.id ? (
+                        <input
+                          type="text"
+                          value={newItem.category}
+                          onChange={(e) =>
+                            handleInlineChange("category", e.target.value)
+                          }
+                          className="w-full px-2 py-1 rounded bg-white text-black"
+                        />
+                      ) : (
+                        item.category || "-"
+                      )}
+                    </td>
+
+                    <td className="p-2">
+                      {editingId === item.id ? (
+                        <select
+                          value={newItem.location}
+                          onChange={(e) => {
+                            if (e.target.value === "__add_new__") {
+                              setIsAddingLocationTo("new");
+                              setShowAddLocationModal(true);
+                            } else {
+                              handleInlineChange("location", e.target.value);
+                            }
+                          }}
+                          className="w-full px-2 py-1 rounded bg-white text-black"
+                        >
+                          <option value="">Select location</option>
+                          {allLocations.map((loc) => (
+                            <option key={loc} value={loc}>
+                              {loc}
+                            </option>
+                          ))}
+                          <option value="__add_new__">
+                            ➕ Add new location...
+                          </option>
+                        </select>
+                      ) : (
+                        item.location
+                      )}
+                    </td>
+
+                    <td
+                      className={`p-2 font-semibold ${statusClass(item.status)}`}
+                    >
+                      {editingId === item.id ? (
+                        <select
+                          value={newItem.status}
+                          onChange={(e) =>
+                            handleInlineChange("status", e.target.value)
+                          }
+                          className="w-full px-2 py-1 rounded bg-white text-black font-normal"
+                        >
+                          {statusOptions.map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        item.status
+                      )}
+                    </td>
+
+                    <td className="p-2">
+                      {editingId === item.id ? (
+                        <input
+                          type="number"
+                          min="1"
+                          value={newItem.quantity}
+                          onChange={(e) =>
+                            handleInlineChange(
+                              "quantity",
+                              parseInt(e.target.value, 10) || 1,
+                            )
+                          }
+                          className="w-full px-2 py-1 rounded bg-white text-black"
+                        />
+                      ) : (
+                        item.quantity || 1
+                      )}
+                    </td>
+
+                    <td className="p-2">
+                      {editingId === item.id ? (
+                        <input
+                          type="date"
+                          value={newItem.rentalStart || ""}
+                          onChange={(e) =>
+                            handleInlineChange("rentalStart", e.target.value)
+                          }
+                          className="w-full px-2 py-1 rounded bg-white text-black"
+                        />
+                      ) : (
+                        item.rentalStart || "-"
+                      )}
+                    </td>
+
+                    <td className="p-2">
+                      {editingId === item.id ? (
+                        <input
+                          type="date"
+                          value={newItem.rentalEnd || ""}
+                          onChange={(e) =>
+                            handleInlineChange("rentalEnd", e.target.value)
+                          }
+                          className="w-full px-2 py-1 rounded bg-white text-black"
+                        />
+                      ) : (
+                        item.rentalEnd || "-"
+                      )}
+                    </td>
+
+                    <td className="p-2">{item.updatedBy}</td>
+
+                    <td className="p-2 whitespace-nowrap">
+                      {editingId === item.id ? (
+                        <>
+                          <button
+                            onClick={handleAddOrUpdate}
+                            className="text-green-400 hover:underline"
+                          >
+                            Save
+                          </button>
+                          <span className="mx-1 text-gray-400">|</span>
+                          <button
+                            onClick={handleCancelEdit}
+                            className="text-gray-300 hover:underline"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleEdit(item)}
+                            disabled={editingId !== null}
+                            className={`text-blue-400 hover:underline ${
+                              editingId !== null
+                                ? "opacity-50 cursor-not-allowed"
+                                : ""
+                            }`}
+                          >
+                            Edit
+                          </button>
+                          <span className="mx-1 text-gray-400">|</span>
+                          <button
+                            onClick={() => {
+                              setMovingItem({ ...item });
+                              setMoveData({ qty: 1, newLocation: "" });
+                            }}
+                            className="text-yellow-400 hover:underline"
+                          >
+                            Move
+                          </button>
+                          <span className="mx-1 text-gray-400">|</span>
+                          <button
+                            onClick={() => deleteEquipment(item.id)}
+                            className="text-red-400 hover:underline"
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      <div className="bg-surface p-6 rounded-xl w-full shadow-md">
+      <div className="hidden md:block bg-surface p-6 rounded-xl w-full shadow-md">
         <h3 className="text-xl font-bold mb-4 text-center text-accent">
           {editingId ? "Edit Equipment" : "Add New Equipment"}
         </h3>
@@ -1003,7 +1095,7 @@ const Dashboard = () => {
       </div>
 
       {/* Quick Edit Section */}
-      <div className="bg-surface p-6 rounded-xl w-full shadow-md">
+      <div className="hidden md:block bg-surface p-6 rounded-xl w-full shadow-md">
         <h3 className="text-xl font-bold mb-4 text-center text-accent">
           Quick Edit
         </h3>
@@ -1087,6 +1179,134 @@ const Dashboard = () => {
           </button>
         </div>
       </div>
+
+      {/* Mobile Edit Modal */}
+      {isMobile && showMobileEditModal && editingId !== null && (
+        <div
+          className="fixed inset-0 flex items-center justify-center bg-black/60 z-50"
+          onClick={() => {
+            setShowMobileEditModal(false);
+            handleCancelEdit();
+          }}
+        >
+          <div
+            className="bg-surface p-6 rounded-xl w-[92%] max-w-md shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-xl font-bold text-accent mb-4">Edit Item</h3>
+
+            <div className="flex flex-col gap-3">
+              <label className="text-sm text-gray-300">Name</label>
+              <input
+                type="text"
+                value={newItem.name}
+                onChange={(e) => handleInlineChange("name", e.target.value)}
+                className="w-full px-3 py-2 rounded bg-white text-black"
+              />
+
+              <label className="text-sm text-gray-300">Category</label>
+              <input
+                type="text"
+                value={newItem.category}
+                onChange={(e) => handleInlineChange("category", e.target.value)}
+                className="w-full px-3 py-2 rounded bg-white text-black"
+              />
+
+              <label className="text-sm text-gray-300">Location</label>
+              <select
+                value={newItem.location}
+                onChange={(e) => {
+                  if (e.target.value === "__add_new__") {
+                    setIsAddingLocationTo("new");
+                    setShowAddLocationModal(true);
+                  } else {
+                    handleInlineChange("location", e.target.value);
+                  }
+                }}
+                className="w-full px-3 py-2 rounded bg-white text-black"
+              >
+                <option value="">Select location</option>
+                {allLocations.map((loc) => (
+                  <option key={loc} value={loc}>
+                    {loc}
+                  </option>
+                ))}
+                <option value="__add_new__">➕ Add new location...</option>
+              </select>
+
+              <label className="text-sm text-gray-300">Status</label>
+              <select
+                value={newItem.status}
+                onChange={(e) => handleInlineChange("status", e.target.value)}
+                className="w-full px-3 py-2 rounded bg-white text-black"
+              >
+                {statusOptions.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+
+              <label className="text-sm text-gray-300">Quantity</label>
+              <input
+                type="number"
+                min="1"
+                value={newItem.quantity}
+                onChange={(e) =>
+                  handleInlineChange(
+                    "quantity",
+                    parseInt(e.target.value, 10) || 1,
+                  )
+                }
+                className="w-full px-3 py-2 rounded bg-white text-black"
+              />
+
+              <label className="text-sm text-gray-300">Start Date</label>
+              <input
+                type="date"
+                value={newItem.rentalStart || ""}
+                onChange={(e) =>
+                  handleInlineChange("rentalStart", e.target.value)
+                }
+                className="w-full px-3 py-2 rounded bg-white text-black"
+              />
+
+              <label className="text-sm text-gray-300">End Date</label>
+              <input
+                type="date"
+                value={newItem.rentalEnd || ""}
+                onChange={(e) =>
+                  handleInlineChange("rentalEnd", e.target.value)
+                }
+                className="w-full px-3 py-2 rounded bg-white text-black"
+              />
+
+              <div className="flex justify-end gap-2 mt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMobileEditModal(false);
+                    handleCancelEdit();
+                  }}
+                  className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleAddOrUpdate();
+                    setShowMobileEditModal(false);
+                  }}
+                  className="px-4 py-2 bg-accent text-white rounded hover:bg-cyan-400"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Move Modal */}
       {movingItem && (
