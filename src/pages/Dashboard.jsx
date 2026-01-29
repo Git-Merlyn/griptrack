@@ -1239,105 +1239,113 @@ const Dashboard = () => {
           }}
         >
           <div
-            className="bg-surface p-6 rounded-xl w-[92%] max-w-md shadow-lg"
+            className="bg-surface rounded-xl w-[94%] max-w-md shadow-lg max-h-[calc(100dvh-24px)] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-xl font-bold text-accent mb-4">Edit Item</h3>
+            <div className="px-6 pt-[calc(env(safe-area-inset-top)+12px)] pb-4">
+              <h3 className="text-xl font-bold text-accent">Edit Item</h3>
+            </div>
 
-            <div className="flex flex-col gap-3">
-              <label className="text-sm text-gray-300">Name</label>
-              <input
-                type="text"
-                value={newItem.name}
-                onChange={(e) => handleInlineChange("name", e.target.value)}
-                className="w-full px-3 py-2 rounded bg-white text-black"
-              />
+            <div className="px-6 pb-6 overflow-y-auto flex-1">
+              <div className="flex flex-col gap-3">
+                <label className="text-sm text-gray-300">Name</label>
+                <input
+                  type="text"
+                  value={newItem.name}
+                  onChange={(e) => handleInlineChange("name", e.target.value)}
+                  className="w-full px-3 py-2 rounded bg-white text-black"
+                />
 
-              <label className="text-sm text-gray-300">Category</label>
-              <input
-                type="text"
-                value={newItem.category}
-                onChange={(e) => handleInlineChange("category", e.target.value)}
-                className="w-full px-3 py-2 rounded bg-white text-black"
-              />
-              <label className="text-sm text-gray-300">Source</label>
-              <input
-                type="text"
-                value={newItem.source}
-                onChange={(e) => handleInlineChange("source", e.target.value)}
-                className="w-full px-3 py-2 rounded bg-white text-black"
-              />
-
-              <label className="text-sm text-gray-300">Location</label>
-              <select
-                value={newItem.location}
-                onChange={(e) => {
-                  if (e.target.value === "__add_new__") {
-                    setIsAddingLocationTo("new");
-                    setShowAddLocationModal(true);
-                  } else {
-                    handleInlineChange("location", e.target.value);
+                <label className="text-sm text-gray-300">Category</label>
+                <input
+                  type="text"
+                  value={newItem.category}
+                  onChange={(e) =>
+                    handleInlineChange("category", e.target.value)
                   }
-                }}
-                className="w-full px-3 py-2 rounded bg-white text-black"
-              >
-                <option value="">Select location</option>
-                {allLocations.map((loc) => (
-                  <option key={loc} value={loc}>
-                    {loc}
-                  </option>
-                ))}
-                <option value="__add_new__">➕ Add new location...</option>
-              </select>
+                  className="w-full px-3 py-2 rounded bg-white text-black"
+                />
+                <label className="text-sm text-gray-300">Source</label>
+                <input
+                  type="text"
+                  value={newItem.source}
+                  onChange={(e) => handleInlineChange("source", e.target.value)}
+                  className="w-full px-3 py-2 rounded bg-white text-black"
+                />
 
-              <label className="text-sm text-gray-300">Status</label>
-              <select
-                value={newItem.status}
-                onChange={(e) => handleInlineChange("status", e.target.value)}
-                className="w-full px-3 py-2 rounded bg-white text-black"
-              >
-                {statusOptions.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
+                <label className="text-sm text-gray-300">Location</label>
+                <select
+                  value={newItem.location}
+                  onChange={(e) => {
+                    if (e.target.value === "__add_new__") {
+                      setIsAddingLocationTo("new");
+                      setShowAddLocationModal(true);
+                    } else {
+                      handleInlineChange("location", e.target.value);
+                    }
+                  }}
+                  className="w-full px-3 py-2 rounded bg-white text-black"
+                >
+                  <option value="">Select location</option>
+                  {allLocations.map((loc) => (
+                    <option key={loc} value={loc}>
+                      {loc}
+                    </option>
+                  ))}
+                  <option value="__add_new__">➕ Add new location...</option>
+                </select>
 
-              <label className="text-sm text-gray-300">Quantity</label>
-              <input
-                type="number"
-                min="1"
-                value={newItem.quantity}
-                onChange={(e) =>
-                  handleInlineChange(
-                    "quantity",
-                    parseInt(e.target.value, 10) || 1,
-                  )
-                }
-                className="w-full px-3 py-2 rounded bg-white text-black"
-              />
+                <label className="text-sm text-gray-300">Status</label>
+                <select
+                  value={newItem.status}
+                  onChange={(e) => handleInlineChange("status", e.target.value)}
+                  className="w-full px-3 py-2 rounded bg-white text-black"
+                >
+                  {statusOptions.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
 
-              <label className="text-sm text-gray-300">Start Date</label>
-              <input
-                type="date"
-                value={newItem.rentalStart || ""}
-                onChange={(e) =>
-                  handleInlineChange("rentalStart", e.target.value)
-                }
-                className="w-full px-3 py-2 rounded bg-white text-black"
-              />
+                <label className="text-sm text-gray-300">Quantity</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={newItem.quantity}
+                  onChange={(e) =>
+                    handleInlineChange(
+                      "quantity",
+                      parseInt(e.target.value, 10) || 1,
+                    )
+                  }
+                  className="w-full px-3 py-2 rounded bg-white text-black"
+                />
 
-              <label className="text-sm text-gray-300">End Date</label>
-              <input
-                type="date"
-                value={newItem.rentalEnd || ""}
-                onChange={(e) =>
-                  handleInlineChange("rentalEnd", e.target.value)
-                }
-                className="w-full px-3 py-2 rounded bg-white text-black"
-              />
+                <label className="text-sm text-gray-300">Start Date</label>
+                <input
+                  type="date"
+                  value={newItem.rentalStart || ""}
+                  onChange={(e) =>
+                    handleInlineChange("rentalStart", e.target.value)
+                  }
+                  className="w-full px-3 py-2 rounded bg-white text-black"
+                />
 
-              <div className="flex justify-end gap-2 mt-4">
+                <label className="text-sm text-gray-300">End Date</label>
+                <input
+                  type="date"
+                  value={newItem.rentalEnd || ""}
+                  onChange={(e) =>
+                    handleInlineChange("rentalEnd", e.target.value)
+                  }
+                  className="w-full px-3 py-2 rounded bg-white text-black"
+                />
+              </div>
+            </div>
+
+            <div className="px-6 pt-4 pb-[calc(env(safe-area-inset-bottom)+16px)] border-t border-white/10 bg-surface">
+              <div className="flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => {
