@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect } from "react";
+import React, { useContext, useState, useEffect, useMemo } from "react";
 import UploadPDFModal from "../components/UploadPDFModal";
 import EquipmentContext from "../context/EquipmentContext";
 import UserContext from "../context/UserContext";
@@ -39,7 +39,7 @@ const Dashboard = () => {
     try {
       localStorage.setItem(
         "griptrack_custom_locations",
-        JSON.stringify(customLocations)
+        JSON.stringify(customLocations),
       );
     } catch (e) {
       console.warn("Failed to save custom locations", e);
@@ -51,7 +51,7 @@ const Dashboard = () => {
       ...(Array.isArray(contextLocations) ? contextLocations : []),
       ...equipment.map((e) => e.location).filter(Boolean),
       ...customLocations.filter(Boolean),
-    ])
+    ]),
   ).sort();
 
   const statusOptions = Array.from(
@@ -60,7 +60,7 @@ const Dashboard = () => {
       "Out",
       "Damaged",
       ...equipment.map((e) => e.status).filter(Boolean),
-    ])
+    ]),
   ).sort((a, b) => String(a).localeCompare(String(b)));
 
   const [newItem, setNewItem] = useState({
@@ -100,6 +100,8 @@ const Dashboard = () => {
   // Table sorting
   const [sortKey, setSortKey] = useState("name");
   const [sortDir, setSortDir] = useState("asc"); // 'asc' | 'desc'
+  // Search
+  const [searchQuery, setSearchQuery] = useState("");
 
   const toggleSort = (key) => {
     if (sortKey === key) {
@@ -211,7 +213,7 @@ const Dashboard = () => {
   const toggleSelected = (id) => {
     const sid = String(id);
     setSelectedIds((prev) =>
-      prev.includes(sid) ? prev.filter((x) => x !== sid) : [...prev, sid]
+      prev.includes(sid) ? prev.filter((x) => x !== sid) : [...prev, sid],
     );
   };
 
@@ -265,12 +267,12 @@ const Dashboard = () => {
             rentalEnd: row.rentalEnd || "",
             quantity: row.quantity || 1,
             updatedBy: user?.username || "admin",
-          })
+          }),
         );
       }
 
       window.toast?.success?.(
-        `Updated location for ${selectedIds.length} item(s)`
+        `Updated location for ${selectedIds.length} item(s)`,
       );
       setBulkLocation("");
       clearSelection();
@@ -287,12 +289,12 @@ const Dashboard = () => {
       window.toast?.info?.(
         `MoveSubmit id=${movingItem?.id} itemId=${
           movingItem?.itemId || "-"
-        } name=${movingItem?.name || "-"}`
+        } name=${movingItem?.name || "-"}`,
       );
       await moveEquipment(
         Number(movingItem.id),
         Number(moveData.qty),
-        moveData.newLocation
+        moveData.newLocation,
       );
       setMovingItem(null);
       setMoveData({ qty: 1, newLocation: "" });
@@ -309,7 +311,7 @@ const Dashboard = () => {
     // Register location without polluting inventory
     setCustomLocations((prev) => {
       const exists = prev.some(
-        (l) => String(l).toLowerCase() === String(trimmed).toLowerCase()
+        (l) => String(l).toLowerCase() === String(trimmed).toLowerCase(),
       );
       return exists ? prev : [...prev, trimmed];
     });
@@ -333,8 +335,8 @@ const Dashboard = () => {
   // Quick Edit helpers
   const names = Array.from(
     new Set(
-      equipment.map((e) => e.name).filter((n) => n && n !== "__placeholder__")
-    )
+      equipment.map((e) => e.name).filter((n) => n && n !== "__placeholder__"),
+    ),
   ).sort();
 
   const entriesForName = (name) =>
@@ -358,7 +360,7 @@ const Dashboard = () => {
 
     if (!entry) {
       window.toast?.error?.(
-        "Quick move failed: could not resolve selected item"
+        "Quick move failed: could not resolve selected item",
       );
       return;
     }
@@ -371,7 +373,7 @@ const Dashboard = () => {
       window.toast?.info?.(
         `QuickMove id=${entry?.id} itemId=${entry?.itemId || "-"} name=${
           entry?.name || "-"
-        }`
+        }`,
       );
       await moveEquipment(entry.id, qtyToMove, quickTo);
       window.toast?.success?.(`Moved ${qtyToMove} to ${quickTo}`);
@@ -407,46 +409,69 @@ const Dashboard = () => {
     });
   };
 
-  const visibleEquipment = equipment.filter(
-    (item) => item.name !== "__placeholder__"
-  );
+  const visibleEquipment = useMemo(() => {
+    const list = Array.isArray(equipment) ? equipment : [];
+    return list.filter((item) => item?.name && item.name !== "__placeholder__");
+  }, [equipment]);
 
-  const sortedEquipment = [...visibleEquipment].sort((a, b) => {
-    const dir = sortDir === "asc" ? 1 : -1;
+  const filteredVisibleEquipment = useMemo(() => {
+    const q = String(searchQuery || "")
+      .trim()
+      .toLowerCase();
+    if (!q) return visibleEquipment;
 
-    const getVal = (row) => {
-      switch (sortKey) {
-        case "qty":
-          return Number(row.quantity) || 0;
-        case "start":
-          return row.rentalStart || "";
-        case "end":
-          return row.rentalEnd || "";
-        case "status":
-          return row.status || "";
-        case "location":
-          return row.location || "";
-        case "category":
-          return row.category || "";
-        case "updatedBy":
-          return row.updatedBy || "";
-        case "name":
-        default:
-          return row.name || "";
+    return visibleEquipment.filter((e) => {
+      const hay = [e?.name, e?.itemId, e?.category, e?.location, e?.status]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return hay.includes(q);
+    });
+  }, [visibleEquipment, searchQuery]);
+
+  const sortedEquipment = useMemo(() => {
+    const rows = [...filteredVisibleEquipment];
+
+    rows.sort((a, b) => {
+      const dir = sortDir === "asc" ? 1 : -1;
+
+      const getVal = (row) => {
+        switch (sortKey) {
+          case "qty":
+            return Number(row.quantity) || 0;
+          case "start":
+            return row.rentalStart || "";
+          case "end":
+            return row.rentalEnd || "";
+          case "status":
+            return row.status || "";
+          case "location":
+            return row.location || "";
+          case "category":
+            return row.category || "";
+          case "updatedBy":
+            return row.updatedBy || "";
+          case "name":
+          default:
+            return row.name || "";
+        }
+      };
+
+      const av = getVal(a);
+      const bv = getVal(b);
+
+      if (typeof av === "number" && typeof bv === "number") {
+        return (av - bv) * dir;
       }
-    };
 
-    const av = getVal(a);
-    const bv = getVal(b);
+      return (
+        String(av).toLowerCase().localeCompare(String(bv).toLowerCase()) * dir
+      );
+    });
 
-    if (typeof av === "number" && typeof bv === "number") {
-      return (av - bv) * dir;
-    }
-
-    return (
-      String(av).toLowerCase().localeCompare(String(bv).toLowerCase()) * dir
-    );
-  });
+    return rows;
+  }, [filteredVisibleEquipment, sortKey, sortDir]);
 
   return (
     <div className="p-8 flex flex-col gap-6 text-text relative">
@@ -490,6 +515,24 @@ const Dashboard = () => {
       <div className="bg-surface rounded-xl p-6 shadow-md overflow-x-auto">
         {/* Bulk toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search name, ID, category, location, status…"
+              className="w-full max-w-md px-3 py-2 rounded-lg bg-surface border border-gray-700 text-text placeholder:text-text/40 focus:outline-none focus:ring-2 focus:ring-accent/40"
+            />
+            {searchQuery.trim() ? (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="px-3 py-2 rounded-lg border border-gray-700 text-text/70 hover:text-accent hover:border-accent/60 transition"
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -761,7 +804,7 @@ const Dashboard = () => {
                         onChange={(e) =>
                           handleInlineChange(
                             "quantity",
-                            parseInt(e.target.value, 10) || 1
+                            parseInt(e.target.value, 10) || 1,
                           )
                         }
                         className="w-full px-2 py-1 rounded bg-white text-black"
