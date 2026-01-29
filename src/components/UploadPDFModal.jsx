@@ -230,9 +230,9 @@ const UploadPDFModal = ({
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
       // Build human-ish lines from positioned PDF text chunks
-      const pageToLines = async (page) => {
+      const pageToLines = async (page, pageNum) => {
         const content = await page.getTextContent();
-        const items = (content.items || [])
+        const chunks = (content.items || [])
           .map((it) => {
             const t = it.transform || [];
             const x = t[4] ?? 0;
@@ -241,11 +241,10 @@ const UploadPDFModal = ({
           })
           .filter((it) => it.str.length > 0);
 
-        // Group by Y within tolerance
         const Y_TOL = 1.0;
         const lines = new Map();
 
-        for (const it of items) {
+        for (const it of chunks) {
           let key = null;
           for (const k of lines.keys()) {
             if (Math.abs(k - it.y) <= Y_TOL) {
@@ -261,31 +260,120 @@ const UploadPDFModal = ({
 
         const ys = Array.from(lines.keys()).sort((a, b) => b - a);
         const out = [];
+        const codeTokenRe = /^([A-Z]{3,}[A-Z0-9]*\d{3,})$/;
 
         for (const y of ys) {
           const row = lines.get(y) || [];
           row.sort((a, b) => a.x - b.x);
 
-          const line = row
+          const text = row
             .map((r) => r.str)
             .join(" ")
             .replace(/\s+/g, " ")
             .trim();
 
-          if (line) out.push(line);
+          if (!text) continue;
+
+          let hasCode = false;
+          let codeX = row.length ? row[0].x : 0;
+          let descX = row.length ? row[0].x : 0;
+
+          for (let i = 0; i < row.length; i++) {
+            const token = row[i].str;
+            if (codeTokenRe.test(token)) {
+              hasCode = true;
+              codeX = row[i].x;
+              descX = row[i + 1] ? row[i + 1].x : row[i].x;
+              break;
+            }
+          }
+
+          out.push({ text, codeX, descX, hasCode, pageNum });
         }
 
         return out;
       };
 
-      let allLines = [];
+      let allLineObjs = [];
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
-        const lines = await pageToLines(page);
-        allLines = allLines.concat(lines);
+        const lineObjs = await pageToLines(page, i);
+        allLineObjs = allLineObjs.concat(lineObjs);
       }
 
-      console.log("PDF lines sample:", allLines.slice(0, 30));
+      console.log(
+        "PDF lines sample:",
+        allLineObjs.slice(0, 30).map((l) => l.text),
+      );
+
+      // Ignore indented sub-items (even if they have codes) using robust baselines PER PAGE.
+      // Baselines are computed from the LEFT-most 20% of rows so indented rows can't skew them.
+      const takeLowPercentileMean = (arr, pct = 0.2) => {
+        const xs = (arr || [])
+          .filter((n) => Number.isFinite(n))
+          .sort((a, b) => a - b);
+        if (!xs.length) return 0;
+        const take = Math.max(1, Math.floor(xs.length * pct));
+        const slice = xs.slice(0, take);
+        return slice.reduce((a, b) => a + b, 0) / slice.length;
+      };
+
+      // Build per-page baselines
+      const baselinesByPage = new Map();
+      const pages = Array.from(new Set(allLineObjs.map((l) => l.pageNum))).sort(
+        (a, b) => a - b,
+      );
+
+      for (const p of pages) {
+        const pageLines = allLineObjs.filter(
+          (l) => l.pageNum === p && l.hasCode,
+        );
+        const codeXs = pageLines
+          .filter((l) => Number.isFinite(l.codeX))
+          .map((l) => l.codeX);
+        const descXs = pageLines
+          .filter((l) => Number.isFinite(l.descX))
+          .map((l) => l.descX);
+
+        baselinesByPage.set(p, {
+          baseCodeX: takeLowPercentileMean(codeXs, 0.2),
+          baseDescX: takeLowPercentileMean(descXs, 0.2),
+        });
+      }
+
+      // Thresholds: lower = more aggressive filtering (catches more child rows)
+      const CODE_INDENT = 8;
+      const DESC_INDENT = 8;
+
+      const filteredLineObjs = allLineObjs.filter((l) => {
+        if (!l.hasCode) return true;
+
+        const b = baselinesByPage.get(l.pageNum) || {
+          baseCodeX: 0,
+          baseDescX: 0,
+        };
+        const baseCodeX = b.baseCodeX;
+        const baseDescX = b.baseDescX;
+
+        const codeIndented =
+          Number.isFinite(baseCodeX) &&
+          baseCodeX > 0 &&
+          Number.isFinite(l.codeX)
+            ? l.codeX > baseCodeX + CODE_INDENT
+            : false;
+
+        const descIndented =
+          Number.isFinite(baseDescX) &&
+          baseDescX > 0 &&
+          Number.isFinite(l.descX)
+            ? l.descX > baseDescX + DESC_INDENT
+            : false;
+
+        // If either column is shifted right, treat as child/sub-item.
+        return !(codeIndented || descIndented);
+      });
+
+      const allLines = filteredLineObjs.map((l) => l.text);
 
       // Some scanned PDFs/OCR layers merge multiple table rows into one line.
       // If a line contains multiple equipment codes, split it into one segment per code.
