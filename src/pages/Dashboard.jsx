@@ -67,6 +67,7 @@ const Dashboard = () => {
     itemId: "",
     name: "",
     category: "",
+    source: "",
     location: "",
     status: "Available",
     rentalStart: "",
@@ -170,6 +171,7 @@ const Dashboard = () => {
       itemId: "",
       name: "",
       category: "",
+      source: "",
       location: "",
       status: "Available",
       rentalStart: "",
@@ -183,6 +185,7 @@ const Dashboard = () => {
       itemId: item.itemId || "",
       name: item.name,
       category: item.category || "",
+      source: item.source || "",
       location: item.location,
       status: item.status,
       rentalStart: item.rentalStart || "",
@@ -198,6 +201,7 @@ const Dashboard = () => {
       itemId: "",
       name: "",
       category: "",
+      source: "",
       location: "",
       status: "Available",
       rentalStart: "",
@@ -273,6 +277,7 @@ const Dashboard = () => {
             itemId: row.itemId || "",
             name: row.name,
             category: row.category || "",
+            source: row.source || "",
             location: bulkLocation,
             status: row.status || "Available",
             rentalStart: row.rentalStart || "",
@@ -411,6 +416,7 @@ const Dashboard = () => {
         itemId: item.id || "",
         name: item.name,
         category: item.category || "", // ✅ add this
+        source: item.source || "",
         location: item.location,
         status: item.status || "Available", // ✅ optional but recommended
         rentalStart: item.startDate || "",
@@ -433,7 +439,14 @@ const Dashboard = () => {
     if (!q) return visibleEquipment;
 
     return visibleEquipment.filter((e) => {
-      const hay = [e?.name, e?.itemId, e?.category, e?.location, e?.status]
+      const hay = [
+        e?.name,
+        e?.itemId,
+        e?.category,
+        e?.source,
+        e?.location,
+        e?.status,
+      ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
@@ -462,6 +475,8 @@ const Dashboard = () => {
             return row.location || "";
           case "category":
             return row.category || "";
+          case "source":
+            return row.source || "";
           case "updatedBy":
             return row.updatedBy || "";
           case "name":
@@ -633,6 +648,10 @@ const Dashboard = () => {
                       {item.category || "-"}
                     </div>
                     <div className="text-sm text-gray-300">
+                      <span className="text-gray-400">Source:</span>{" "}
+                      {item.source || "-"}
+                    </div>
+                    <div className="text-sm text-gray-300">
                       <span className="text-gray-400">Location:</span>{" "}
                       {item.location || "-"}
                     </div>
@@ -735,6 +754,15 @@ const Dashboard = () => {
                   <th className="p-2 whitespace-nowrap">
                     <button
                       type="button"
+                      onClick={() => toggleSort("source")}
+                      className="hover:underline"
+                    >
+                      Source{sortArrow("source")}
+                    </button>
+                  </th>
+                  <th className="p-2 whitespace-nowrap">
+                    <button
+                      type="button"
                       onClick={() => toggleSort("location")}
                       className="hover:underline"
                     >
@@ -832,6 +860,20 @@ const Dashboard = () => {
                         />
                       ) : (
                         item.category || "-"
+                      )}
+                    </td>
+                    <td className="p-2">
+                      {editingId === item.id ? (
+                        <input
+                          type="text"
+                          value={newItem.source}
+                          onChange={(e) =>
+                            handleInlineChange("source", e.target.value)
+                          }
+                          className="w-full px-2 py-1 rounded bg-white text-black"
+                        />
+                      ) : (
+                        item.source || "-"
                       )}
                     </td>
 
@@ -1014,6 +1056,13 @@ const Dashboard = () => {
             onChange={(e) =>
               setNewItem({ ...newItem, category: e.target.value })
             }
+            className="flex-1 min-w-[150px] px-3 py-2 rounded bg-white text-black"
+          />
+          <input
+            type="text"
+            placeholder="Source"
+            value={newItem.source}
+            onChange={(e) => setNewItem({ ...newItem, source: e.target.value })}
             className="flex-1 min-w-[150px] px-3 py-2 rounded bg-white text-black"
           />
           <select
@@ -1209,6 +1258,13 @@ const Dashboard = () => {
                 type="text"
                 value={newItem.category}
                 onChange={(e) => handleInlineChange("category", e.target.value)}
+                className="w-full px-3 py-2 rounded bg-white text-black"
+              />
+              <label className="text-sm text-gray-300">Source</label>
+              <input
+                type="text"
+                value={newItem.source}
+                onChange={(e) => handleInlineChange("source", e.target.value)}
                 className="w-full px-3 py-2 rounded bg-white text-black"
               />
 

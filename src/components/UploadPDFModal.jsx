@@ -13,13 +13,47 @@ const UploadPDFModal = ({
   setImportInProgress,
   allLocations = [],
 }) => {
-  const { pdfParsingStatus, setPdfParsingStatus } =
+  const { pdfParsingStatus, setPdfParsingStatus, registerLocation } =
     useContext(EquipmentContext);
 
   const locationOptions = Array.isArray(allLocations) ? allLocations : [];
 
+  const SOURCE_PRESETS = ["Dean", "White's"];
+  const [customSources, setCustomSources] = useState([]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("griptrack_custom_sources");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) setCustomSources(parsed);
+      }
+    } catch (e) {
+      console.warn("Failed to load custom sources", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "griptrack_custom_sources",
+        JSON.stringify(customSources),
+      );
+    } catch (e) {
+      console.warn("Failed to save custom sources", e);
+    }
+  }, [customSources]);
+
+  const sourceOptions = Array.from(
+    new Set([
+      ...SOURCE_PRESETS,
+      ...(Array.isArray(customSources) ? customSources : []),
+    ]),
+  ).sort();
+
   const [parsedData, setParsedData] = useState([]);
   const [defaultLocation, setDefaultLocation] = useState("");
+  const [defaultSource, setDefaultSource] = useState("");
   const [showSpinner, setShowSpinner] = useState(false);
 
   useEffect(() => {
@@ -143,6 +177,7 @@ const UploadPDFModal = ({
             name: currentItemName,
             category: currentCategory || "",
             status: prettyStatus(rawName),
+            source: "",
             quantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
             startDate: "",
             endDate: "",
@@ -160,6 +195,7 @@ const UploadPDFModal = ({
           name: rawName,
           category: currentCategory || "",
           status: "Available",
+          source: "",
           quantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
           startDate: "",
           endDate: "",
@@ -382,6 +418,7 @@ const UploadPDFModal = ({
           name: desc,
           category: "",
           status: "Available",
+          source: "",
           quantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
           startDate: shipDate,
           endDate: returnDate,
@@ -435,6 +472,44 @@ const UploadPDFModal = ({
     );
   };
 
+  const assignAllSources = () => {
+    if (!defaultSource) return;
+    setParsedData((prev) =>
+      prev.map((it) => ({ ...it, source: defaultSource })),
+    );
+  };
+
+  const handleSourceChange = (index, value) => {
+    setParsedData((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], source: value };
+      return copy;
+    });
+  };
+
+  const promptAddLocation = () => {
+    const entered = prompt("New location name?");
+    const trimmed = String(entered || "").trim();
+    if (!trimmed) return "";
+    if (typeof registerLocation === "function") registerLocation(trimmed);
+    return trimmed;
+  };
+
+  const promptAddSource = () => {
+    const entered = prompt("New source name?");
+    const trimmed = String(entered || "").trim();
+    if (!trimmed) return "";
+
+    setCustomSources((prev) => {
+      const exists = prev.some(
+        (s) => String(s).toLowerCase() === trimmed.toLowerCase(),
+      );
+      return exists ? prev : [...prev, trimmed];
+    });
+
+    return trimmed;
+  };
+
   const handleSubmit = () => {
     const missing = parsedData.some(
       (r) => !r.location || r.location.trim() === "",
@@ -462,6 +537,7 @@ const UploadPDFModal = ({
 
       setParsedData([]);
       setDefaultLocation("");
+      setDefaultSource("");
       setPdfParsingStatus && setPdfParsingStatus("idle");
       onClose();
     } finally {
@@ -510,25 +586,66 @@ const UploadPDFModal = ({
 
         {parsedData.length > 0 && (
           <>
-            <div className="flex items-center gap-2">
-              <select
-                className="border px-2 py-1"
-                value={defaultLocation}
-                onChange={(e) => setDefaultLocation(e.target.value)}
-              >
-                <option value="">Assign location to all</option>
-                {locationOptions.map((loc) => (
-                  <option key={loc} value={loc}>
-                    {loc}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={assignAllLocations}
-                className="px-3 py-1 bg-accent text-white rounded"
-              >
-                Assign All
-              </button>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <select
+                  className="border px-2 py-1 w-72"
+                  value={defaultLocation}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "__add_new__") {
+                      const created = promptAddLocation();
+                      if (created) setDefaultLocation(created);
+                      return;
+                    }
+                    setDefaultLocation(v);
+                  }}
+                >
+                  <option value="">Assign location to all</option>
+                  {locationOptions.map((loc) => (
+                    <option key={loc} value={loc}>
+                      {loc}
+                    </option>
+                  ))}
+                  <option value="__add_new__">➕ Add new location…</option>
+                </select>
+                <button
+                  onClick={assignAllLocations}
+                  className="px-3 py-1 bg-accent text-white rounded"
+                >
+                  Apply
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <select
+                  className="border px-2 py-1 w-72"
+                  value={defaultSource}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === "__add_new__") {
+                      const created = promptAddSource();
+                      if (created) setDefaultSource(created);
+                      return;
+                    }
+                    setDefaultSource(v);
+                  }}
+                >
+                  <option value="">Apply source to all</option>
+                  {sourceOptions.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                  <option value="__add_new__">➕ Add new source…</option>
+                </select>
+                <button
+                  onClick={assignAllSources}
+                  className="px-3 py-1 bg-accent text-white rounded"
+                >
+                  Apply
+                </button>
+              </div>
             </div>
 
             <div className="overflow-x-auto max-h-[60vh] overflow-y-auto">
@@ -538,6 +655,7 @@ const UploadPDFModal = ({
                     <th className="p-2">Description</th>
                     <th className="p-2">Category</th>
                     <th className="p-2">Status</th>
+                    <th className="p-2">Source</th>
                     <th className="p-2">Quantity</th>
                     <th className="p-2">Start Date</th>
                     <th className="p-2">End Date</th>
@@ -550,6 +668,31 @@ const UploadPDFModal = ({
                       <td className="p-2">{item.name}</td>
                       <td className="p-2">{item.category || "-"}</td>
                       <td className="p-2">{item.status || "-"}</td>
+                      <td className="p-2">
+                        <select
+                          className="border px-2 py-1 w-full"
+                          value={item.source || ""}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (v === "__add_new__") {
+                              const created = promptAddSource();
+                              if (created) handleSourceChange(index, created);
+                              return;
+                            }
+                            handleSourceChange(index, v);
+                          }}
+                        >
+                          <option value="">-</option>
+                          {sourceOptions.map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                          <option value="__add_new__">
+                            ➕ Add new source…
+                          </option>
+                        </select>
+                      </td>
                       <td className="p-2">{item.quantity}</td>
                       <td className="p-2">{item.startDate}</td>
                       <td className="p-2">{item.endDate}</td>
@@ -557,9 +700,15 @@ const UploadPDFModal = ({
                         <select
                           className="border px-2 py-1 w-full"
                           value={item.location}
-                          onChange={(e) =>
-                            handleLocationChange(index, e.target.value)
-                          }
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (v === "__add_new__") {
+                              const created = promptAddLocation();
+                              if (created) handleLocationChange(index, created);
+                              return;
+                            }
+                            handleLocationChange(index, v);
+                          }}
                         >
                           <option value="">Select location</option>
                           {locationOptions.map((loc) => (
@@ -567,6 +716,9 @@ const UploadPDFModal = ({
                               {loc}
                             </option>
                           ))}
+                          <option value="__add_new__">
+                            ➕ Add new location…
+                          </option>
                         </select>
                       </td>
                     </tr>
@@ -575,7 +727,7 @@ const UploadPDFModal = ({
               </table>
             </div>
 
-            <div className="flexßjustify-end mt-4">
+            <div className="flex justify-end mt-4">
               <button
                 onClick={handleSubmit}
                 className="px-4 py-2 bg-accent text-white rounded"

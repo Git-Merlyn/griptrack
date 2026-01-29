@@ -21,19 +21,61 @@ export const EquipmentProvider = ({ children }) => {
   const [equipmentData, setEquipmentData] = useState([]);
   const [locations, setLocations] = useState([]);
 
-  // Always-available + database-derived locations (deduped)
+  // Custom locations (persisted locally so we can add options without creating placeholder inventory rows)
+  const [customLocations, setCustomLocations] = useState([]);
+
+  // Load custom locations once
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("griptrack_custom_locations");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) setCustomLocations(parsed);
+      }
+    } catch (e) {
+      console.warn("Failed to load custom locations", e);
+    }
+  }, []);
+
+  // Persist custom locations
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "griptrack_custom_locations",
+        JSON.stringify(customLocations),
+      );
+    } catch (e) {
+      console.warn("Failed to save custom locations", e);
+    }
+  }, [customLocations]);
+
+  // Always-available + database-derived + custom locations (deduped)
   const allLocations = Array.from(
     new Set([
       ...DEFAULT_LOCATIONS,
       ...(Array.isArray(locations) ? locations : []),
+      ...(Array.isArray(customLocations) ? customLocations : []),
     ]),
   ).sort();
+
   const [uploadedPDFItems, setUploadedPDFItems] = useState([]);
   const [pdfUploadModalOpen, setPdfUploadModalOpen] = useState(false);
   const [pdfParsingStatus, setPdfParsingStatus] = useState("idle");
   const [reviewTableVisible, setReviewTableVisible] = useState(false);
   const [assignAllLocation, setAssignAllLocation] = useState("");
   const [importSummaryMessage, setImportSummaryMessage] = useState("");
+
+  const registerLocation = (name) => {
+    const trimmed = String(name || "").trim();
+    if (!trimmed) return;
+
+    setCustomLocations((prev) => {
+      const exists = prev.some(
+        (l) => String(l).toLowerCase() === trimmed.toLowerCase(),
+      );
+      return exists ? prev : [...prev, trimmed];
+    });
+  };
 
   const safeDateOnly = (value) => {
     if (!value) return null;
@@ -52,6 +94,7 @@ export const EquipmentProvider = ({ children }) => {
       item_id: itemId ? String(itemId) : null,
       name: String(item?.name ?? "").trim() || "(Unnamed)",
       category: String(item?.category ?? "").trim() || null,
+      source: String(item?.source ?? "").trim() || null,
       quantity: Number.isFinite(Number(item?.quantity))
         ? Number(item.quantity)
         : 1,
@@ -76,6 +119,7 @@ export const EquipmentProvider = ({ children }) => {
     // Legacy fields expected by the current Dashboard.jsx
     itemId: row.item_id ?? "",
     category: row.category ?? "",
+    source: row.source ?? "",
     status: row.status ?? "Available",
     rentalStart: row.start_date ?? null,
     rentalEnd: row.end_date ?? null,
@@ -209,6 +253,7 @@ export const EquipmentProvider = ({ children }) => {
       item_id: patch?.itemId ?? patch?.item_id ?? undefined,
       name: patch?.name ?? undefined,
       category: patch?.category ?? undefined,
+      source: patch?.source ?? undefined,
       quantity:
         patch?.quantity !== undefined ? Number(patch.quantity) : undefined,
       location: patch?.location ?? undefined,
@@ -279,6 +324,7 @@ export const EquipmentProvider = ({ children }) => {
       itemId: current.itemId,
       name: current.name,
       category: current.category ?? "",
+      source: current.source ?? "",
       quantity: moveQty,
       location: newLocation,
       status: current.status ?? "Available",
@@ -331,6 +377,7 @@ export const EquipmentProvider = ({ children }) => {
         clearImportSummary,
         locations,
         allLocations,
+        registerLocation,
         setLocations,
         uploadedPDFItems,
         setUploadedPDFItems,
