@@ -647,10 +647,7 @@ const Dashboard = () => {
                       <span className="text-gray-400">Category:</span>{" "}
                       {item.category || "-"}
                     </div>
-                    <div className="text-sm text-gray-300">
-                      <span className="text-gray-400">Source:</span>{" "}
-                      {item.source || "-"}
-                    </div>
+
                     <div className="text-sm text-gray-300">
                       <span className="text-gray-400">Location:</span>{" "}
                       {item.location || "-"}
@@ -664,13 +661,6 @@ const Dashboard = () => {
                     <div className="text-sm text-gray-300">
                       <span className="text-gray-400">Qty:</span>{" "}
                       {item.quantity || 1}
-                    </div>
-                    <div className="text-xs text-gray-400 mt-2">
-                      Start: {item.rentalStart || "-"} • End:{" "}
-                      {item.rentalEnd || "-"}
-                    </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      Updated by: {item.updatedBy || "-"}
                     </div>
                   </div>
 
@@ -1265,13 +1255,6 @@ const Dashboard = () => {
                   }
                   className="w-full px-3 py-2 rounded bg-white text-black"
                 />
-                <label className="text-sm text-gray-300">Source</label>
-                <input
-                  type="text"
-                  value={newItem.source}
-                  onChange={(e) => handleInlineChange("source", e.target.value)}
-                  className="w-full px-3 py-2 rounded bg-white text-black"
-                />
 
                 <label className="text-sm text-gray-300">Location</label>
                 <select
@@ -1318,26 +1301,6 @@ const Dashboard = () => {
                       "quantity",
                       parseInt(e.target.value, 10) || 1,
                     )
-                  }
-                  className="w-full px-3 py-2 rounded bg-white text-black"
-                />
-
-                <label className="text-sm text-gray-300">Start Date</label>
-                <input
-                  type="date"
-                  value={newItem.rentalStart || ""}
-                  onChange={(e) =>
-                    handleInlineChange("rentalStart", e.target.value)
-                  }
-                  className="w-full px-3 py-2 rounded bg-white text-black"
-                />
-
-                <label className="text-sm text-gray-300">End Date</label>
-                <input
-                  type="date"
-                  value={newItem.rentalEnd || ""}
-                  onChange={(e) =>
-                    handleInlineChange("rentalEnd", e.target.value)
                   }
                   className="w-full px-3 py-2 rounded bg-white text-black"
                 />
