@@ -137,21 +137,15 @@ const FeedbackForm = ({ onSubmitted }) => {
       </div>
 
       <div className="flex justify-end gap-2 mt-2">
-        <button
-          type="button"
-          onClick={reset}
-          className="px-4 py-2 rounded bg-gray-600 text-white hover:bg-gray-500"
-        >
+        <button type="button" onClick={reset} className="btn-secondary">
           Clear
         </button>
         <button
           type="submit"
           disabled={submitting || !description.trim()}
-          className={`px-4 py-2 rounded text-white ${
-            submitting || !description.trim()
-              ? "bg-gray-600"
-              : "bg-accent hover:bg-cyan-400"
-          }`}
+          className={
+            submitting || !description.trim() ? "btn-disabled" : "btn-accent"
+          }
         >
           {submitting ? "Submitting…" : "Submit"}
         </button>

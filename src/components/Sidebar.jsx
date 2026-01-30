@@ -108,7 +108,7 @@ const Sidebar = () => {
         <div className="flex items-center justify-between px-4 py-3">
           <button
             type="button"
-            className="px-3 py-2 rounded bg-gray-700 text-white"
+            className="btn-secondary-sm"
             onClick={() => setDrawerOpen(true)}
             aria-label="Open menu"
           >
@@ -130,7 +130,7 @@ const Sidebar = () => {
               <div className="font-bold text-accent text-lg">GripTrack</div>
               <button
                 type="button"
-                className="px-3 py-2 rounded bg-gray-700 text-white"
+                className="btn-secondary-sm"
                 onClick={closeDrawer}
                 aria-label="Close menu"
               >

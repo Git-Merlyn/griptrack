@@ -699,10 +699,7 @@ const UploadPDFModal = ({
                   ))}
                   <option value="__add_new__">➕ Add new location…</option>
                 </select>
-                <button
-                  onClick={assignAllLocations}
-                  className="px-3 py-1 bg-accent text-white rounded"
-                >
+                <button onClick={assignAllLocations} className="btn-accent-sm">
                   Apply
                 </button>
               </div>
@@ -729,10 +726,7 @@ const UploadPDFModal = ({
                   ))}
                   <option value="__add_new__">➕ Add new source…</option>
                 </select>
-                <button
-                  onClick={assignAllSources}
-                  className="px-3 py-1 bg-accent text-white rounded"
-                >
+                <button onClick={assignAllSources} className="btn-accent-sm">
                   Apply
                 </button>
               </div>
@@ -818,10 +812,7 @@ const UploadPDFModal = ({
             </div>
 
             <div className="flex justify-end mt-4">
-              <button
-                onClick={handleSubmit}
-                className="px-4 py-2 bg-accent text-white rounded"
-              >
+              <button onClick={handleSubmit} className="btn-accent">
                 Submit
               </button>
             </div>

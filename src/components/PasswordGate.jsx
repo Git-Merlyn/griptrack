@@ -82,10 +82,7 @@ export default function PasswordGate({ children }) {
             Remember this computer
           </label>
 
-          <button
-            type="submit"
-            className="w-full rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold py-2"
-          >
+          <button type="submit" className="w-full btn-accent">
             Enter
           </button>
         </form>

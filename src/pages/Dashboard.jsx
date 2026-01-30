@@ -521,19 +521,99 @@ const Dashboard = () => {
     return rows;
   }, [filteredVisibleEquipment, sortKey, sortDir]);
 
+  // CSV export helpers
+  const csvEscape = (value) => {
+    if (value === null || value === undefined) return "";
+    const s = String(value);
+    // Escape quotes and wrap fields that contain commas/newlines/quotes
+    if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  };
+
+  const handleExportCsv = () => {
+    try {
+      const rows = Array.isArray(sortedEquipment) ? sortedEquipment : [];
+
+      const header = [
+        "Item ID",
+        "Name",
+        "Category",
+        "Source",
+        "Location",
+        "Status",
+        "Quantity",
+        "Start Date",
+        "End Date",
+        "Updated By",
+      ];
+
+      const lines = [header.map(csvEscape).join(",")];
+
+      for (const it of rows) {
+        lines.push(
+          [
+            it?.itemId || "",
+            it?.name || "",
+            it?.category || "",
+            it?.source || "",
+            it?.location || "",
+            it?.status || "",
+            Number(it?.quantity) || 0,
+            it?.rentalStart || "",
+            it?.rentalEnd || "",
+            it?.updatedBy || "",
+          ]
+            .map(csvEscape)
+            .join(","),
+        );
+      }
+
+      // Add BOM so Excel opens UTF-8 correctly
+      const csv = "\ufeff" + lines.join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const stamp = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `griptrack-export-${stamp}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      window.toast?.success?.(`Exported ${rows.length} item(s)`);
+    } catch (e) {
+      console.error(e);
+      window.toast?.error?.(e?.message || "Export failed");
+    }
+  };
+
   return (
     <div className="px-3 sm:px-6 md:p-8 flex flex-col gap-6 text-text relative">
-      <h2 className="text-3xl font-bold text-accent">Dashboard</h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-3xl font-bold text-accent">Dashboard</h2>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            className="btn-secondary"
+          >
+            Export
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowUploadModal(true)}
+            disabled={importInProgress}
+            className={importInProgress ? "btn-disabled" : "btn-accent"}
+          >
+            {importInProgress ? "Importing..." : "Upload"}
+          </button>
+        </div>
+      </div>
+
       <div className="text-xs text-gray-500 mb-2"></div>
-      <button
-        onClick={() => setShowUploadModal(true)}
-        disabled={importInProgress}
-        className={`absolute top-8 right-8 px-4 py-2 rounded text-white ${
-          importInProgress ? "bg-gray-500" : "bg-accent hover:bg-cyan-400"
-        }`}
-      >
-        {importInProgress ? "Importing..." : "Upload"}
-      </button>
 
       {/* Toast / Import summary */}
       {showToast && importSummaryMessage && (
@@ -575,7 +655,7 @@ const Dashboard = () => {
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
-                className="px-3 py-2 rounded-lg border border-gray-700 text-text/70 hover:text-accent hover:border-accent/60 transition"
+                className="btn-secondary-sm"
               >
                 Clear
               </button>
@@ -585,11 +665,10 @@ const Dashboard = () => {
             <button
               type="button"
               onClick={() => setBulkMode((v) => !v)}
-              className="px-3 py-2 rounded bg-gray-700 text-white hover:bg-gray-600"
+              className="btn-secondary-sm"
             >
               {bulkMode ? "Exit Multi-Select" : "Multi-Select"}
             </button>
-
             {bulkMode && (
               <span className="text-sm text-gray-300">
                 Selected:{" "}
@@ -625,24 +704,21 @@ const Dashboard = () => {
                 type="button"
                 onClick={handleBulkSetLocation}
                 disabled={selectedIds.length === 0 || !bulkLocation}
-                className={`px-3 py-2 rounded text-slate-100 ${
+                className={
                   selectedIds.length === 0 || !bulkLocation
-                    ? "bg-gray-600"
-                    : "bg-accent hover:bg-cyan-400"
-                }`}
+                    ? "btn-disabled-sm"
+                    : "btn-accent-sm"
+                }
               >
                 Apply
               </button>
-
               <button
                 type="button"
                 onClick={handleBulkDelete}
                 disabled={selectedIds.length === 0}
-                className={`px-3 py-2 rounded text-white ${
-                  selectedIds.length === 0
-                    ? "bg-gray-600"
-                    : "bg-red-600 hover:bg-red-500"
-                }`}
+                className={
+                  selectedIds.length === 0 ? "btn-disabled-sm" : "btn-danger-sm"
+                }
               >
                 Delete
               </button>
@@ -735,11 +811,9 @@ const Dashboard = () => {
                           setShowMobileEditModal(true);
                         }}
                         disabled={editingId !== null}
-                        className={`px-3 py-2 rounded-lg border border-blue-500/40 bg-blue-600/20 text-blue-200 ${
-                          editingId !== null
-                            ? "opacity-50 cursor-not-allowed"
-                            : ""
-                        }`}
+                        className={
+                          editingId !== null ? "btn-disabled-sm" : "btn-edit-sm"
+                        }
                       >
                         Edit
                       </button>
@@ -749,7 +823,7 @@ const Dashboard = () => {
                           setMovingItem({ ...item });
                           setMoveData({ qty: 1, newLocation: "" });
                         }}
-                        className="px-3 py-2 rounded-lg border border-yellow-500/30 bg-yellow-600/15 text-yellow-200"
+                        className="btn-move-sm"
                       >
                         Move
                       </button>
@@ -1028,52 +1102,49 @@ const Dashboard = () => {
 
                     <td className="p-2 whitespace-nowrap">
                       {editingId === item.id ? (
-                        <>
+                        <div className="flex items-center gap-2">
                           <button
                             onClick={handleAddOrUpdate}
-                            className="text-green-400 hover:underline"
+                            className="btn-accent-sm"
                           >
                             Save
                           </button>
-                          <span className="mx-1 text-gray-400">|</span>
                           <button
                             onClick={handleCancelEdit}
-                            className="text-gray-300 hover:underline"
+                            className="btn-secondary-sm"
                           >
                             Cancel
                           </button>
-                        </>
+                        </div>
                       ) : (
-                        <>
+                        <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleEdit(item)}
                             disabled={editingId !== null}
-                            className={`text-blue-400 hover:underline ${
+                            className={
                               editingId !== null
-                                ? "opacity-50 cursor-not-allowed"
-                                : ""
-                            }`}
+                                ? "btn-disabled-sm"
+                                : "btn-edit-sm"
+                            }
                           >
                             Edit
                           </button>
-                          <span className="mx-1 text-gray-400">|</span>
                           <button
                             onClick={() => {
                               setMovingItem({ ...item });
                               setMoveData({ qty: 1, newLocation: "" });
                             }}
-                            className="text-yellow-400 hover:underline"
+                            className="btn-move-sm"
                           >
                             Move
                           </button>
-                          <span className="mx-1 text-gray-400">|</span>
                           <button
                             onClick={() => confirmAndDelete(item.id, item.name)}
-                            className="text-red-400 hover:underline"
+                            className="btn-danger-sm"
                           >
                             Delete
                           </button>
-                        </>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -1173,17 +1244,11 @@ const Dashboard = () => {
             }
             className="flex-1 min-w-[150px] px-3 py-2 rounded bg-white text-black"
           />
-          <button
-            onClick={handleAddOrUpdate}
-            className="px-4 py-2 bg-accent text-slate-100 rounded hover:bg-cyan-400"
-          >
+          <button onClick={handleAddOrUpdate} className="btn-accent">
             {editingId ? "Update" : "Add"}
           </button>
           {editingId && (
-            <button
-              onClick={handleCancelEdit}
-              className="px-4 py-2 bg-gray-600 text-slate-100 rounded hover:bg-gray-500"
-            >
+            <button onClick={handleCancelEdit} className="btn-secondary">
               Cancel
             </button>
           )}
@@ -1268,7 +1333,7 @@ const Dashboard = () => {
 
           <button
             onClick={handleQuickMove}
-            className="bg-accent hover:bg-cyan-400 text-white font-bold py-2 px-4 rounded w-[140px]"
+            className="btn-accent w-[140px]"
             disabled={!quickName || !quickFromId || !quickTo}
           >
             Quick Move
@@ -1372,11 +1437,10 @@ const Dashboard = () => {
                     setShowMobileEditModal(false);
                     handleCancelEdit();
                   }}
-                  className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500"
+                  className="btn-secondary"
                 >
                   Cancel
                 </button>
-
                 <button
                   type="button"
                   onClick={() => {
@@ -1387,18 +1451,17 @@ const Dashboard = () => {
                     setShowMobileEditModal(false);
                     handleCancelEdit();
                   }}
-                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-500"
+                  className="btn-danger"
                 >
                   Delete
                 </button>
-
                 <button
                   type="button"
                   onClick={() => {
                     handleAddOrUpdate();
                     setShowMobileEditModal(false);
                   }}
-                  className="px-4 py-2 bg-accent text-white rounded hover:bg-cyan-400"
+                  className="btn-accent"
                 >
                   Save
                 </button>
@@ -1434,7 +1497,7 @@ const Dashboard = () => {
                 type="button"
                 onClick={() => setDeleteTarget(null)}
                 disabled={deleteBusy}
-                className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500 disabled:opacity-50"
+                className="btn-secondary"
               >
                 Cancel
               </button>
@@ -1442,7 +1505,7 @@ const Dashboard = () => {
                 type="button"
                 onClick={performDelete}
                 disabled={deleteBusy}
-                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-500 disabled:opacity-50"
+                className="btn-danger"
               >
                 {deleteBusy ? "Deleting…" : "Delete"}
               </button>
@@ -1505,14 +1568,11 @@ const Dashboard = () => {
               <div className="flex justify-end gap-2 mt-4">
                 <button
                   onClick={() => setMovingItem(null)}
-                  className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500"
+                  className="btn-secondary"
                 >
                   Cancel
                 </button>
-                <button
-                  onClick={handleMoveSubmit}
-                  className="px-4 py-2 bg-accent text-white rounded hover:bg-cyan-400"
-                >
+                <button onClick={handleMoveSubmit} className="btn-accent">
                   Confirm Move
                 </button>
               </div>
@@ -1551,14 +1611,11 @@ const Dashboard = () => {
                   setShowAddLocationModal(false);
                   setNewLocationName("");
                 }}
-                className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500"
+                className="btn-secondary"
               >
                 Cancel
               </button>
-              <button
-                onClick={handleAddNewLocation}
-                className="px-4 py-2 bg-accent text-white rounded hover:bg-cyan-400"
-              >
+              <button onClick={handleAddNewLocation} className="btn-accent">
                 Add
               </button>
             </div>

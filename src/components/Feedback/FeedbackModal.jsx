@@ -18,7 +18,7 @@ const FeedbackModal = ({ isOpen, onClose }) => {
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-200"
+            className="btn-secondary-sm"
             aria-label="Close"
           >
             ✕
