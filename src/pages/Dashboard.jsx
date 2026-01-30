@@ -304,15 +304,12 @@ const Dashboard = () => {
     try {
       console.log("[MoveSubmit] movingItem", movingItem);
       window.toast?.info?.(
-        `MoveSubmit id=${movingItem?.id} itemId=${
+        `MoveSubmit id=${movingItem?.id || "-"} itemId=${
           movingItem?.itemId || "-"
         } name=${movingItem?.name || "-"}`,
       );
-      await moveEquipment(
-        Number(movingItem.id),
-        Number(moveData.qty),
-        moveData.newLocation,
-      );
+      const qtyToMove = Math.max(1, Number(moveData.qty) || 1);
+      await moveEquipment(movingItem.id, qtyToMove, moveData.newLocation);
       setMovingItem(null);
       setMoveData({ qty: 1, newLocation: "" });
     } catch (e) {

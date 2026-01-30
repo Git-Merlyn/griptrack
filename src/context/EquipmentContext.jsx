@@ -307,31 +307,73 @@ export const EquipmentProvider = ({ children }) => {
     const moveQty = Math.min(Number(qty) || 0, currentQty);
     if (moveQty <= 0) return;
 
-    // If moving all, just update location
+    // Define what counts as the "same item" for merging
+    const isSameItem = (a, b) => {
+      return (
+        String(a?.itemId || "") === String(b?.itemId || "") &&
+        String(a?.name || "") === String(b?.name || "") &&
+        String(a?.category || "") === String(b?.category || "") &&
+        String(a?.source || "") === String(b?.source || "") &&
+        String(a?.status || "") === String(b?.status || "") &&
+        String(a?.rentalStart || "") === String(b?.rentalStart || "") &&
+        String(a?.rentalEnd || "") === String(b?.rentalEnd || "")
+      );
+    };
+
+    // Find an existing destination row to merge into
+    const existingDest = equipment.find(
+      (x) =>
+        String(x.id) !== id &&
+        String(x.location || "") === String(newLocation || "") &&
+        isSameItem(x, current),
+    );
+
+    // If moving all quantity
     if (moveQty === currentQty) {
-      await updateEquipment(rowId, { ...current, location: newLocation });
+      if (existingDest) {
+        // Merge into destination and delete source row
+        await updateEquipment(existingDest.id, {
+          ...existingDest,
+          quantity: (Number(existingDest.quantity) || 0) + currentQty,
+        });
+        await deleteEquipment(rowId);
+      } else {
+        // No destination row to merge into; just update location
+        await updateEquipment(rowId, { ...current, location: newLocation });
+      }
+
       window.toast?.success?.("Item moved");
       return;
     }
 
-    // Partial move: decrement source row, then insert a new row for destination
+    // Partial move:
+    // 1) Decrement source row
     await updateEquipment(rowId, {
       ...current,
       quantity: currentQty - moveQty,
     });
 
-    await addEquipment({
-      itemId: current.itemId,
-      name: current.name,
-      category: current.category ?? "",
-      source: current.source ?? "",
-      quantity: moveQty,
-      location: newLocation,
-      status: current.status ?? "Available",
-      rentalStart: current.rentalStart ?? null,
-      rentalEnd: current.rentalEnd ?? null,
-      updatedBy: current.updatedBy ?? "admin",
-    });
+    // 2) Merge into an existing destination row if it exists
+    if (existingDest) {
+      await updateEquipment(existingDest.id, {
+        ...existingDest,
+        quantity: (Number(existingDest.quantity) || 0) + moveQty,
+      });
+    } else {
+      // Otherwise insert a new destination row
+      await addEquipment({
+        itemId: current.itemId,
+        name: current.name,
+        category: current.category ?? "",
+        source: current.source ?? "",
+        quantity: moveQty,
+        location: newLocation,
+        status: current.status ?? "Available",
+        rentalStart: current.rentalStart ?? null,
+        rentalEnd: current.rentalEnd ?? null,
+        updatedBy: current.updatedBy ?? "admin",
+      });
+    }
 
     window.toast?.success?.("Item moved");
   };
