@@ -111,6 +111,14 @@ const Dashboard = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [showMobileEditModal, setShowMobileEditModal] = useState(false);
 
+  // Export modal
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportFormat, setExportFormat] = useState("csv"); // 'csv' | 'pdf'
+  const [exportScope, setExportScope] = useState("all"); // 'all' | 'single' | 'multi'
+  const [exportUseCurrentView, setExportUseCurrentView] = useState(true);
+  const [exportSingleLocation, setExportSingleLocation] = useState("");
+  const [exportMultiLocations, setExportMultiLocations] = useState([]); // array of strings
+
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 768px)");
     const apply = () => setIsMobile(mq.matches);
@@ -152,6 +160,7 @@ const Dashboard = () => {
       setShowAddLocationModal(false);
       setMovingItem(null);
       setDeleteTarget(null);
+      setShowExportModal(false);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -583,63 +592,152 @@ const Dashboard = () => {
     return s;
   };
 
-  const handleExportCsv = () => {
-    try {
-      const rows = Array.isArray(sortedEquipment) ? sortedEquipment : [];
+  const getExportRows = () => {
+    const base = exportUseCurrentView
+      ? Array.isArray(sortedEquipment)
+        ? sortedEquipment
+        : []
+      : Array.isArray(visibleEquipment)
+        ? visibleEquipment
+        : [];
 
-      const header = [
-        "Item ID",
-        "Name",
-        "Category",
-        "Source",
-        "Location",
-        "Status",
-        "Quantity",
-        "Start Date",
-        "End Date",
-        "Updated By",
-      ];
+    if (exportScope === "all") return base;
 
-      const lines = [header.map(csvEscape).join(",")];
-
-      for (const it of rows) {
-        lines.push(
-          [
-            it?.itemId || "",
-            it?.name || "",
-            it?.category || "",
-            it?.source || "",
-            it?.location || "",
-            it?.status || "",
-            Number(it?.quantity) || 0,
-            it?.rentalStart || "",
-            it?.rentalEnd || "",
-            it?.updatedBy || "",
-          ]
-            .map(csvEscape)
-            .join(","),
-        );
-      }
-
-      // Add BOM so Excel opens UTF-8 correctly
-      const csv = "\ufeff" + lines.join("\n");
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      const stamp = new Date().toISOString().slice(0, 10);
-      a.href = url;
-      a.download = `griptrack-export-${stamp}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-
-      window.toast?.success?.(`Exported ${rows.length} item(s)`);
-    } catch (e) {
-      console.error(e);
-      window.toast?.error?.(e?.message || "Export failed");
+    if (exportScope === "single") {
+      if (!exportSingleLocation) return [];
+      return base.filter(
+        (r) => String(r?.location || "") === String(exportSingleLocation),
+      );
     }
+
+    // multi
+    if (
+      !Array.isArray(exportMultiLocations) ||
+      exportMultiLocations.length === 0
+    )
+      return [];
+    const set = new Set(exportMultiLocations.map((x) => String(x)));
+    return base.filter((r) => set.has(String(r?.location || "")));
+  };
+
+  const exportRowsToCsv = (rows) => {
+    const header = [
+      "Item ID",
+      "Name",
+      "Category",
+      "Source",
+      "Location",
+      "Status",
+      "Quantity",
+      "Start Date",
+      "End Date",
+      "Updated By",
+    ];
+
+    const lines = [header.map(csvEscape).join(",")];
+
+    for (const it of rows) {
+      lines.push(
+        [
+          it?.itemId || "",
+          it?.name || "",
+          it?.category || "",
+          it?.source || "",
+          it?.location || "",
+          it?.status || "",
+          Number(it?.quantity) || 0,
+          it?.rentalStart || "",
+          it?.rentalEnd || "",
+          it?.updatedBy || "",
+        ]
+          .map(csvEscape)
+          .join(","),
+      );
+    }
+
+    const csv = "\ufeff" + lines.join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const stamp = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `griptrack-export-${stamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportRowsToPdf = (rows) => {
+    const stamp = new Date().toISOString().slice(0, 10);
+    const esc = (s) =>
+      String(s ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+
+    const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>GripTrack Export ${stamp}</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 18px; }
+    h1 { font-size: 16px; margin: 0 0 12px 0; }
+    table { border-collapse: collapse; width: 100%; font-size: 11px; }
+    th, td { border: 1px solid #ddd; padding: 6px; vertical-align: top; }
+    th { background: #f5f5f5; text-align: left; }
+  </style>
+</head>
+<body>
+  <h1>GripTrack Export (${stamp}) — ${rows.length} item(s)</h1>
+  <table>
+    <thead>
+      <tr>
+        <th>Item ID</th>
+        <th>Name</th>
+        <th>Category</th>
+        <th>Source</th>
+        <th>Location</th>
+        <th>Status</th>
+        <th>Qty</th>
+        <th>Start</th>
+        <th>End</th>
+        <th>Updated By</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows
+        .map((it) => {
+          return `\n<tr>
+            <td>${esc(it?.itemId)}</td>
+            <td>${esc(it?.name)}</td>
+            <td>${esc(it?.category)}</td>
+            <td>${esc(it?.source)}</td>
+            <td>${esc(it?.location)}</td>
+            <td>${esc(it?.status)}</td>
+            <td>${esc(it?.quantity)}</td>
+            <td>${esc(it?.rentalStart)}</td>
+            <td>${esc(it?.rentalEnd)}</td>
+            <td>${esc(it?.updatedBy)}</td>
+          </tr>`;
+        })
+        .join("\n")}
+    </tbody>
+  </table>
+  <script>window.onload = () => window.print();</script>
+</body>
+</html>`;
+
+    const w = window.open("", "_blank");
+    if (!w) {
+      window.toast?.error?.("Popup blocked — allow popups to export PDF");
+      return;
+    }
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
   };
 
   return (
@@ -650,7 +748,7 @@ const Dashboard = () => {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={handleExportCsv}
+            onClick={() => setShowExportModal(true)}
             className="btn-secondary"
           >
             Export
@@ -1687,6 +1785,192 @@ const Dashboard = () => {
           setImportInProgress={setImportInProgress}
           allLocations={allLocations}
         />
+      )}
+
+      {/* Export Modal */}
+      {showExportModal && (
+        <div
+          className="fixed inset-0 flex items-center justify-center bg-black/60 z-50"
+          onClick={() => setShowExportModal(false)}
+        >
+          <div
+            className="bg-surface p-6 rounded-xl w-[92%] max-w-lg shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-xl font-bold text-accent mb-4">Export</h3>
+
+            <div className="flex flex-col gap-4">
+              {/* Toggle current view */}
+              <label className="flex items-center gap-2 text-sm text-gray-300 select-none">
+                <input
+                  type="checkbox"
+                  checked={exportUseCurrentView}
+                  onChange={(e) => setExportUseCurrentView(e.target.checked)}
+                />
+                Export current view only (search + sort)
+              </label>
+
+              {/* Scope */}
+              <div>
+                <div className="text-sm text-gray-300 mb-2">Scope</div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className={
+                      exportScope === "all"
+                        ? "btn-accent-sm"
+                        : "btn-secondary-sm"
+                    }
+                    onClick={() => setExportScope("all")}
+                  >
+                    All locations
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      exportScope === "single"
+                        ? "btn-accent-sm"
+                        : "btn-secondary-sm"
+                    }
+                    onClick={() => setExportScope("single")}
+                  >
+                    One location
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      exportScope === "multi"
+                        ? "btn-accent-sm"
+                        : "btn-secondary-sm"
+                    }
+                    onClick={() => setExportScope("multi")}
+                  >
+                    Multiple
+                  </button>
+                </div>
+
+                {exportScope === "single" && (
+                  <div className="mt-3">
+                    <select
+                      value={exportSingleLocation}
+                      onChange={(e) => setExportSingleLocation(e.target.value)}
+                      className="w-full px-3 py-2 rounded bg-white text-black"
+                    >
+                      <option value="">Select a location…</option>
+                      {allLocations.map((loc) => (
+                        <option key={loc} value={loc}>
+                          {loc}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {exportScope === "multi" && (
+                  <div className="mt-3 max-h-48 overflow-auto border border-white/10 rounded p-2">
+                    {allLocations.map((loc) => {
+                      const v = String(loc);
+                      const checked = exportMultiLocations.includes(v);
+                      return (
+                        <label
+                          key={v}
+                          className="flex items-center gap-2 py-1 text-sm text-gray-200"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              setExportMultiLocations((prev) =>
+                                prev.includes(v)
+                                  ? prev.filter((x) => x !== v)
+                                  : [...prev, v],
+                              )
+                            }
+                          />
+                          {loc}
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Format */}
+              <div>
+                <div className="text-sm text-gray-300 mb-2">Format</div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className={
+                      exportFormat === "csv"
+                        ? "btn-accent-sm"
+                        : "btn-secondary-sm"
+                    }
+                    onClick={() => setExportFormat("csv")}
+                  >
+                    CSV
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      exportFormat === "pdf"
+                        ? "btn-accent-sm"
+                        : "btn-secondary-sm"
+                    }
+                    onClick={() => setExportFormat("pdf")}
+                  >
+                    PDF
+                  </button>
+                </div>
+                {exportFormat === "pdf" && (
+                  <div className="text-xs text-gray-400 mt-2">
+                    PDF opens a print dialog — choose “Save as PDF”.
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-between gap-3 pt-2 border-t border-white/10">
+                <div className="text-sm text-gray-300">
+                  Items to export: {getExportRows().length}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setShowExportModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className={
+                      getExportRows().length === 0
+                        ? "btn-disabled"
+                        : "btn-accent"
+                    }
+                    disabled={getExportRows().length === 0}
+                    onClick={() => {
+                      const rows = getExportRows();
+                      if (rows.length === 0) return;
+                      if (exportFormat === "csv") {
+                        exportRowsToCsv(rows);
+                      } else {
+                        exportRowsToPdf(rows);
+                      }
+                      window.toast?.success?.(
+                        `Exported ${rows.length} item(s)`,
+                      );
+                      setShowExportModal(false);
+                    }}
+                  >
+                    Export
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
