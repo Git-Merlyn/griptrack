@@ -111,6 +111,10 @@ const Dashboard = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [showMobileEditModal, setShowMobileEditModal] = useState(false);
 
+  // Mobile "Details" modal
+  const [showMobileDetailsModal, setShowMobileDetailsModal] = useState(false);
+  const [mobileDetailsItem, setMobileDetailsItem] = useState(null);
+
   // Export modal
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportFormat, setExportFormat] = useState("csv"); // 'csv' | 'pdf'
@@ -161,6 +165,8 @@ const Dashboard = () => {
       setMovingItem(null);
       setDeleteTarget(null);
       setShowExportModal(false);
+      setShowMobileDetailsModal(false);
+      setMobileDetailsItem(null);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -331,6 +337,9 @@ const Dashboard = () => {
       setSelectedIds([]);
       setBulkLocation("");
     }
+    // If someone toggles modes while a details modal is open, close it
+    setShowMobileDetailsModal(false);
+    setMobileDetailsItem(null);
   }, [bulkMode]);
 
   const handleBulkDelete = async () => {
@@ -958,6 +967,17 @@ const Dashboard = () => {
                       <button
                         type="button"
                         onClick={() => {
+                          setMobileDetailsItem(item);
+                          setShowMobileDetailsModal(true);
+                        }}
+                        className="btn-secondary-sm"
+                      >
+                        Details
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
                           handleEdit(item);
                           setShowMobileEditModal(true);
                         }}
@@ -968,6 +988,7 @@ const Dashboard = () => {
                       >
                         Edit
                       </button>
+
                       <button
                         type="button"
                         onClick={() => {
@@ -1619,6 +1640,118 @@ const Dashboard = () => {
                   className="btn-accent"
                 >
                   Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Details Modal (shows fields hidden in mobile list; Item ID stays hidden) */}
+      {isMobile && showMobileDetailsModal && mobileDetailsItem && (
+        <div
+          className="fixed inset-0 flex items-center justify-center bg-black/60 z-50"
+          onClick={() => {
+            setShowMobileDetailsModal(false);
+            setMobileDetailsItem(null);
+          }}
+        >
+          <div
+            className="bg-surface rounded-xl w-[94%] max-w-md shadow-lg max-h-[calc(100dvh-24px)] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 pt-[calc(env(safe-area-inset-top)+12px)] pb-4">
+              <h3 className="text-xl font-bold text-accent">Details</h3>
+              <div className="text-sm text-gray-300 mt-1 truncate">
+                {mobileDetailsItem.name}
+              </div>
+            </div>
+
+            <div className="px-6 pb-6 overflow-y-auto flex-1">
+              <div className="flex flex-col gap-3 text-sm">
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-400">Category</span>
+                  <span className="text-gray-200 text-right">
+                    {mobileDetailsItem.category || "-"}
+                  </span>
+                </div>
+
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-400">Source</span>
+                  <span className="text-gray-200 text-right">
+                    {mobileDetailsItem.source || "-"}
+                  </span>
+                </div>
+
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-400">Location</span>
+                  <span className="text-gray-200 text-right">
+                    {mobileDetailsItem.location || "-"}
+                  </span>
+                </div>
+
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-400">Status</span>
+                  <span
+                    className={
+                      "text-right " + statusClass(mobileDetailsItem.status)
+                    }
+                  >
+                    {mobileDetailsItem.status || "-"}
+                  </span>
+                </div>
+
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-400">Quantity</span>
+                  <span className="text-gray-200 text-right">
+                    {mobileDetailsItem.quantity || 1}
+                  </span>
+                </div>
+
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-400">Start date</span>
+                  <span
+                    className={
+                      "text-right " +
+                      dateTextClass(mobileDetailsItem.rentalStart, "start")
+                    }
+                  >
+                    {mobileDetailsItem.rentalStart || "-"}
+                  </span>
+                </div>
+
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-400">End date</span>
+                  <span
+                    className={
+                      "text-right " +
+                      dateTextClass(mobileDetailsItem.rentalEnd, "end")
+                    }
+                  >
+                    {mobileDetailsItem.rentalEnd || "-"}
+                  </span>
+                </div>
+
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-400">Updated by</span>
+                  <span className="text-gray-200 text-right">
+                    {mobileDetailsItem.updatedBy || "-"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 pt-4 pb-[calc(env(safe-area-inset-bottom)+16px)] border-t border-white/10 bg-surface">
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMobileDetailsModal(false);
+                    setMobileDetailsItem(null);
+                  }}
+                  className="btn-accent"
+                >
+                  Close
                 </button>
               </div>
             </div>
