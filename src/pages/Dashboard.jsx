@@ -245,6 +245,59 @@ const Dashboard = () => {
     return "text-text";
   };
 
+  // Date warning helpers (text-only coloring, no boxes)
+  const parseDateLoose = (value) => {
+    if (!value || typeof value !== "string") return null;
+    const s = value.trim();
+    if (!s) return null;
+
+    // yyyy-mm-dd (HTML date input)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const d = new Date(`${s}T00:00:00`);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+
+    // mm/dd/yyyy
+    const mdy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (mdy) {
+      const mm = Number(mdy[1]);
+      const dd = Number(mdy[2]);
+      const yyyy = Number(mdy[3]);
+      const d = new Date(yyyy, mm - 1, dd);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+
+    // fallback
+    const d = new Date(s);
+    return Number.isNaN(d.getTime()) ? null : d;
+  };
+
+  const startOfDay = (d) =>
+    new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+  // Returns a Tailwind text color class only (no badge/pill)
+  // mode: 'start' | 'end'
+  const dateTextClass = (dateStr, mode) => {
+    const d = parseDateLoose(dateStr);
+    if (!d) return "text-gray-300";
+
+    const today = startOfDay(new Date());
+    const target = startOfDay(d);
+    const diffDays = Math.floor((target - today) / (1000 * 60 * 60 * 24));
+
+    const isWithinWeekUpcoming = diffDays >= 0 && diffDays <= 7;
+
+    if (mode === "start") {
+      // Yellow only for upcoming pickups within a week; normal after it passes
+      return isWithinWeekUpcoming ? "text-yellow-300" : "text-gray-200";
+    }
+
+    // mode === 'end'
+    if (target < today) return "text-red-400";
+    if (isWithinWeekUpcoming) return "text-yellow-300";
+    return "text-gray-200";
+  };
+
   const handleInlineChange = (field, value) => {
     setNewItem((prev) => ({ ...prev, [field]: value }));
   };
@@ -1027,9 +1080,7 @@ const Dashboard = () => {
                       )}
                     </td>
 
-                    <td
-                      className={`p-2 font-semibold ${statusClass(item.status)}`}
-                    >
+                    <td className={`p-2 ${statusClass(item.status)}`}>
                       {editingId === item.id ? (
                         <select
                           value={newItem.status}
@@ -1045,7 +1096,7 @@ const Dashboard = () => {
                           ))}
                         </select>
                       ) : (
-                        item.status
+                        <span className="font-normal">{item.status}</span>
                       )}
                     </td>
 
@@ -1079,7 +1130,11 @@ const Dashboard = () => {
                           className="w-full px-2 py-1 rounded bg-white text-black"
                         />
                       ) : (
-                        item.rentalStart || "-"
+                        <span
+                          className={dateTextClass(item.rentalStart, "start")}
+                        >
+                          {item.rentalStart || "-"}
+                        </span>
                       )}
                     </td>
 
@@ -1094,7 +1149,9 @@ const Dashboard = () => {
                           className="w-full px-2 py-1 rounded bg-white text-black"
                         />
                       ) : (
-                        item.rentalEnd || "-"
+                        <span className={dateTextClass(item.rentalEnd, "end")}>
+                          {item.rentalEnd || "-"}
+                        </span>
                       )}
                     </td>
 
