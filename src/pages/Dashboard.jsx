@@ -82,11 +82,17 @@ const Dashboard = () => {
   const [deleteTarget, setDeleteTarget] = useState(null); // { id, name }
   const [deleteBusy, setDeleteBusy] = useState(false);
 
+  // Bulk delete confirmation modal
+  const [bulkDeleteTarget, setBulkDeleteTarget] = useState(null); // { ids: string[] }
+
   const [showAddLocationModal, setShowAddLocationModal] = useState(false);
   const [newLocationName, setNewLocationName] = useState("");
   const [isAddingLocationTo, setIsAddingLocationTo] = useState(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [importInProgress, setImportInProgress] = useState(false);
+
+  // PDF modal mode: 'import' adds items, 'select' selects existing items for bulk actions
+  const [pdfModalMode, setPdfModalMode] = useState("import");
 
   // Quick Edit state
   const [quickName, setQuickName] = useState("");
@@ -164,6 +170,7 @@ const Dashboard = () => {
       setShowAddLocationModal(false);
       setMovingItem(null);
       setDeleteTarget(null);
+      setBulkDeleteTarget(null);
       setShowExportModal(false);
       setShowMobileDetailsModal(false);
       setMobileDetailsItem(null);
@@ -342,20 +349,105 @@ const Dashboard = () => {
     setMobileDetailsItem(null);
   }, [bulkMode]);
 
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = () => {
     if (selectedIds.length === 0) return;
-    if (!confirm(`Delete ${selectedIds.length} selected item(s)?`)) return;
+    setBulkDeleteTarget({ ids: [...selectedIds] });
+  };
 
+  const performBulkDelete = async () => {
+    const ids = bulkDeleteTarget?.ids;
+    if (!Array.isArray(ids) || ids.length === 0) return;
+
+    setDeleteBusy(true);
     try {
-      for (const id of selectedIds) {
+      for (const id of ids) {
         await Promise.resolve(deleteEquipment(id));
       }
-      window.toast?.success?.(`Deleted ${selectedIds.length} item(s)`);
+      window.toast?.success?.(`Deleted ${ids.length} item(s)`);
+      setBulkDeleteTarget(null);
       clearSelection();
     } catch (e) {
       console.error(e);
       window.toast?.error?.(e?.message || "Bulk delete failed");
+    } finally {
+      setDeleteBusy(false);
     }
+  };
+  const normalizeName = (s) =>
+    String(s || "")
+      .toLowerCase()
+      .replace(/[\u2019']/g, "'")
+      .replace(/[^a-z0-9\s']/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  // Select existing DB rows based on parsed PDF lines (no DB writes)
+  const handlePdfSelect = (items) => {
+    if (!Array.isArray(items) || items.length === 0) return;
+
+    // Build indexes for fast matching
+    const byItemId = new Map(); // itemId -> equipment row id
+    const byName = new Map(); // normalized name -> array of equipment row ids
+
+    for (const row of visibleEquipment) {
+      const rid = String(row?.id || "");
+      if (!rid) continue;
+
+      const iid = String(row?.itemId || "").trim();
+      if (iid) byItemId.set(iid, rid);
+
+      const nk = normalizeName(row?.name);
+      if (!nk) continue;
+      if (!byName.has(nk)) byName.set(nk, []);
+      byName.get(nk).push(rid);
+    }
+
+    const selected = new Set();
+    let notFound = 0;
+    let ambiguous = 0;
+
+    for (const line of items) {
+      // UploadPDFModal provides parsed items shaped for import.
+      // Prefer matching by internal itemId when present; fallback to name.
+      const lineItemId = String(line?.id || "").trim();
+      const lineNameKey = normalizeName(line?.name);
+
+      if (lineItemId && byItemId.has(lineItemId)) {
+        selected.add(byItemId.get(lineItemId));
+        continue;
+      }
+
+      if (lineNameKey && byName.has(lineNameKey)) {
+        const matches = byName.get(lineNameKey);
+        if (matches.length > 1) ambiguous += 1;
+        // V1: select ALL matching rows with that name (safer than guessing one)
+        matches.forEach((id) => selected.add(id));
+      } else {
+        notFound += 1;
+      }
+    }
+
+    const ids = Array.from(selected);
+
+    // Ensure multi-select is enabled so users can act immediately
+    setBulkMode(true);
+    setSelectedIds(ids);
+
+    // Feedback
+    if (ids.length === 0) {
+      window.toast?.error?.(
+        "No matches found in the database for the uploaded PDF items",
+      );
+    } else {
+      const parts = [`Selected ${ids.length} item(s)`];
+      if (ambiguous) parts.push(`${ambiguous} name(s) matched multiple rows`);
+      if (notFound) parts.push(`${notFound} line(s) not found`);
+      window.toast?.success?.(parts.join(" • "));
+    }
+
+    // Close modal
+    setShowUploadModal(false);
+    setPdfModalMode("import");
   };
 
   const handleBulkSetLocation = async () => {
@@ -764,7 +856,10 @@ const Dashboard = () => {
           </button>
           <button
             type="button"
-            onClick={() => setShowUploadModal(true)}
+            onClick={() => {
+              setPdfModalMode("import");
+              setShowUploadModal(true);
+            }}
             disabled={importInProgress}
             className={importInProgress ? "btn-disabled" : "btn-accent"}
           >
@@ -829,6 +924,20 @@ const Dashboard = () => {
             >
               {bulkMode ? "Exit Multi-Select" : "Multi-Select"}
             </button>
+
+            {bulkMode && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPdfModalMode("select");
+                  setShowUploadModal(true);
+                }}
+                className="btn-secondary-sm"
+              >
+                Select from File
+              </button>
+            )}
+
             {bulkMode && (
               <span className="text-sm text-gray-300">
                 Selected:{" "}
@@ -1759,6 +1868,51 @@ const Dashboard = () => {
         </div>
       )}
 
+      {/* Bulk Delete Confirmation Modal */}
+      {bulkDeleteTarget && (
+        <div
+          className="fixed inset-0 flex items-center justify-center bg-black/60 z-50"
+          onClick={() => {
+            if (deleteBusy) return;
+            setBulkDeleteTarget(null);
+          }}
+        >
+          <div
+            className="bg-surface p-6 rounded-xl w-[90%] max-w-sm shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-accent mb-2">
+              Delete selected items?
+            </h3>
+            <p className="text-sm text-gray-300 mb-4">
+              This will permanently delete{" "}
+              <span className="font-semibold text-text">
+                {bulkDeleteTarget.ids.length}
+              </span>{" "}
+              item(s).
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setBulkDeleteTarget(null)}
+                disabled={deleteBusy}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={performBulkDelete}
+                disabled={deleteBusy}
+                className="btn-danger"
+              >
+                {deleteBusy ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delete Confirmation Modal */}
       {deleteTarget && (
         <div
@@ -1913,8 +2067,15 @@ const Dashboard = () => {
       {showUploadModal && (
         <UploadPDFModal
           isOpen={showUploadModal}
-          onClose={() => setShowUploadModal(false)}
-          onUpload={handlePdfUpload}
+          onClose={() => {
+            setShowUploadModal(false);
+            setPdfModalMode("import");
+          }}
+          onUpload={(items) => {
+            if (pdfModalMode === "select") handlePdfSelect(items);
+            else handlePdfUpload(items);
+          }}
+          mode={pdfModalMode}
           setImportInProgress={setImportInProgress}
           allLocations={allLocations}
         />

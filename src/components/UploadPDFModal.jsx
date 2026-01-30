@@ -12,11 +12,15 @@ const UploadPDFModal = ({
   onUpload,
   setImportInProgress,
   allLocations = [],
+  mode = "import", // 'import' | 'select'
 }) => {
   const { pdfParsingStatus, setPdfParsingStatus, registerLocation } =
     useContext(EquipmentContext);
 
-  const locationOptions = Array.isArray(allLocations) ? allLocations : [];
+  // keep a local copy so we can optimistically add new locations inline
+  useEffect(() => {
+    setLocalLocations(Array.isArray(allLocations) ? allLocations : []);
+  }, [allLocations]);
 
   const SOURCE_PRESETS = ["Dean", "White's"];
   const [customSources, setCustomSources] = useState([]);
@@ -56,6 +60,18 @@ const UploadPDFModal = ({
   const [defaultSource, setDefaultSource] = useState("");
   const [showSpinner, setShowSpinner] = useState(false);
 
+  const [errorMessage, setErrorMessage] = useState("");
+  const [showMissingLocationConfirm, setShowMissingLocationConfirm] =
+    useState(false);
+
+  // Inline add-new controls (no browser prompt)
+  const [localLocations, setLocalLocations] = useState([]);
+  const [addingLocation, setAddingLocation] = useState(false);
+  const [newLocationName, setNewLocationName] = useState("");
+
+  const [addingSource, setAddingSource] = useState(false);
+  const [newSourceName, setNewSourceName] = useState("");
+
   useEffect(() => {
     setShowSpinner(pdfParsingStatus === "parsing");
   }, [pdfParsingStatus]);
@@ -90,6 +106,7 @@ const UploadPDFModal = ({
     try {
       setPdfParsingStatus && setPdfParsingStatus("parsing");
       setImportInProgress && setImportInProgress(true);
+      setErrorMessage("");
 
       const text = await file.text();
       const lines = text.split(/\r?\n/).map((l) => l.trimEnd());
@@ -99,7 +116,7 @@ const UploadPDFModal = ({
       );
       if (nonEmptyLines.length < 2) {
         setPdfParsingStatus && setPdfParsingStatus("error");
-        alert("CSV appears empty or missing rows.");
+        setErrorMessage("CSV appears empty or missing rows.");
         return;
       }
 
@@ -115,7 +132,7 @@ const UploadPDFModal = ({
 
       if (idxName === -1) {
         setPdfParsingStatus && setPdfParsingStatus("error");
-        alert("CSV missing required column: Name");
+        setErrorMessage("CSV missing required column: Name");
         return;
       }
 
@@ -210,12 +227,14 @@ const UploadPDFModal = ({
         setPdfParsingStatus && setPdfParsingStatus("done");
       } else {
         setPdfParsingStatus && setPdfParsingStatus("error");
-        alert("No importable rows found in CSV.");
+        setErrorMessage("No importable rows found in CSV.");
       }
     } catch (err) {
       console.error("CSV parse error", err);
       setPdfParsingStatus && setPdfParsingStatus("error");
-      alert("There was an error reading the CSV. See console for details.");
+      setErrorMessage(
+        "There was an error reading the CSV. See console for details.",
+      );
     } finally {
       setImportInProgress && setImportInProgress(false);
     }
@@ -228,6 +247,7 @@ const UploadPDFModal = ({
 
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      setErrorMessage("");
 
       // Build human-ish lines from positioned PDF text chunks
       const pageToLines = async (page, pageNum) => {
@@ -523,14 +543,22 @@ const UploadPDFModal = ({
         setPdfParsingStatus && setPdfParsingStatus("done");
       } else {
         setPdfParsingStatus && setPdfParsingStatus("error");
-        alert(
+        setErrorMessage(
+          "No matching items found in PDF. (Line parsing found zero rows.)",
+        );
+        window.toast?.error?.(
           "No matching items found in PDF. (Line parsing found zero rows.)",
         );
       }
     } catch (err) {
       console.error("PDF parse error", err);
       setPdfParsingStatus && setPdfParsingStatus("error");
-      alert("There was an error reading the PDF. See console for details.");
+      setErrorMessage(
+        "There was an error reading the PDF. See console for details.",
+      );
+      window.toast?.error?.(
+        "There was an error reading the PDF. See console for details.",
+      );
     } finally {
       if (setImportInProgress) setImportInProgress(false);
     }
@@ -577,18 +605,28 @@ const UploadPDFModal = ({
     });
   };
 
-  const promptAddLocation = () => {
-    const entered = prompt("New location name?");
-    const trimmed = String(entered || "").trim();
-    if (!trimmed) return "";
+  const addLocationInline = () => {
+    const trimmed = String(newLocationName || "").trim();
+    if (!trimmed) return;
+
     if (typeof registerLocation === "function") registerLocation(trimmed);
-    return trimmed;
+
+    // Optimistically add for this modal session
+    setLocalLocations((prev) => {
+      const exists = prev.some(
+        (l) => String(l).toLowerCase() === trimmed.toLowerCase(),
+      );
+      return exists ? prev : [...prev, trimmed].sort();
+    });
+
+    setDefaultLocation(trimmed);
+    setAddingLocation(false);
+    setNewLocationName("");
   };
 
-  const promptAddSource = () => {
-    const entered = prompt("New source name?");
-    const trimmed = String(entered || "").trim();
-    if (!trimmed) return "";
+  const addSourceInline = () => {
+    const trimmed = String(newSourceName || "").trim();
+    if (!trimmed) return;
 
     setCustomSources((prev) => {
       const exists = prev.some(
@@ -597,31 +635,25 @@ const UploadPDFModal = ({
       return exists ? prev : [...prev, trimmed];
     });
 
-    return trimmed;
+    setDefaultSource(trimmed);
+    setAddingSource(false);
+    setNewSourceName("");
   };
 
-  const handleSubmit = () => {
-    const missing = parsedData.some(
-      (r) => !r.location || r.location.trim() === "",
-    );
-    if (missing) {
-      if (
-        !confirm(
-          "Some rows have no location assigned. Continue and leave them blank?",
-        )
-      )
-        return;
-    }
-
+  const doSubmit = () => {
     try {
       setPdfParsingStatus && setPdfParsingStatus("uploading");
       if (setImportInProgress) setImportInProgress(true);
 
       onUpload(parsedData);
 
-      if (window.toast) {
-        window.toast(
+      if (mode === "import") {
+        window.toast?.success?.(
           `${parsedData.length} item${parsedData.length !== 1 ? "s" : ""} added`,
+        );
+      } else {
+        window.toast?.success?.(
+          `${parsedData.length} item${parsedData.length !== 1 ? "s" : ""} selected`,
         );
       }
 
@@ -629,17 +661,36 @@ const UploadPDFModal = ({
       setDefaultLocation("");
       setDefaultSource("");
       setPdfParsingStatus && setPdfParsingStatus("idle");
+      setShowMissingLocationConfirm(false);
+      setErrorMessage("");
       onClose();
     } finally {
       if (setImportInProgress) setImportInProgress(false);
     }
+  };
+  const handleSubmit = () => {
+    if (mode === "import") {
+      const missing = parsedData.some(
+        (r) => !r.location || r.location.trim() === "",
+      );
+      if (missing) {
+        setShowMissingLocationConfirm(true);
+        return;
+      }
+    }
+
+    doSubmit();
   };
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Upload Rental List (PDF/CSV)"
+      title={
+        mode === "select"
+          ? "Select Items From Rental List (PDF/CSV)"
+          : "Upload Rental List (PDF/CSV)"
+      }
     >
       <div className="flex flex-col gap-4">
         <input
@@ -647,6 +698,9 @@ const UploadPDFModal = ({
           accept="application/pdf,text/csv,.csv"
           onChange={handleFileChange}
         />
+        {errorMessage && (
+          <div className="text-danger font-medium">{errorMessage}</div>
+        )}
 
         {showSpinner && (
           <div className="flex items-center justify-center gap-2 text-accent font-semibold">
@@ -656,81 +710,147 @@ const UploadPDFModal = ({
         )}
 
         {pdfParsingStatus === "uploading" && (
-          <div className="flex items-center justify-center gap-2 text-blue-500 font-semibold">
-            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+          <div className="flex items-center justify-center gap-2 text-accent font-semibold">
+            <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
             Uploading items, please wait...
           </div>
         )}
 
         {pdfParsingStatus === "error" && (
-          <div className="text-red-500 font-medium">
+          <div className="text-danger font-medium">
             Error parsing PDF/CSV. Please try again or upload a cleaner version.
           </div>
         )}
 
         {pdfParsingStatus === "done" && parsedData.length === 0 && (
-          <div className="text-yellow-500 font-medium">
+          <div className="text-warning font-medium">
             Parsing complete but no items were detected.
           </div>
         )}
 
         {parsedData.length > 0 && (
           <>
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <select
-                  className="border px-2 py-1 w-72"
-                  value={defaultLocation}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (v === "__add_new__") {
-                      const created = promptAddLocation();
-                      if (created) setDefaultLocation(created);
-                      return;
-                    }
-                    setDefaultLocation(v);
-                  }}
-                >
-                  <option value="">Assign location to all</option>
-                  {locationOptions.map((loc) => (
-                    <option key={loc} value={loc}>
-                      {loc}
-                    </option>
-                  ))}
-                  <option value="__add_new__">➕ Add new location…</option>
-                </select>
-                <button onClick={assignAllLocations} className="btn-accent-sm">
-                  Apply
-                </button>
-              </div>
+            {mode === "import" && (
+              <div className="flex flex-col gap-2">
+                {/* Assign location to all */}
+                <div className="flex items-center gap-2">
+                  <select
+                    className="border px-2 py-1 w-72"
+                    value={defaultLocation}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "__add_new__") {
+                        setAddingLocation(true);
+                        return;
+                      }
+                      setDefaultLocation(v);
+                    }}
+                  >
+                    <option value="">Assign location to all</option>
+                    {localLocations.map((loc) => (
+                      <option key={loc} value={loc}>
+                        {loc}
+                      </option>
+                    ))}
+                    <option value="__add_new__">➕ Add new location…</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={assignAllLocations}
+                    className="btn-accent-sm"
+                  >
+                    Apply
+                  </button>
+                </div>
 
-              <div className="flex items-center gap-2">
-                <select
-                  className="border px-2 py-1 w-72"
-                  value={defaultSource}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (v === "__add_new__") {
-                      const created = promptAddSource();
-                      if (created) setDefaultSource(created);
-                      return;
-                    }
-                    setDefaultSource(v);
-                  }}
-                >
-                  <option value="">Apply source to all</option>
-                  {sourceOptions.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                  <option value="__add_new__">➕ Add new source…</option>
-                </select>
-                <button onClick={assignAllSources} className="btn-accent-sm">
-                  Apply
-                </button>
+                {addingLocation && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      className="border px-2 py-1 w-72"
+                      placeholder="New location name"
+                      value={newLocationName}
+                      onChange={(e) => setNewLocationName(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={addLocationInline}
+                      className="btn-accent-sm"
+                    >
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAddingLocation(false);
+                        setNewLocationName("");
+                      }}
+                      className="btn-secondary-sm"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+
+                {/* Apply source to all */}
+                <div className="flex items-center gap-2">
+                  <select
+                    className="border px-2 py-1 w-72"
+                    value={defaultSource}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === "__add_new__") {
+                        setAddingSource(true);
+                        return;
+                      }
+                      setDefaultSource(v);
+                    }}
+                  >
+                    <option value="">Apply source to all</option>
+                    {sourceOptions.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                    <option value="__add_new__">➕ Add new source…</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={assignAllSources}
+                    className="btn-accent-sm"
+                  >
+                    Apply
+                  </button>
+                </div>
+
+                {addingSource && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      className="border px-2 py-1 w-72"
+                      placeholder="New source name"
+                      value={newSourceName}
+                      onChange={(e) => setNewSourceName(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={addSourceInline}
+                      className="btn-accent-sm"
+                    >
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAddingSource(false);
+                        setNewSourceName("");
+                      }}
+                      className="btn-secondary-sm"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
 
             <div className="overflow-x-auto max-h-[60vh] overflow-y-auto">
               <table className="w-full text-left border">
@@ -739,72 +859,83 @@ const UploadPDFModal = ({
                     <th className="p-2">Description</th>
                     <th className="p-2">Category</th>
                     <th className="p-2">Status</th>
-                    <th className="p-2">Source</th>
+                    {mode === "import" && <th className="p-2">Source</th>}
                     <th className="p-2">Quantity</th>
-                    <th className="p-2">Start Date</th>
-                    <th className="p-2">End Date</th>
-                    <th className="p-2">Location</th>
+                    {mode === "import" && <th className="p-2">Start Date</th>}
+                    {mode === "import" && <th className="p-2">End Date</th>}
+                    {mode === "import" && <th className="p-2">Location</th>}
                   </tr>
                 </thead>
+
                 <tbody>
                   {parsedData.map((item, index) => (
                     <tr key={`${item.id || item.name}-${index}`}>
                       <td className="p-2">{item.name}</td>
                       <td className="p-2">{item.category || "-"}</td>
                       <td className="p-2">{item.status || "-"}</td>
-                      <td className="p-2">
-                        <select
-                          className="border px-2 py-1 w-full"
-                          value={item.source || ""}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            if (v === "__add_new__") {
-                              const created = promptAddSource();
-                              if (created) handleSourceChange(index, created);
-                              return;
-                            }
-                            handleSourceChange(index, v);
-                          }}
-                        >
-                          <option value="">-</option>
-                          {sourceOptions.map((s) => (
-                            <option key={s} value={s}>
-                              {s}
+
+                      {mode === "import" && (
+                        <td className="p-2">
+                          <select
+                            className="border px-2 py-1 w-full"
+                            value={item.source || ""}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (v === "__add_new__") {
+                                setAddingSource(true);
+                                return;
+                              }
+                              handleSourceChange(index, v);
+                            }}
+                          >
+                            <option value="">-</option>
+                            {sourceOptions.map((s) => (
+                              <option key={s} value={s}>
+                                {s}
+                              </option>
+                            ))}
+                            <option value="__add_new__">
+                              ➕ Add new source…
                             </option>
-                          ))}
-                          <option value="__add_new__">
-                            ➕ Add new source…
-                          </option>
-                        </select>
-                      </td>
+                          </select>
+                        </td>
+                      )}
+
                       <td className="p-2">{item.quantity}</td>
-                      <td className="p-2">{item.startDate}</td>
-                      <td className="p-2">{item.endDate}</td>
-                      <td className="p-2">
-                        <select
-                          className="border px-2 py-1 w-full"
-                          value={item.location}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            if (v === "__add_new__") {
-                              const created = promptAddLocation();
-                              if (created) handleLocationChange(index, created);
-                              return;
-                            }
-                            handleLocationChange(index, v);
-                          }}
-                        >
-                          <option value="">Select location</option>
-                          {locationOptions.map((loc) => (
-                            <option key={loc} value={loc}>
-                              {loc}
+
+                      {mode === "import" && (
+                        <td className="p-2">{item.startDate}</td>
+                      )}
+                      {mode === "import" && (
+                        <td className="p-2">{item.endDate}</td>
+                      )}
+
+                      {mode === "import" && (
+                        <td className="p-2">
+                          <select
+                            className="border px-2 py-1 w-full"
+                            value={item.location}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              if (v === "__add_new__") {
+                                setAddingLocation(true);
+                                return;
+                              }
+                              handleLocationChange(index, v);
+                            }}
+                          >
+                            <option value="">Select location</option>
+                            {localLocations.map((loc) => (
+                              <option key={loc} value={loc}>
+                                {loc}
+                              </option>
+                            ))}
+                            <option value="__add_new__">
+                              ➕ Add new location…
                             </option>
-                          ))}
-                          <option value="__add_new__">
-                            ➕ Add new location…
-                          </option>
-                        </select>
-                      </td>
+                          </select>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -812,13 +943,48 @@ const UploadPDFModal = ({
             </div>
 
             <div className="flex justify-end mt-4">
-              <button onClick={handleSubmit} className="btn-accent">
-                Submit
+              <button
+                type="button"
+                onClick={handleSubmit}
+                className="btn-accent"
+              >
+                {mode === "select" ? "Apply Selection" : "Submit"}
               </button>
             </div>
           </>
         )}
       </div>
+      {showMissingLocationConfirm && (
+        <div
+          className="fixed inset-0 flex items-center justify-center bg-black/60 z-50"
+          onClick={() => setShowMissingLocationConfirm(false)}
+        >
+          <div
+            className="bg-surface p-6 rounded-xl w-[90%] max-w-sm shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-accent mb-2">
+              Continue without locations?
+            </h3>
+            <p className="text-sm text-gray-300 mb-4">
+              Some rows have no location assigned. Continue and leave them
+              blank?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowMissingLocationConfirm(false)}
+                className="btn-secondary"
+              >
+                Cancel
+              </button>
+              <button type="button" onClick={doSubmit} className="btn-accent">
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Modal>
   );
 };
