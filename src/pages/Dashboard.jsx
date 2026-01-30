@@ -78,6 +78,9 @@ const Dashboard = () => {
   const [editingId, setEditingId] = useState(null);
   const [movingItem, setMovingItem] = useState(null);
   const [moveData, setMoveData] = useState({ qty: 1, newLocation: "" });
+  // Delete confirmation modal
+  const [deleteTarget, setDeleteTarget] = useState(null); // { id, name }
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const [showAddLocationModal, setShowAddLocationModal] = useState(false);
   const [newLocationName, setNewLocationName] = useState("");
@@ -148,6 +151,7 @@ const Dashboard = () => {
       setShowUploadModal(false);
       setShowAddLocationModal(false);
       setMovingItem(null);
+      setDeleteTarget(null);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -193,6 +197,26 @@ const Dashboard = () => {
       quantity: item.quantity || 1,
     });
     setEditingId(item.id);
+  };
+
+  const confirmAndDelete = (id, name) => {
+    if (!id) return;
+    setDeleteTarget({ id, name: name || "" });
+  };
+
+  const performDelete = async () => {
+    if (!deleteTarget?.id) return;
+    setDeleteBusy(true);
+    try {
+      await Promise.resolve(deleteEquipment(deleteTarget.id));
+      window.toast?.success?.("Item deleted");
+      setDeleteTarget(null);
+    } catch (e) {
+      console.error(e);
+      window.toast?.error?.(e?.message || "Delete failed");
+    } finally {
+      setDeleteBusy(false);
+    }
   };
 
   const handleCancelEdit = () => {
@@ -729,13 +753,6 @@ const Dashboard = () => {
                       >
                         Move
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteEquipment(item.id)}
-                        className="px-3 py-2 rounded-lg border border-red-500/30 bg-red-600/15 text-red-200"
-                      >
-                        Delete
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -1051,7 +1068,7 @@ const Dashboard = () => {
                           </button>
                           <span className="mx-1 text-gray-400">|</span>
                           <button
-                            onClick={() => deleteEquipment(item.id)}
+                            onClick={() => confirmAndDelete(item.id, item.name)}
                             className="text-red-400 hover:underline"
                           >
                             Delete
@@ -1359,6 +1376,22 @@ const Dashboard = () => {
                 >
                   Cancel
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const id = editingId;
+                    const name = newItem?.name;
+                    if (!id) return;
+                    confirmAndDelete(id, name);
+                    setShowMobileEditModal(false);
+                    handleCancelEdit();
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-500"
+                >
+                  Delete
+                </button>
+
                 <button
                   type="button"
                   onClick={() => {
@@ -1370,6 +1403,49 @@ const Dashboard = () => {
                   Save
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteTarget && (
+        <div
+          className="fixed inset-0 flex items-center justify-center bg-black/60 z-50"
+          onClick={() => {
+            if (deleteBusy) return;
+            setDeleteTarget(null);
+          }}
+        >
+          <div
+            className="bg-surface p-6 rounded-xl w-[90%] max-w-sm shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-accent mb-2">Delete item?</h3>
+            <p className="text-sm text-gray-300 mb-4">
+              This will permanently delete{" "}
+              <span className="font-semibold text-text">
+                {deleteTarget.name ? `"${deleteTarget.name}"` : "this item"}
+              </span>
+              .
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleteBusy}
+                className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-500 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={performDelete}
+                disabled={deleteBusy}
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-500 disabled:opacity-50"
+              >
+                {deleteBusy ? "Deleting…" : "Delete"}
+              </button>
             </div>
           </div>
         </div>
