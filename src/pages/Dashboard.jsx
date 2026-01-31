@@ -73,6 +73,7 @@ const Dashboard = () => {
     rentalStart: "",
     rentalEnd: "",
     quantity: 1,
+    reserveMin: 0,
   });
 
   const [editingId, setEditingId] = useState(null);
@@ -106,6 +107,7 @@ const Dashboard = () => {
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]); // array of item.id strings
   const [bulkLocation, setBulkLocation] = useState("");
+  const [bulkSource, setBulkSource] = useState("");
 
   // Table sorting
   const [sortKey, setSortKey] = useState("name");
@@ -186,11 +188,16 @@ const Dashboard = () => {
     if (editingId !== null) {
       updateEquipment(editingId, {
         ...newItem,
+        reserveMin: Number(newItem.reserveMin) || 0,
         updatedBy: user?.username || "admin",
       });
       setEditingId(null);
     } else {
-      addEquipment({ ...newItem, updatedBy: user?.username || "admin" });
+      addEquipment({
+        ...newItem,
+        reserveMin: Number(newItem.reserveMin) || 0,
+        updatedBy: user?.username || "admin",
+      });
     }
 
     setNewItem({
@@ -343,6 +350,7 @@ const Dashboard = () => {
     if (!bulkMode) {
       setSelectedIds([]);
       setBulkLocation("");
+      setBulkSource("");
     }
     // If someone toggles modes while a details modal is open, close it
     setShowMobileDetailsModal(false);
@@ -470,6 +478,7 @@ const Dashboard = () => {
             rentalStart: row.rentalStart || "",
             rentalEnd: row.rentalEnd || "",
             quantity: row.quantity || 1,
+            reserveMin: Number(row.reserveMin) || 0,
             updatedBy: user?.username || "admin",
           }),
         );
@@ -483,6 +492,43 @@ const Dashboard = () => {
     } catch (e) {
       console.error(e);
       window.toast?.error?.(e?.message || "Bulk location update failed");
+    }
+  };
+
+  const handleBulkSetSource = async () => {
+    if (selectedIds.length === 0) return;
+    if (!bulkSource) return;
+
+    try {
+      for (const id of selectedIds) {
+        const row = equipment.find((e) => String(e.id) === String(id));
+        if (!row) continue;
+
+        await Promise.resolve(
+          updateEquipment(row.id, {
+            itemId: row.itemId || "",
+            name: row.name,
+            category: row.category || "",
+            source: bulkSource,
+            location: row.location || "",
+            status: row.status || "Available",
+            rentalStart: row.rentalStart || "",
+            rentalEnd: row.rentalEnd || "",
+            quantity: row.quantity || 1,
+            reserveMin: Number(row.reserveMin) || 0,
+            updatedBy: user?.username || "admin",
+          }),
+        );
+      }
+
+      window.toast?.success?.(
+        `Updated source for ${selectedIds.length} item(s)`,
+      );
+      setBulkSource("");
+      clearSelection();
+    } catch (e) {
+      console.error(e);
+      window.toast?.error?.(e?.message || "Bulk source update failed");
     }
   };
 
@@ -969,6 +1015,27 @@ const Dashboard = () => {
                 <option value="__add_new__">➕ Add new location...</option>
               </select>
 
+              <select
+                value={bulkSource}
+                onChange={(e) => setBulkSource(e.target.value)}
+                className="px-3 py-2 rounded bg-white text-black min-w-[220px]"
+              >
+                <option value="">Set source for selected...</option>
+                {Array.from(
+                  new Set(
+                    (Array.isArray(equipment) ? equipment : [])
+                      .map((e) => e.source)
+                      .filter(Boolean),
+                  ),
+                )
+                  .sort((a, b) => String(a).localeCompare(String(b)))
+                  .map((src) => (
+                    <option key={src} value={src}>
+                      {src}
+                    </option>
+                  ))}
+              </select>
+
               <button
                 type="button"
                 onClick={handleBulkSetLocation}
@@ -981,6 +1048,20 @@ const Dashboard = () => {
               >
                 Apply
               </button>
+
+              <button
+                type="button"
+                onClick={handleBulkSetSource}
+                disabled={selectedIds.length === 0 || !bulkSource}
+                className={
+                  selectedIds.length === 0 || !bulkSource
+                    ? "btn-disabled-sm"
+                    : "btn-accent-sm"
+                }
+              >
+                Apply Source
+              </button>
+
               <button
                 type="button"
                 onClick={handleBulkDelete}
@@ -1207,15 +1288,7 @@ const Dashboard = () => {
                       End{sortArrow("end")}
                     </button>
                   </th>
-                  <th className="p-2 whitespace-nowrap">
-                    <button
-                      type="button"
-                      onClick={() => toggleSort("updatedBy")}
-                      className="hover:underline"
-                    >
-                      Updated By{sortArrow("updatedBy")}
-                    </button>
-                  </th>
+                  {/* Updated By column removed */}
                   <th className="p-2 whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
@@ -1383,26 +1456,51 @@ const Dashboard = () => {
                       )}
                     </td>
 
-                    <td className="p-2">{item.updatedBy}</td>
+                    {/* Updated By cell removed */}
 
                     <td className="p-2 whitespace-nowrap">
                       {editingId === item.id ? (
                         <div className="flex items-center gap-2">
                           <button
+                            type="button"
+                            onClick={handleCancelEdit}
+                            className="btn-secondary-sm"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
                             onClick={handleAddOrUpdate}
                             className="btn-accent-sm"
                           >
                             Save
                           </button>
                           <button
-                            onClick={handleCancelEdit}
-                            className="btn-secondary-sm"
+                            type="button"
+                            onClick={() => {
+                              const id = editingId;
+                              const name = newItem?.name;
+                              if (!id) return;
+                              confirmAndDelete(id, name);
+                            }}
+                            className="btn-danger-sm"
                           >
-                            Cancel
+                            Delete
                           </button>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMobileDetailsItem(item);
+                              setShowMobileDetailsModal(true);
+                            }}
+                            className="btn-secondary-sm"
+                          >
+                            Details
+                          </button>
+
                           <button
                             onClick={() => handleEdit(item)}
                             disabled={editingId !== null}
@@ -1422,12 +1520,6 @@ const Dashboard = () => {
                             className="btn-move-sm"
                           >
                             Move
-                          </button>
-                          <button
-                            onClick={() => confirmAndDelete(item.id, item.name)}
-                            className="btn-danger-sm"
-                          >
-                            Delete
                           </button>
                         </div>
                       )}
@@ -1535,6 +1627,20 @@ const Dashboard = () => {
           {editingId && (
             <button onClick={handleCancelEdit} className="btn-secondary">
               Cancel
+            </button>
+          )}
+          {editingId && (
+            <button
+              type="button"
+              onClick={() => {
+                const id = editingId;
+                const name = newItem?.name;
+                if (!id) return;
+                confirmAndDelete(id, name);
+              }}
+              className="btn-danger"
+            >
+              Delete
             </button>
           )}
         </div>
@@ -1729,20 +1835,6 @@ const Dashboard = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    const id = editingId;
-                    const name = newItem?.name;
-                    if (!id) return;
-                    confirmAndDelete(id, name);
-                    setShowMobileEditModal(false);
-                    handleCancelEdit();
-                  }}
-                  className="btn-danger"
-                >
-                  Delete
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
                     handleAddOrUpdate();
                     setShowMobileEditModal(false);
                   }}
@@ -1750,14 +1842,26 @@ const Dashboard = () => {
                 >
                   Save
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const id = editingId;
+                    const name = newItem?.name;
+                    if (!id) return;
+                    confirmAndDelete(id, name);
+                  }}
+                  className="btn-danger"
+                >
+                  Delete
+                </button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Mobile Details Modal (shows fields hidden in mobile list; Item ID stays hidden) */}
-      {isMobile && showMobileDetailsModal && mobileDetailsItem && (
+      {/* Details Modal (mobile + desktop). Desktop also shows Item ID. */}
+      {showMobileDetailsModal && mobileDetailsItem && (
         <div
           className="fixed inset-0 flex items-center justify-center bg-black/60 z-50"
           onClick={() => {
@@ -1778,6 +1882,14 @@ const Dashboard = () => {
 
             <div className="px-6 pb-6 overflow-y-auto flex-1">
               <div className="flex flex-col gap-3 text-sm">
+                {!isMobile && (
+                  <div className="flex justify-between gap-4">
+                    <span className="text-gray-400">Item ID</span>
+                    <span className="text-gray-200 text-right">
+                      {mobileDetailsItem.itemId || "-"}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between gap-4">
                   <span className="text-gray-400">Category</span>
                   <span className="text-gray-200 text-right">
