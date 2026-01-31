@@ -107,7 +107,6 @@ const Dashboard = () => {
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]); // array of item.id strings
   const [bulkLocation, setBulkLocation] = useState("");
-  const [bulkSource, setBulkSource] = useState("");
 
   // Table sorting
   const [sortKey, setSortKey] = useState("name");
@@ -350,7 +349,6 @@ const Dashboard = () => {
     if (!bulkMode) {
       setSelectedIds([]);
       setBulkLocation("");
-      setBulkSource("");
     }
     // If someone toggles modes while a details modal is open, close it
     setShowMobileDetailsModal(false);
@@ -478,7 +476,6 @@ const Dashboard = () => {
             rentalStart: row.rentalStart || "",
             rentalEnd: row.rentalEnd || "",
             quantity: row.quantity || 1,
-            reserveMin: Number(row.reserveMin) || 0,
             updatedBy: user?.username || "admin",
           }),
         );
@@ -492,43 +489,6 @@ const Dashboard = () => {
     } catch (e) {
       console.error(e);
       window.toast?.error?.(e?.message || "Bulk location update failed");
-    }
-  };
-
-  const handleBulkSetSource = async () => {
-    if (selectedIds.length === 0) return;
-    if (!bulkSource) return;
-
-    try {
-      for (const id of selectedIds) {
-        const row = equipment.find((e) => String(e.id) === String(id));
-        if (!row) continue;
-
-        await Promise.resolve(
-          updateEquipment(row.id, {
-            itemId: row.itemId || "",
-            name: row.name,
-            category: row.category || "",
-            source: bulkSource,
-            location: row.location || "",
-            status: row.status || "Available",
-            rentalStart: row.rentalStart || "",
-            rentalEnd: row.rentalEnd || "",
-            quantity: row.quantity || 1,
-            reserveMin: Number(row.reserveMin) || 0,
-            updatedBy: user?.username || "admin",
-          }),
-        );
-      }
-
-      window.toast?.success?.(
-        `Updated source for ${selectedIds.length} item(s)`,
-      );
-      setBulkSource("");
-      clearSelection();
-    } catch (e) {
-      console.error(e);
-      window.toast?.error?.(e?.message || "Bulk source update failed");
     }
   };
 
@@ -1015,27 +975,6 @@ const Dashboard = () => {
                 <option value="__add_new__">➕ Add new location...</option>
               </select>
 
-              <select
-                value={bulkSource}
-                onChange={(e) => setBulkSource(e.target.value)}
-                className="px-3 py-2 rounded bg-white text-black min-w-[220px]"
-              >
-                <option value="">Set source for selected...</option>
-                {Array.from(
-                  new Set(
-                    (Array.isArray(equipment) ? equipment : [])
-                      .map((e) => e.source)
-                      .filter(Boolean),
-                  ),
-                )
-                  .sort((a, b) => String(a).localeCompare(String(b)))
-                  .map((src) => (
-                    <option key={src} value={src}>
-                      {src}
-                    </option>
-                  ))}
-              </select>
-
               <button
                 type="button"
                 onClick={handleBulkSetLocation}
@@ -1048,20 +987,6 @@ const Dashboard = () => {
               >
                 Apply
               </button>
-
-              <button
-                type="button"
-                onClick={handleBulkSetSource}
-                disabled={selectedIds.length === 0 || !bulkSource}
-                className={
-                  selectedIds.length === 0 || !bulkSource
-                    ? "btn-disabled-sm"
-                    : "btn-accent-sm"
-                }
-              >
-                Apply Source
-              </button>
-
               <button
                 type="button"
                 onClick={handleBulkDelete}
