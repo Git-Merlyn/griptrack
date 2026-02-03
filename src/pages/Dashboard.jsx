@@ -117,6 +117,7 @@ const Dashboard = () => {
   // Mobile layout
   const [isMobile, setIsMobile] = useState(false);
   const [showMobileEditModal, setShowMobileEditModal] = useState(false);
+  const [showDesktopEditModal, setShowDesktopEditModal] = useState(false);
 
   // Mobile "Details" modal
   const [showMobileDetailsModal, setShowMobileDetailsModal] = useState(false);
@@ -175,6 +176,7 @@ const Dashboard = () => {
       setShowExportModal(false);
       setShowMobileDetailsModal(false);
       setMobileDetailsItem(null);
+      setShowDesktopEditModal(false);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -209,6 +211,7 @@ const Dashboard = () => {
       rentalStart: "",
       rentalEnd: "",
       quantity: 1,
+      reserveMin: 0,
     });
   };
 
@@ -223,6 +226,7 @@ const Dashboard = () => {
       rentalStart: item.rentalStart || "",
       rentalEnd: item.rentalEnd || "",
       quantity: item.quantity || 1,
+      reserveMin: Number(item.reserveMin) || 0,
     });
     setEditingId(item.id);
   };
@@ -259,6 +263,7 @@ const Dashboard = () => {
       rentalStart: "",
       rentalEnd: "",
       quantity: 1,
+      reserveMin: 0,
     });
   };
 
@@ -269,8 +274,13 @@ const Dashboard = () => {
     if (s === "available") return "text-success";
     if (s === "out") return "text-warning";
     if (s === "damaged") return "text-danger";
-    // Anything else (Unopened/Partial/Nearly Empty/etc)
     return "text-text";
+  };
+
+  const isBelowReserve = (row) => {
+    const q = Number(row?.quantity) || 0;
+    const r = Number(row?.reserveMin) || 0;
+    return r > 0 && q < r;
   };
 
   // Date warning helpers (text-only coloring, no boxes)
@@ -476,6 +486,7 @@ const Dashboard = () => {
             rentalStart: row.rentalStart || "",
             rentalEnd: row.rentalEnd || "",
             quantity: row.quantity || 1,
+            reserveMin: Number(row.reserveMin) || 0,
             updatedBy: user?.username || "admin",
           }),
         );
@@ -612,6 +623,7 @@ const Dashboard = () => {
         rentalStart: item.startDate || "",
         rentalEnd: item.endDate || "",
         quantity: item.quantity || 1,
+        reserveMin: Number(item.reserveMin) || 0,
         updatedBy: user?.username || "admin",
       });
     });
@@ -1074,7 +1086,15 @@ const Dashboard = () => {
                       </div>
                       <div className="text-sm text-gray-300">
                         <span className="text-gray-400">Qty:</span>{" "}
-                        {item.quantity || 1}
+                        <span
+                          className={
+                            isBelowReserve(item)
+                              ? "text-warning font-semibold"
+                              : ""
+                          }
+                        >
+                          {item.quantity || 1}
+                        </span>
                       </div>
                     </div>
 
@@ -1234,7 +1254,7 @@ const Dashboard = () => {
                     )}
 
                     <td className="p-2 text-accent font-medium">
-                      {editingId === item.id ? (
+                      {editingId === item.id && !showDesktopEditModal ? (
                         <input
                           type="text"
                           value={newItem.name}
@@ -1249,7 +1269,7 @@ const Dashboard = () => {
                     </td>
 
                     <td className="p-2">
-                      {editingId === item.id ? (
+                      {editingId === item.id && !showDesktopEditModal ? (
                         <input
                           type="text"
                           value={newItem.category}
@@ -1263,7 +1283,7 @@ const Dashboard = () => {
                       )}
                     </td>
                     <td className="p-2">
-                      {editingId === item.id ? (
+                      {editingId === item.id && !showDesktopEditModal ? (
                         <input
                           type="text"
                           value={newItem.source}
@@ -1278,7 +1298,7 @@ const Dashboard = () => {
                     </td>
 
                     <td className="p-2">
-                      {editingId === item.id ? (
+                      {editingId === item.id && !showDesktopEditModal ? (
                         <select
                           value={newItem.location}
                           onChange={(e) => {
@@ -1307,7 +1327,7 @@ const Dashboard = () => {
                     </td>
 
                     <td className={`p-2 ${statusClass(item.status)}`}>
-                      {editingId === item.id ? (
+                      {editingId === item.id && !showDesktopEditModal ? (
                         <select
                           value={newItem.status}
                           onChange={(e) =>
@@ -1327,26 +1347,42 @@ const Dashboard = () => {
                     </td>
 
                     <td className="p-2">
-                      {editingId === item.id ? (
+                      {editingId === item.id && !showDesktopEditModal ? (
                         <input
                           type="number"
-                          min="1"
-                          value={newItem.quantity}
-                          onChange={(e) =>
+                          min="0"
+                          value={
+                            newItem.quantity === "" ? "" : newItem.quantity
+                          }
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            if (raw === "") {
+                              handleInlineChange("quantity", "");
+                              return;
+                            }
+                            const v = parseInt(raw, 10);
                             handleInlineChange(
                               "quantity",
-                              parseInt(e.target.value, 10) || 1,
-                            )
-                          }
+                              Number.isFinite(v) ? v : 0,
+                            );
+                          }}
                           className="w-full px-2 py-1 rounded bg-white text-black"
                         />
                       ) : (
-                        item.quantity || 1
+                        <span
+                          className={
+                            isBelowReserve(item)
+                              ? "text-warning font-semibold"
+                              : ""
+                          }
+                        >
+                          {item.quantity || 1}
+                        </span>
                       )}
                     </td>
 
                     <td className="p-2">
-                      {editingId === item.id ? (
+                      {editingId === item.id && !showDesktopEditModal ? (
                         <input
                           type="date"
                           value={newItem.rentalStart || ""}
@@ -1365,7 +1401,7 @@ const Dashboard = () => {
                     </td>
 
                     <td className="p-2">
-                      {editingId === item.id ? (
+                      {editingId === item.id && !showDesktopEditModal ? (
                         <input
                           type="date"
                           value={newItem.rentalEnd || ""}
@@ -1384,7 +1420,7 @@ const Dashboard = () => {
                     {/* Updated By cell removed */}
 
                     <td className="p-2 whitespace-nowrap">
-                      {editingId === item.id ? (
+                      {editingId === item.id && !showDesktopEditModal ? (
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
@@ -1427,7 +1463,11 @@ const Dashboard = () => {
                           </button>
 
                           <button
-                            onClick={() => handleEdit(item)}
+                            type="button"
+                            onClick={() => {
+                              handleEdit(item);
+                              setShowDesktopEditModal(true);
+                            }}
                             disabled={editingId !== null}
                             className={
                               editingId !== null
@@ -1459,7 +1499,9 @@ const Dashboard = () => {
 
       <div className="hidden md:block bg-surface p-6 rounded-xl w-full shadow-md">
         <h3 className="text-xl font-bold mb-4 text-center text-accent">
-          {editingId ? "Edit Equipment" : "Add New Equipment"}
+          {editingId && !showDesktopEditModal
+            ? "Edit Equipment"
+            : "Add New Equipment"}
         </h3>
         <div className="flex flex-wrap gap-2">
           <input
@@ -1509,15 +1551,31 @@ const Dashboard = () => {
           <input
             type="number"
             placeholder="Qty"
-            min="1"
-            value={newItem.quantity}
+            min="0"
+            value={newItem.quantity === "" ? "" : newItem.quantity}
+            onChange={(e) => {
+              const raw = e.target.value;
+              if (raw === "") {
+                setNewItem({ ...newItem, quantity: "" });
+                return;
+              }
+              const v = parseInt(raw, 10);
+              setNewItem({ ...newItem, quantity: Number.isFinite(v) ? v : 0 });
+            }}
+            className="flex-1 min-w-[100px] px-3 py-2 rounded bg-white text-black"
+          />
+          <input
+            type="number"
+            placeholder="Reserve"
+            min="0"
+            value={newItem.reserveMin}
             onChange={(e) =>
               setNewItem({
                 ...newItem,
-                quantity: parseInt(e.target.value) || 1,
+                reserveMin: parseInt(e.target.value, 10) || 0,
               })
             }
-            className="flex-1 min-w-[100px] px-3 py-2 rounded bg-white text-black"
+            className="flex-1 min-w-[120px] px-3 py-2 rounded bg-white text-black"
           />
           <select
             value={newItem.status}
@@ -1547,14 +1605,14 @@ const Dashboard = () => {
             className="flex-1 min-w-[150px] px-3 py-2 rounded bg-white text-black"
           />
           <button onClick={handleAddOrUpdate} className="btn-accent">
-            {editingId ? "Update" : "Add"}
+            {editingId && !showDesktopEditModal ? "Update" : "Add"}
           </button>
-          {editingId && (
+          {editingId && !showDesktopEditModal && (
             <button onClick={handleCancelEdit} className="btn-secondary">
               Cancel
             </button>
           )}
-          {editingId && (
+          {editingId && !showDesktopEditModal && (
             <button
               type="button"
               onClick={() => {
@@ -1732,12 +1790,28 @@ const Dashboard = () => {
                 <label className="text-sm text-gray-300">Quantity</label>
                 <input
                   type="number"
-                  min="1"
-                  value={newItem.quantity}
+                  min="0"
+                  value={newItem.quantity === "" ? "" : newItem.quantity}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw === "") {
+                      handleInlineChange("quantity", "");
+                      return;
+                    }
+                    const v = parseInt(raw, 10);
+                    handleInlineChange("quantity", Number.isFinite(v) ? v : 0);
+                  }}
+                  className="w-full px-3 py-2 rounded bg-white text-black"
+                />
+                <label className="text-sm text-gray-300">Reserve minimum</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={newItem.reserveMin}
                   onChange={(e) =>
                     handleInlineChange(
-                      "quantity",
-                      parseInt(e.target.value, 10) || 1,
+                      "reserveMin",
+                      parseInt(e.target.value, 10) || 0,
                     )
                   }
                   className="w-full px-3 py-2 rounded bg-white text-black"
@@ -1767,6 +1841,202 @@ const Dashboard = () => {
                 >
                   Save
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const id = editingId;
+                    const name = newItem?.name;
+                    if (!id) return;
+                    confirmAndDelete(id, name);
+                  }}
+                  className="btn-danger"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Desktop Edit Modal */}
+      {!isMobile && showDesktopEditModal && editingId !== null && (
+        <div
+          className="fixed inset-0 flex items-center justify-center bg-black/60 z-50"
+          onClick={() => {
+            setShowDesktopEditModal(false);
+            handleCancelEdit();
+          }}
+        >
+          <div
+            className="bg-surface rounded-xl w-[94%] max-w-xl shadow-lg max-h-[calc(100dvh-24px)] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 pt-6 pb-4">
+              <h3 className="text-xl font-bold text-accent">Edit Item</h3>
+              {newItem?.name ? (
+                <div className="text-sm text-gray-300 mt-1 truncate">
+                  {newItem.name}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="px-6 pb-6 overflow-y-auto flex-1">
+              <div className="flex flex-col gap-3">
+                <label className="text-sm text-gray-300">Name</label>
+                <input
+                  type="text"
+                  value={newItem.name}
+                  onChange={(e) => handleInlineChange("name", e.target.value)}
+                  className="w-full px-3 py-2 rounded bg-white text-black"
+                />
+
+                <label className="text-sm text-gray-300">Category</label>
+                <input
+                  type="text"
+                  value={newItem.category}
+                  onChange={(e) =>
+                    handleInlineChange("category", e.target.value)
+                  }
+                  className="w-full px-3 py-2 rounded bg-white text-black"
+                />
+
+                <label className="text-sm text-gray-300">Source</label>
+                <input
+                  type="text"
+                  value={newItem.source}
+                  onChange={(e) => handleInlineChange("source", e.target.value)}
+                  className="w-full px-3 py-2 rounded bg-white text-black"
+                />
+
+                <label className="text-sm text-gray-300">Location</label>
+                <select
+                  value={newItem.location}
+                  onChange={(e) => {
+                    if (e.target.value === "__add_new__") {
+                      setIsAddingLocationTo("new");
+                      setShowAddLocationModal(true);
+                    } else {
+                      handleInlineChange("location", e.target.value);
+                    }
+                  }}
+                  className="w-full px-3 py-2 rounded bg-white text-black"
+                >
+                  <option value="">Select location</option>
+                  {allLocations.map((loc) => (
+                    <option key={loc} value={loc}>
+                      {loc}
+                    </option>
+                  ))}
+                  <option value="__add_new__">➕ Add new location...</option>
+                </select>
+
+                <label className="text-sm text-gray-300">Status</label>
+                <select
+                  value={newItem.status}
+                  onChange={(e) => handleInlineChange("status", e.target.value)}
+                  className="w-full px-3 py-2 rounded bg-white text-black"
+                >
+                  {statusOptions.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm text-gray-300">Quantity</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newItem.quantity === "" ? "" : newItem.quantity}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        if (raw === "") {
+                          handleInlineChange("quantity", "");
+                          return;
+                        }
+                        const v = parseInt(raw, 10);
+                        handleInlineChange(
+                          "quantity",
+                          Number.isFinite(v) ? v : 0,
+                        );
+                      }}
+                      className="w-full px-3 py-2 rounded bg-white text-black"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm text-gray-300">
+                      Reserve minimum
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={newItem.reserveMin}
+                      onChange={(e) =>
+                        handleInlineChange(
+                          "reserveMin",
+                          parseInt(e.target.value, 10) || 0,
+                        )
+                      }
+                      className="w-full px-3 py-2 rounded bg-white text-black"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm text-gray-300">Start date</label>
+                    <input
+                      type="date"
+                      value={newItem.rentalStart || ""}
+                      onChange={(e) =>
+                        handleInlineChange("rentalStart", e.target.value)
+                      }
+                      className="w-full px-3 py-2 rounded bg-white text-black"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm text-gray-300">End date</label>
+                    <input
+                      type="date"
+                      value={newItem.rentalEnd || ""}
+                      onChange={(e) =>
+                        handleInlineChange("rentalEnd", e.target.value)
+                      }
+                      className="w-full px-3 py-2 rounded bg-white text-black"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 pt-4 pb-6 border-t border-white/10 bg-surface">
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDesktopEditModal(false);
+                    handleCancelEdit();
+                  }}
+                  className="btn-secondary"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleAddOrUpdate();
+                    setShowDesktopEditModal(false);
+                  }}
+                  className="btn-accent"
+                >
+                  Save
+                </button>
+
                 <button
                   type="button"
                   onClick={() => {
@@ -1851,6 +2121,12 @@ const Dashboard = () => {
                   <span className="text-gray-400">Quantity</span>
                   <span className="text-gray-200 text-right">
                     {mobileDetailsItem.quantity || 1}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-400">Reserve minimum</span>
+                  <span className="text-gray-200 text-right">
+                    {Number(mobileDetailsItem.reserveMin) || 0}
                   </span>
                 </div>
 

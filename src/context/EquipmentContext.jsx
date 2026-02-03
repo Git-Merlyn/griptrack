@@ -98,6 +98,11 @@ export const EquipmentProvider = ({ children }) => {
       quantity: Number.isFinite(Number(item?.quantity))
         ? Number(item.quantity)
         : 1,
+      reserve_min: Number.isFinite(
+        Number(item?.reserveMin ?? item?.reserve_min),
+      )
+        ? Number(item?.reserveMin ?? item?.reserve_min)
+        : 0,
       start_date: safeDateOnly(
         item?.startDate ??
           item?.start_date ??
@@ -124,11 +129,15 @@ export const EquipmentProvider = ({ children }) => {
     rentalStart: row.start_date ?? null,
     rentalEnd: row.end_date ?? null,
     updatedBy: row.updated_by ?? "admin",
+    reserveMin: Number.isFinite(Number(row.reserve_min))
+      ? Number(row.reserve_min)
+      : 0,
 
     // New-style fields (keep for future migration)
     item_id: row.item_id ?? null,
     name: row.name,
     quantity: row.quantity,
+    reserve_min: row.reserve_min ?? 0,
     startDate: row.start_date ?? null,
     endDate: row.end_date ?? null,
     location: row.location,
@@ -256,6 +265,10 @@ export const EquipmentProvider = ({ children }) => {
       source: patch?.source ?? undefined,
       quantity:
         patch?.quantity !== undefined ? Number(patch.quantity) : undefined,
+      reserve_min:
+        patch?.reserveMin !== undefined || patch?.reserve_min !== undefined
+          ? Number(patch?.reserveMin ?? patch?.reserve_min)
+          : undefined,
       location: patch?.location ?? undefined,
       status: patch?.status ?? undefined,
       start_date: safeDateOnly(
@@ -367,6 +380,7 @@ export const EquipmentProvider = ({ children }) => {
         category: current.category ?? "",
         source: current.source ?? "",
         quantity: moveQty,
+        reserveMin: Number(current.reserveMin) || 0,
         location: newLocation,
         status: current.status ?? "Available",
         rentalStart: current.rentalStart ?? null,
