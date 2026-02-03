@@ -1,7 +1,7 @@
 import React, { useContext, useState, useEffect, useMemo } from "react";
-import UploadPDFModal from "../components/UploadPDFModal";
+import ImportFileModal from "../components/ImportFileModal";
 import EquipmentContext from "../context/EquipmentContext";
-import UserContext from "../context/UserContext";
+import useUser from "../context/useUser";
 
 const Dashboard = () => {
   const {
@@ -16,7 +16,7 @@ const Dashboard = () => {
     importSummaryMessage,
     clearImportSummary,
   } = useContext(EquipmentContext);
-  const { user } = useContext(UserContext);
+  const { user } = useUser();
 
   // Custom locations (so we don't pollute inventory with __placeholder__ rows)
   const [customLocations, setCustomLocations] = useState([]);
@@ -277,10 +277,24 @@ const Dashboard = () => {
     return "text-text";
   };
 
-  const isBelowReserve = (row) => {
-    const q = Number(row?.quantity) || 0;
-    const r = Number(row?.reserveMin) || 0;
-    return r > 0 && q < r;
+  const getQty = (row) => {
+    const q = row?.quantity;
+    const n = typeof q === "number" ? q : parseInt(String(q ?? ""), 10);
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  // Reserve highlighting rules:
+  // - Red when reserveMin > 0 AND quantity === 0
+  // - Yellow when reserveMin > 0 AND 0 < quantity < reserveMin
+  const qtyTextClass = (row) => {
+    const q = getQty(row);
+    const rRaw = row?.reserveMin;
+    const r =
+      typeof rRaw === "number" ? rRaw : parseInt(String(rRaw ?? ""), 10) || 0;
+
+    if (r > 0 && q === 0) return "text-danger font-semibold";
+    if (r > 0 && q > 0 && q < r) return "text-warning font-semibold";
+    return "";
   };
 
   // Date warning helpers (text-only coloring, no boxes)
@@ -423,7 +437,7 @@ const Dashboard = () => {
     let ambiguous = 0;
 
     for (const line of items) {
-      // UploadPDFModal provides parsed items shaped for import.
+      // ImportFileModal provides parsed items shaped for import.
       // Prefer matching by internal itemId when present; fallback to name.
       const lineItemId = String(line?.id || "").trim();
       const lineNameKey = normalizeName(line?.name);
@@ -1086,14 +1100,8 @@ const Dashboard = () => {
                       </div>
                       <div className="text-sm text-gray-300">
                         <span className="text-gray-400">Qty:</span>{" "}
-                        <span
-                          className={
-                            isBelowReserve(item)
-                              ? "text-warning font-semibold"
-                              : ""
-                          }
-                        >
-                          {item.quantity || 1}
+                        <span className={qtyTextClass(item)}>
+                          {getQty(item)}
                         </span>
                       </div>
                     </div>
@@ -1369,14 +1377,8 @@ const Dashboard = () => {
                           className="w-full px-2 py-1 rounded bg-white text-black"
                         />
                       ) : (
-                        <span
-                          className={
-                            isBelowReserve(item)
-                              ? "text-warning font-semibold"
-                              : ""
-                          }
-                        >
-                          {item.quantity || 1}
+                        <span className={qtyTextClass(item)}>
+                          {getQty(item)}
                         </span>
                       )}
                     </td>
@@ -1660,7 +1662,7 @@ const Dashboard = () => {
                 key={`${entry.id}-${entry.location}-${idx}`}
                 value={entry.id}
               >
-                {entry.location} — {entry.quantity || 1}
+                {entry.location} — {getQty(entry)}
               </option>
             ))}
           </select>
@@ -2120,7 +2122,7 @@ const Dashboard = () => {
                 <div className="flex justify-between gap-4">
                   <span className="text-gray-400">Quantity</span>
                   <span className="text-gray-200 text-right">
-                    {mobileDetailsItem.quantity || 1}
+                    {getQty(mobileDetailsItem)}
                   </span>
                 </div>
                 <div className="flex justify-between gap-4">
@@ -2378,7 +2380,7 @@ const Dashboard = () => {
         </div>
       )}
       {showUploadModal && (
-        <UploadPDFModal
+        <ImportFileModal
           isOpen={showUploadModal}
           onClose={() => {
             setShowUploadModal(false);

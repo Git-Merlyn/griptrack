@@ -78,7 +78,7 @@ src/
 ├─ context/
 │ └─ EquipmentContext.jsx # Inventory CRUD + move/merge logic
 ├─ components/
-│ ├─ UploadPDFModal.jsx # PDF import & parsing
+│ ├─ ImportFileModal.jsx # PDF import & parsing
 │ └─ Feedback/
 │ ├─ FeedbackModal.jsx
 │ └─ FeedbackForm.jsx

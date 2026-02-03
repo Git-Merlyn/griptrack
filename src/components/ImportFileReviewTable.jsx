@@ -1,6 +1,6 @@
 import React from "react";
 
-const UploadPDFReviewTable = ({
+const ImportFileReviewTable = ({
   reviewItems = [],
   locations = [],
   onChangeLocation,
@@ -63,4 +63,4 @@ const UploadPDFReviewTable = ({
   );
 };
 
-export default UploadPDFReviewTable;
+export default ImportFileReviewTable;

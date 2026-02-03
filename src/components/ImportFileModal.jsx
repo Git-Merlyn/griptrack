@@ -6,7 +6,7 @@ import pdfWorker from "pdfjs-dist/build/pdf.worker?url";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
-const UploadPDFModal = ({
+const ImportFileModal = ({
   isOpen,
   onClose,
   onUpload,
@@ -989,4 +989,4 @@ const UploadPDFModal = ({
   );
 };
 
-export default UploadPDFModal;
+export default ImportFileModal;

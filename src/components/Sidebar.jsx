@@ -56,29 +56,16 @@ const Sidebar = () => {
         Dashboard
       </NavLink>
 
-      {isMobile ? (
-        <NavLink
-          to="/feedback"
-          onClick={() => onDone?.()}
-          className={({ isActive }) =>
-            `w-full px-4 py-2 text-left transition-colors ${
-              isActive
-                ? "bg-accent/20 text-accent font-semibold"
-                : "text-text/60 hover:text-accent"
-            }`
-          }
-        >
-          Beta Feedback
-        </NavLink>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setFeedbackOpen(true)}
-          className="w-full px-4 py-2 text-left transition-colors text-text/60 hover:text-accent"
-        >
-          Beta Feedback
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={() => {
+          onDone?.();
+          setFeedbackOpen(true);
+        }}
+        className="w-full px-4 py-2 text-left transition-colors text-text/60 hover:text-accent"
+      >
+        Beta Feedback
+      </button>
 
       <button
         type="button"
@@ -150,13 +137,11 @@ const Sidebar = () => {
       {isMobile ? <MobileShell /> : null}
       <DesktopSidebar />
 
-      {/* Desktop-only: quick feedback modal */}
-      {!isMobile && (
-        <FeedbackModal
-          isOpen={feedbackOpen}
-          onClose={() => setFeedbackOpen(false)}
-        />
-      )}
+      {/* Quick feedback modal (desktop + mobile) */}
+      <FeedbackModal
+        isOpen={feedbackOpen}
+        onClose={() => setFeedbackOpen(false)}
+      />
     </>
   );
 };

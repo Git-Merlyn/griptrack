@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { supabase } from "../../lib/supabaseClient";
+import { supabase } from "@/lib/supabaseClient";
 
 const FeedbackForm = ({ onSubmitted }) => {
   const table = import.meta.env.VITE_FEEDBACK_TABLE || "beta_feedback";

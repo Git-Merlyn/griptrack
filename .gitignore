@@ -7,10 +7,12 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+node_modules/
+dist/
+dist-ssr/
+server/node_modules/
+coverage/
+.vitest/
 
 # Editor directories and files
 .vscode/*
@@ -28,5 +30,5 @@ dist-ssr
 
 # Environment variables
 .env
-.env.*  # If you use .env.local, .env.development, etc.
-
+.env.*
+!.env.example
