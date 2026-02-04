@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import FeedbackModal from "./feedback/FeedbackModal";
 
-const Sidebar = () => {
+const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
   const navigate = useNavigate();
 
   // Mobile drawer
@@ -28,8 +28,9 @@ const Sidebar = () => {
   const lockAndReload = () => {
     try {
       localStorage.removeItem("griptrack_beta_unlocked_v1");
-    } catch {
+    } catch (e) {
       // ignore
+      void e;
     }
 
     // Go back to root and force a reload so PasswordGate re-evaluates lock state
@@ -39,21 +40,24 @@ const Sidebar = () => {
 
   const closeDrawer = () => setDrawerOpen(false);
 
-  const NavItems = ({ onDone }) => (
+  const NavItems = ({ onDone, collapsed: navCollapsed = false }) => (
     <nav className="flex flex-col gap-0.5">
       <NavLink
         to="/"
         end
         onClick={() => onDone?.()}
+        title="Dashboard"
         className={({ isActive }) =>
-          `w-full px-4 py-2 text-left transition-colors ${
+          `w-full ${navCollapsed ? "px-2" : "px-4"} py-2 text-left transition-colors ${
+            navCollapsed ? "text-center" : ""
+          } ${
             isActive
               ? "bg-accent/20 text-accent font-semibold"
               : "text-text/60 hover:text-accent"
           }`
         }
       >
-        Dashboard
+        {navCollapsed ? "D" : "Dashboard"}
       </NavLink>
 
       <button
@@ -62,9 +66,12 @@ const Sidebar = () => {
           onDone?.();
           setFeedbackOpen(true);
         }}
-        className="w-full px-4 py-2 text-left transition-colors text-text/60 hover:text-accent"
+        title="Beta Feedback"
+        className={`w-full ${navCollapsed ? "px-2" : "px-4"} py-2 text-left transition-colors ${
+          navCollapsed ? "text-center" : ""
+        } text-text/60 hover:text-accent`}
       >
-        Beta Feedback
+        {navCollapsed ? "F" : "Beta Feedback"}
       </button>
 
       <button
@@ -73,18 +80,45 @@ const Sidebar = () => {
           onDone?.();
           lockAndReload();
         }}
-        className="w-full px-4 py-2 text-left transition-colors text-text/60 hover:text-accent"
+        title="Logout"
+        className={`w-full ${navCollapsed ? "px-2" : "px-4"} py-2 text-left transition-colors ${
+          navCollapsed ? "text-center" : ""
+        } text-text/60 hover:text-accent`}
       >
-        Logout
+        {navCollapsed ? "O" : "Logout"}
       </button>
     </nav>
   );
 
-  // Desktop sidebar (unchanged)
   const DesktopSidebar = () => (
-    <div className="hidden md:flex w-64 bg-surface border-r border-gray-700 h-full px-0 pt-4 pb-6 flex-col shadow-md">
-      <h2 className="text-xl font-bold mb-6 px-4 text-accent">GripTrack</h2>
-      <NavItems />
+    <div
+      className={`hidden md:flex ${
+        collapsed ? "w-20" : "w-64"
+      } bg-surface border-r border-gray-700 h-full px-0 pt-4 pb-6 flex-col shadow-md`}
+    >
+      {/* Desktop header styled like mobile */}
+      <div className="flex items-center justify-between px-4">
+        <button
+          type="button"
+          className="btn-secondary-sm"
+          onClick={onToggleCollapsed}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          title={collapsed ? "Expand" : "Collapse"}
+        >
+          ☰
+        </button>
+
+        {!collapsed && (
+          <h2 className="text-xl font-bold text-accent">GripTrack</h2>
+        )}
+
+        {/* spacer to keep title centered */}
+        <div className="w-10" />
+      </div>
+
+      <div className={collapsed ? "mt-4" : "mt-6"}>
+        <NavItems collapsed={collapsed} />
+      </div>
     </div>
   );
 
