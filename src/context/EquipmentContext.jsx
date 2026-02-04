@@ -1,5 +1,6 @@
 import { createContext, useState, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { findMergeDestination } from "./equipmentMoveUtils";
 
 // Allow dev/prod separation via env var
 const EQUIPMENT_TABLE =
@@ -309,6 +310,13 @@ export const EquipmentProvider = ({ children }) => {
   const moveEquipment = async (rowId, qty, newLocation) => {
     if (!rowId || !newLocation || !qty || qty <= 0) return;
 
+    const existingDest = findMergeDestination({
+      equipment,
+      currentId: id,
+      newLocation,
+      current,
+    });
+
     const id = String(rowId);
     const current = equipment.find((x) => String(x.id) === id);
     if (!current) {
@@ -319,27 +327,6 @@ export const EquipmentProvider = ({ children }) => {
     const currentQty = Number(current.quantity) || 0;
     const moveQty = Math.min(Number(qty) || 0, currentQty);
     if (moveQty <= 0) return;
-
-    // Define what counts as the "same item" for merging
-    const isSameItem = (a, b) => {
-      return (
-        String(a?.itemId || "") === String(b?.itemId || "") &&
-        String(a?.name || "") === String(b?.name || "") &&
-        String(a?.category || "") === String(b?.category || "") &&
-        String(a?.source || "") === String(b?.source || "") &&
-        String(a?.status || "") === String(b?.status || "") &&
-        String(a?.rentalStart || "") === String(b?.rentalStart || "") &&
-        String(a?.rentalEnd || "") === String(b?.rentalEnd || "")
-      );
-    };
-
-    // Find an existing destination row to merge into
-    const existingDest = equipment.find(
-      (x) =>
-        String(x.id) !== id &&
-        String(x.location || "") === String(newLocation || "") &&
-        isSameItem(x, current),
-    );
 
     // If moving all quantity
     if (moveQty === currentQty) {

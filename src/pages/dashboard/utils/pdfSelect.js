@@ -50,6 +50,9 @@ export function matchFileItemsToEquipment({ items, equipment }) {
     const lineItemId = String(line?.id || "").trim();
     const lineNameKey = normalizeName(line?.name);
 
+    // Ignore empty/blank lines from the parser
+    if (!lineItemId && !lineNameKey) continue;
+
     if (lineItemId && byItemId.has(lineItemId)) {
       const matches = byItemId.get(lineItemId);
       // If multiple rows share itemId, select all (safer than guessing)
