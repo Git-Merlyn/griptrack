@@ -6,6 +6,9 @@ import { findMergeDestination } from "./equipmentMoveUtils";
 const EQUIPMENT_TABLE =
   import.meta.env.VITE_EQUIPMENT_TABLE || "equipment_items";
 
+const AUDIT_TABLE =
+  import.meta.env.VITE_EQUIPMENT_AUDIT_TABLE || "equipment_audit";
+
 const EquipmentContext = createContext();
 const DEFAULT_LOCATIONS = [
   "G1",
@@ -65,6 +68,35 @@ export const EquipmentProvider = ({ children }) => {
   const [reviewTableVisible, setReviewTableVisible] = useState(false);
   const [assignAllLocation, setAssignAllLocation] = useState("");
   const [importSummaryMessage, setImportSummaryMessage] = useState("");
+
+  // --- Audit logging (DB trigger handles create/update/delete).
+  // We only write explicit MERGE events here so we can include meta.merged_from_id.
+  const logMergeEvent = async ({
+    mergedIntoId,
+    mergedFromId,
+    movedQty,
+    fromLocation,
+    toLocation,
+    actor,
+  }) => {
+    try {
+      await supabase.from(AUDIT_TABLE).insert({
+        equipment_id: String(mergedIntoId),
+        action: "merge",
+        actor: String(actor || "admin"),
+        from_location: fromLocation ? String(fromLocation) : null,
+        to_location: toLocation ? String(toLocation) : null,
+        delta_qty: Number.isFinite(Number(movedQty)) ? Number(movedQty) : null,
+        meta: {
+          merged_from_id: String(mergedFromId),
+          merged_into_id: String(mergedIntoId),
+        },
+      });
+    } catch (e) {
+      // Audit should never block core inventory actions
+      console.warn("Failed to write merge audit event", e);
+    }
+  };
 
   const registerLocation = (name) => {
     const trimmed = String(name || "").trim();
@@ -310,19 +342,19 @@ export const EquipmentProvider = ({ children }) => {
   const moveEquipment = async (rowId, qty, newLocation) => {
     if (!rowId || !newLocation || !qty || qty <= 0) return;
 
-    const existingDest = findMergeDestination({
-      equipment,
-      currentId: id,
-      newLocation,
-      current,
-    });
-
     const id = String(rowId);
     const current = equipment.find((x) => String(x.id) === id);
     if (!current) {
       window.toast?.error?.("Item not found");
       return;
     }
+
+    const existingDest = findMergeDestination({
+      equipment,
+      currentId: id,
+      newLocation,
+      current,
+    });
 
     const currentQty = Number(current.quantity) || 0;
     const moveQty = Math.min(Number(qty) || 0, currentQty);
@@ -336,6 +368,17 @@ export const EquipmentProvider = ({ children }) => {
           ...existingDest,
           quantity: (Number(existingDest.quantity) || 0) + currentQty,
         });
+
+        // Explicit merge audit event (includes merged_from_id)
+        await logMergeEvent({
+          mergedIntoId: existingDest.id,
+          mergedFromId: id,
+          movedQty: currentQty,
+          fromLocation: current.location,
+          toLocation: newLocation,
+          actor: current.updatedBy,
+        });
+
         await deleteEquipment(rowId);
       } else {
         // No destination row to merge into; just update location
@@ -358,6 +401,16 @@ export const EquipmentProvider = ({ children }) => {
       await updateEquipment(existingDest.id, {
         ...existingDest,
         quantity: (Number(existingDest.quantity) || 0) + moveQty,
+      });
+
+      // Explicit merge audit event (includes merged_from_id)
+      await logMergeEvent({
+        mergedIntoId: existingDest.id,
+        mergedFromId: id,
+        movedQty: moveQty,
+        fromLocation: current.location,
+        toLocation: newLocation,
+        actor: current.updatedBy,
       });
     } else {
       // Otherwise insert a new destination row

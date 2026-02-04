@@ -716,6 +716,7 @@ const DashboardPage = () => {
         variant="mobile"
         title={editingId ? "Edit Item" : "Add Item"}
         newItem={newItem}
+        onChangeField={setField}
         handleInlineChange={setField}
         allLocations={allLocations}
         statusOptions={statusOptions}
@@ -743,6 +744,7 @@ const DashboardPage = () => {
         variant="desktop"
         title={editingId ? "Edit Item" : "Add Item"}
         newItem={newItem}
+        onChangeField={setField}
         handleInlineChange={setField}
         allLocations={allLocations}
         statusOptions={statusOptions}
