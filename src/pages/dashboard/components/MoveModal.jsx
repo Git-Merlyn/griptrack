@@ -31,15 +31,33 @@ const MoveModal = ({
           </label>
           <input
             type="number"
-            min="1"
+            min="0"
             max={movingItem.quantity}
             value={moveData.qty}
-            onChange={(e) =>
-              setMoveData({
-                ...moveData,
-                qty: parseInt(e.target.value) || 1,
-              })
-            }
+            onChange={(e) => {
+              const raw = e.target.value;
+
+              // Allow clearing while typing
+              if (raw === "") {
+                setMoveData({ ...moveData, qty: "" });
+                return;
+              }
+
+              const n = Number(raw);
+              if (!Number.isNaN(n)) {
+                setMoveData({ ...moveData, qty: n });
+              }
+            }}
+            onBlur={() => {
+              // Enforce min/max when leaving the field (move qty must be at least 1)
+              const max = Number(movingItem.quantity) || 0;
+              const n = Number(moveData.qty);
+              const clamped = Math.min(
+                max,
+                Math.max(1, Number.isFinite(n) ? n : 1),
+              );
+              setMoveData({ ...moveData, qty: clamped });
+            }}
             className="px-3 py-2 rounded bg-white text-black"
           />
 
