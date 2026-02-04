@@ -1,4 +1,5 @@
 import React from "react";
+import { statusClass, qtyTextClass, getQty } from "./utils/helpers";
 
 const MobileDashboard = ({
   sortedEquipment,
@@ -9,10 +10,6 @@ const MobileDashboard = ({
   toggleSelected,
   selectAllVisible,
   clearSelection,
-
-  statusClass,
-  qtyTextClass,
-  getQty,
 
   editingId,
 

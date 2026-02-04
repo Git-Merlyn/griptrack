@@ -1,6 +1,6 @@
 import React from "react";
 
-const ImportFileReviewTable = ({
+const ImportReviewTable = ({
   reviewItems = [],
   locations = [],
   onChangeLocation,
@@ -63,4 +63,4 @@ const ImportFileReviewTable = ({
   );
 };
 
-export default ImportFileReviewTable;
+export default ImportReviewTable;

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import FeedbackModal from "./Feedback/FeedbackModal";
+import FeedbackModal from "./feedback/FeedbackModal";
 
 const Sidebar = () => {
   const navigate = useNavigate();

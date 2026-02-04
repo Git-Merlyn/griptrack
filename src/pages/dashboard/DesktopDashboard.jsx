@@ -1,4 +1,10 @@
 import React from "react";
+import {
+  statusClass,
+  qtyTextClass,
+  getQty,
+  dateTextClass,
+} from "./utils/helpers";
 
 const DesktopDashboard = ({
   sortedEquipment,
@@ -12,27 +18,11 @@ const DesktopDashboard = ({
   toggleSort,
   sortArrow,
 
-  statusClass,
-  qtyTextClass,
-  getQty,
-  dateTextClass,
-
-  allLocations,
-  statusOptions,
-
   editingId,
-  showDesktopEditModal,
-  newItem,
-  handleInlineChange,
-  onRequestAddLocation,
 
   onOpenDetails,
   onOpenEdit,
   onOpenMove,
-
-  onCancelInlineEdit,
-  onSaveInlineEdit,
-  onRequestDeleteInline,
 }) => {
   return (
     <div className="min-w-[700px]">
@@ -155,204 +145,61 @@ const DesktopDashboard = ({
                 </td>
               )}
 
-              <td className="p-2 text-accent font-medium">
-                {editingId === item.id && !showDesktopEditModal ? (
-                  <input
-                    type="text"
-                    value={newItem.name}
-                    onChange={(e) => handleInlineChange("name", e.target.value)}
-                    className="w-full px-2 py-1 rounded bg-white text-black"
-                  />
-                ) : (
-                  item.name
-                )}
-              </td>
+              <td className="p-2 text-accent font-medium">{item.name}</td>
 
-              <td className="p-2">
-                {editingId === item.id && !showDesktopEditModal ? (
-                  <input
-                    type="text"
-                    value={newItem.category}
-                    onChange={(e) =>
-                      handleInlineChange("category", e.target.value)
-                    }
-                    className="w-full px-2 py-1 rounded bg-white text-black"
-                  />
-                ) : (
-                  item.category || "-"
-                )}
-              </td>
+              <td className="p-2">{item.category || "-"}</td>
 
-              <td className="p-2">
-                {editingId === item.id && !showDesktopEditModal ? (
-                  <input
-                    type="text"
-                    value={newItem.source}
-                    onChange={(e) =>
-                      handleInlineChange("source", e.target.value)
-                    }
-                    className="w-full px-2 py-1 rounded bg-white text-black"
-                  />
-                ) : (
-                  item.source || "-"
-                )}
-              </td>
+              <td className="p-2">{item.source || "-"}</td>
 
-              <td className="p-2">
-                {editingId === item.id && !showDesktopEditModal ? (
-                  <select
-                    value={newItem.location}
-                    onChange={(e) => {
-                      if (e.target.value === "__add_new__") {
-                        onRequestAddLocation?.();
-                      } else {
-                        handleInlineChange("location", e.target.value);
-                      }
-                    }}
-                    className="w-full px-2 py-1 rounded bg-white text-black"
-                  >
-                    <option value="">Select location</option>
-                    {allLocations.map((loc) => (
-                      <option key={loc} value={loc}>
-                        {loc}
-                      </option>
-                    ))}
-                    <option value="__add_new__">➕ Add new location...</option>
-                  </select>
-                ) : (
-                  item.location
-                )}
-              </td>
+              <td className="p-2">{item.location}</td>
 
               <td className={`p-2 ${statusClass(item.status)}`}>
-                {editingId === item.id && !showDesktopEditModal ? (
-                  <select
-                    value={newItem.status}
-                    onChange={(e) =>
-                      handleInlineChange("status", e.target.value)
-                    }
-                    className="w-full px-2 py-1 rounded bg-white text-black font-normal"
-                  >
-                    {statusOptions.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <span className="font-normal">{item.status}</span>
-                )}
+                <span className="font-normal">{item.status}</span>
               </td>
 
               <td className="p-2">
-                {editingId === item.id && !showDesktopEditModal ? (
-                  <input
-                    type="number"
-                    min="0"
-                    value={newItem.quantity === "" ? "" : newItem.quantity}
-                    onChange={(e) => {
-                      const raw = e.target.value;
-                      if (raw === "") return handleInlineChange("quantity", "");
-                      const v = parseInt(raw, 10);
-                      handleInlineChange(
-                        "quantity",
-                        Number.isFinite(v) ? v : 0,
-                      );
-                    }}
-                    className="w-full px-2 py-1 rounded bg-white text-black"
-                  />
-                ) : (
-                  <span className={qtyTextClass(item)}>{getQty(item)}</span>
-                )}
+                <span className={qtyTextClass(item)}>{getQty(item)}</span>
               </td>
 
               <td className="p-2">
-                {editingId === item.id && !showDesktopEditModal ? (
-                  <input
-                    type="date"
-                    value={newItem.rentalStart || ""}
-                    onChange={(e) =>
-                      handleInlineChange("rentalStart", e.target.value)
-                    }
-                    className="w-full px-2 py-1 rounded bg-white text-black"
-                  />
-                ) : (
-                  <span className={dateTextClass(item.rentalStart, "start")}>
-                    {item.rentalStart || "-"}
-                  </span>
-                )}
+                <span className={dateTextClass(item.rentalStart, "start")}>
+                  {item.rentalStart || "-"}
+                </span>
               </td>
 
               <td className="p-2">
-                {editingId === item.id && !showDesktopEditModal ? (
-                  <input
-                    type="date"
-                    value={newItem.rentalEnd || ""}
-                    onChange={(e) =>
-                      handleInlineChange("rentalEnd", e.target.value)
-                    }
-                    className="w-full px-2 py-1 rounded bg-white text-black"
-                  />
-                ) : (
-                  <span className={dateTextClass(item.rentalEnd, "end")}>
-                    {item.rentalEnd || "-"}
-                  </span>
-                )}
+                <span className={dateTextClass(item.rentalEnd, "end")}>
+                  {item.rentalEnd || "-"}
+                </span>
               </td>
 
               <td className="p-2 whitespace-nowrap">
-                {editingId === item.id && !showDesktopEditModal ? (
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={onCancelInlineEdit}
-                      className="btn-secondary-sm"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={onSaveInlineEdit}
-                      className="btn-accent-sm"
-                    >
-                      Save
-                    </button>
-                    <button
-                      type="button"
-                      onClick={onRequestDeleteInline}
-                      className="btn-danger-sm"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => onOpenDetails(item)}
-                      className="btn-secondary-sm"
-                    >
-                      Details
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onOpenEdit(item)}
-                      disabled={editingId !== null}
-                      className={
-                        editingId !== null ? "btn-disabled-sm" : "btn-edit-sm"
-                      }
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onOpenMove(item)}
-                      className="btn-move-sm"
-                    >
-                      Move
-                    </button>
-                  </div>
-                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onOpenDetails(item)}
+                    className="btn-secondary-sm"
+                  >
+                    Details
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenEdit(item)}
+                    disabled={editingId !== null}
+                    className={
+                      editingId !== null ? "btn-disabled-sm" : "btn-edit-sm"
+                    }
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenMove(item)}
+                    className="btn-move-sm"
+                  >
+                    Move
+                  </button>
+                </div>
               </td>
             </tr>
           ))}
