@@ -114,7 +114,7 @@ const BulkToolbar = ({
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search name, ID, category, location, status…"
-          className="w-full max-w-md px-3 py-2 rounded-lg bg-surface border border-gray-700 text-text placeholder:text-text/40 focus:outline-none focus:ring-2 focus:ring-accent/40"
+          className="w-full max-w-md px-3 py-2 rounded-lg bg-white/90 text-text border border-gray-300 text-text placeholder:text-gray-500 shadow-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition"
         />
         {searchQuery.trim() ? (
           <button
