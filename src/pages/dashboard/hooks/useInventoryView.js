@@ -38,19 +38,8 @@ export default function useInventoryView({
     if (!q) return visibleEquipment;
 
     return visibleEquipment.filter((e) => {
-      const hay = [
-        e?.name,
-        e?.itemId,
-        e?.category,
-        e?.source,
-        e?.location,
-        e?.status,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return hay.includes(q);
+      const name = String(e?.name || "").toLowerCase();
+      return name.includes(q);
     });
   }, [visibleEquipment, searchQuery]);
 
