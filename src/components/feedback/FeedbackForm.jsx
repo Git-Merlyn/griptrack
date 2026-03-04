@@ -1,8 +1,10 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useContext } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import UserContext from "@/context/UserContext";
 
 const FeedbackForm = ({ onSubmitted }) => {
   const table = import.meta.env.VITE_FEEDBACK_TABLE || "beta_feedback";
+  const { orgId, loadingOrg } = useContext(UserContext) || {};
 
   const [type, setType] = useState("bug");
   const [severity, setSeverity] = useState("medium");
@@ -43,9 +45,18 @@ const FeedbackForm = ({ onSubmitted }) => {
     e.preventDefault();
     if (!description.trim()) return;
 
+    if (!orgId) {
+      const msg = loadingOrg
+        ? "Account setup is still loading. Try again in a moment."
+        : "No organization found for this user.";
+      toastError(msg);
+      return;
+    }
+
     setSubmitting(true);
     try {
       const payload = {
+        org_id: orgId,
         type,
         severity,
         title: title.trim() || null,

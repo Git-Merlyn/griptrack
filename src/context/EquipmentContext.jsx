@@ -1,6 +1,13 @@
-import { createContext, useState, useEffect, useCallback } from "react";
+import {
+  createContext,
+  useState,
+  useEffect,
+  useCallback,
+  useContext,
+} from "react";
 import { supabase } from "../lib/supabaseClient";
 import { findMergeDestination } from "./equipmentMoveUtils";
+import UserContext from "./UserContext";
 
 // Allow dev/prod separation via env var
 const EQUIPMENT_TABLE =
@@ -22,6 +29,8 @@ const DEFAULT_LOCATIONS = [
 ];
 
 export const EquipmentProvider = ({ children }) => {
+  const { orgId, loadingOrg } = useContext(UserContext) || {};
+
   const [equipmentData, setEquipmentData] = useState([]);
   const [locations, setLocations] = useState([]);
 
@@ -81,6 +90,7 @@ export const EquipmentProvider = ({ children }) => {
   }) => {
     try {
       await supabase.from(AUDIT_TABLE).insert({
+        org_id: orgId ?? null,
         equipment_id: String(mergedIntoId),
         action: "merge",
         actor: String(actor || "admin"),
@@ -124,6 +134,7 @@ export const EquipmentProvider = ({ children }) => {
     const itemId = item?.item_id ?? item?.itemId ?? item?.id ?? null;
 
     return {
+      org_id: orgId ?? null,
       item_id: itemId ? String(itemId) : null,
       name: String(item?.name ?? "").trim() || "(Unnamed)",
       category: String(item?.category ?? "").trim() || null,
@@ -236,6 +247,16 @@ export const EquipmentProvider = ({ children }) => {
 
   // Insert many items (used by PDF import). Duplicates are allowed.
   const addMultipleItems = async (items) => {
+    // Org scoping: inserts must always include org_id.
+    // If org bootstrap hasn't completed yet, block the insert.
+    if (!orgId) {
+      const msg = loadingOrg
+        ? "Account setup is still loading. Try again in a moment."
+        : "No organization found for this user.";
+      window.toast?.error?.(msg);
+      throw new Error(msg);
+    }
+
     const rowsToInsert = (items ?? []).map(normalizeItemForInsert);
 
     const { data, error } = await supabase
