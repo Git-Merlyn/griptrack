@@ -113,23 +113,32 @@ if (inviteRowError) {
   });
 }
 
-    // Invite via Supabase Auth (sends email)
+    // Invite via Supabase Auth (sends email for brand new users).
+    // If the user already exists, keep the pending org_invites row and return success.
     const { data: inviteData, error: inviteErr } =
       await admin.auth.admin.inviteUserByEmail(email, {
         // IMPORTANT: set this to your deployed URL
         redirectTo: "https://griptrack-inventory.vercel.app/auth/callback",
       });
 
+    let alreadyRegistered = false;
+
     if (inviteErr) {
-      return new Response(JSON.stringify({ error: inviteErr.message }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      const msg = String(inviteErr.message || "").toLowerCase();
+      if (msg.includes("already been registered")) {
+        alreadyRegistered = true;
+      } else {
+        return new Response(JSON.stringify({ error: inviteErr.message }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     return new Response(
       JSON.stringify({
         ok: true,
+        alreadyRegistered,
         invitedUserId: inviteData?.user?.id ?? null,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
