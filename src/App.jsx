@@ -10,10 +10,12 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 import Dashboard from "./pages/Dashboard";
+import Staff from "./pages/Staff";
 import NotFound from "./pages/NotFound";
 import MainLayout from "./components/layout/MainLayout";
 import PasswordGate from "./components/PasswordGate";
 import Auth from "./pages/Auth";
+import CompleteProfile from "./pages/CompleteProfile";
 import useUser from "./context/useUser";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
@@ -93,34 +95,25 @@ const OrgSetup = ({ orgId, initialName, onSaved }) => {
 
 const App = () => {
   const location = useLocation();
-  const { authUser, loadingOrg, orgId } = useUser();
+  const {
+    authUser,
+    loadingOrg,
+    orgId,
+    orgName,
+    needsOrgSetup,
+    needsProfileSetup,
+  } = useUser();
 
-  const [orgName, setOrgName] = useState(null);
-  const [orgNameLoading, setOrgNameLoading] = useState(false);
+  // Local override so after saving the org name we don't get stuck on /org-setup
+  // even if the provider hasn't reloaded orgName yet.
+  const [orgNameLocal, setOrgNameLocal] = useState(null);
+  const effectiveOrgName = orgNameLocal ?? orgName;
+  const effectiveNeedsOrgSetup = orgNameLocal ? false : needsOrgSetup;
 
-  useEffect(() => {
-    const loadOrgName = async () => {
-      if (!authUser || loadingOrg || !orgId) return;
-
-      setOrgNameLoading(true);
-      const { data, error } = await supabase
-        .from("organizations")
-        .select("name")
-        .eq("id", orgId)
-        .single();
-
-      if (!error) setOrgName(data?.name ?? "");
-      setOrgNameLoading(false);
-    };
-
-    loadOrgName();
-  }, [authUser, loadingOrg, orgId]);
-
-  const needsOrgSetup =
-    !!authUser &&
-    !loadingOrg &&
-    !orgNameLoading &&
-    (!orgName || String(orgName).trim() === "" || orgName === "New Company");
+  const [profileCompletedLocal, setProfileCompletedLocal] = useState(false);
+  const effectiveNeedsProfileSetup = profileCompletedLocal
+    ? false
+    : needsProfileSetup;
 
   return (
     <PasswordGate>
@@ -130,7 +123,7 @@ const App = () => {
           <Analytics />
           <SpeedInsights />
         </>
-      ) : loadingOrg || orgNameLoading ? (
+      ) : loadingOrg ? (
         <>
           <div className="min-h-screen flex items-center justify-center bg-black text-gray-200">
             Loading…
@@ -140,8 +133,12 @@ const App = () => {
         </>
       ) : (
         <>
-          {needsOrgSetup && location.pathname !== "/org-setup" ? (
+          {effectiveNeedsOrgSetup && location.pathname !== "/org-setup" ? (
             <Navigate to="/org-setup" replace />
+          ) : !effectiveNeedsOrgSetup &&
+            effectiveNeedsProfileSetup &&
+            location.pathname !== "/complete-profile" ? (
+            <Navigate to="/complete-profile" replace />
           ) : null}
 
           <Routes>
@@ -150,14 +147,23 @@ const App = () => {
               element={
                 <OrgSetup
                   orgId={orgId}
-                  initialName={orgName}
-                  onSaved={(name) => setOrgName(name)}
+                  initialName={effectiveOrgName}
+                  onSaved={(name) => setOrgNameLocal(name)}
+                />
+              }
+            />
+            <Route
+              path="/complete-profile"
+              element={
+                <CompleteProfile
+                  onSaved={() => setProfileCompletedLocal(true)}
                 />
               }
             />
 
             <Route path="/" element={<MainLayout />}>
               <Route index element={<Dashboard />} />
+              <Route path="staff" element={<Staff />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

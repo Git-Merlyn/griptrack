@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import FeedbackModal from "./feedback/FeedbackModal";
+import useUser from "@/context/useUser";
 
 const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
   const navigate = useNavigate();
+  const { role } = useUser();
+  const isAdmin = role === "owner" || role === "admin";
 
   // Mobile drawer
   const [isMobile, setIsMobile] = useState(false);
@@ -59,6 +62,25 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
       >
         {navCollapsed ? "D" : "Dashboard"}
       </NavLink>
+
+      {isAdmin && (
+        <NavLink
+          to="/staff"
+          onClick={() => onDone?.()}
+          title="Staff"
+          className={({ isActive }) =>
+            `w-full ${navCollapsed ? "px-2" : "px-4"} py-2 text-left transition-colors ${
+              navCollapsed ? "text-center" : ""
+            } ${
+              isActive
+                ? "bg-accent/20 text-accent font-semibold"
+                : "text-text/60 hover:text-accent"
+            }`
+          }
+        >
+          {navCollapsed ? "S" : "Staff"}
+        </NavLink>
+      )}
 
       <button
         type="button"

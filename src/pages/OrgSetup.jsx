@@ -21,10 +21,15 @@ export default function OrgSetup({ onDone }) {
         .eq("id", orgId)
         .single();
 
-      if (!error && data?.name) setName(data.name);
+      if (!error && data?.name) {
+        // Org already configured, skip setup
+        navigate("/", { replace: true });
+        return;
+      }
+      if (!error && data) setName(data.name || "");
     };
     load();
-  }, [orgId]);
+  }, [orgId, navigate]);
 
   const save = async (e) => {
     e.preventDefault();

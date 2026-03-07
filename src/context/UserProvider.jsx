@@ -22,7 +22,23 @@ const UserProvider = ({ children }) => {
   // Org context
   const [orgId, setOrgId] = useState(null);
   const [role, setRole] = useState(null);
+  const [orgName, setOrgName] = useState("");
+  const [needsOrgSetup, setNeedsOrgSetup] = useState(false);
+  const [profile, setProfile] = useState(null);
+  const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
   const [loadingOrg, setLoadingOrg] = useState(true);
+
+  const isPlaceholderOrgName = (name) => {
+    const n = String(name || "").trim();
+    // Treat empty or obvious placeholders as "needs setup"
+    return (
+      !n ||
+      n.toLowerCase() === "default org" ||
+      n.toLowerCase() === "new company" ||
+      n.toLowerCase() === "organization" ||
+      n.toLowerCase() === "company"
+    );
+  };
 
   const login = (username) => {
     // NOTE: This is legacy. Real auth should happen via Supabase auth UI/flows.
@@ -50,6 +66,10 @@ const UserProvider = ({ children }) => {
     setAuthUser(null);
     setOrgId(null);
     setRole(null);
+    setOrgName("");
+    setNeedsOrgSetup(false);
+    setProfile(null);
+    setNeedsProfileSetup(false);
     setLoadingOrg(false);
 
     try {
@@ -89,12 +109,18 @@ const UserProvider = ({ children }) => {
         setAuthUser(null);
         setOrgId(null);
         setRole(null);
+        setOrgName("");
+        setNeedsOrgSetup(false);
+        setProfile(null);
+        setNeedsProfileSetup(false);
         setLoadingOrg(false);
         return;
       }
 
       setAuthUser(session.user);
       setLoadingOrg(true);
+
+      await supabase.rpc("accept_org_invite_for_user");
 
       const { data, error } = await supabase.rpc("ensure_org_for_user");
       if (cancelled) return;
@@ -109,8 +135,52 @@ const UserProvider = ({ children }) => {
       }
 
       const row = Array.isArray(data) ? data[0] : data;
-      setOrgId(row?.org_id ?? null);
+
+      const nextOrgId = row?.org_id ?? null;
+      setOrgId(nextOrgId);
       setRole(row?.role ?? null);
+
+      // Fetch org name to determine if setup is required.
+      if (nextOrgId) {
+        const { data: orgRow, error: orgErr } = await supabase
+          .from("organizations")
+          .select("name")
+          .eq("id", nextOrgId)
+          .single();
+
+        if (orgErr) {
+          // If we can't read org name, fail open (don't block app in setup loop)
+          console.warn("Failed to load organization name", orgErr);
+          setOrgName("");
+          setNeedsOrgSetup(false);
+        } else {
+          const name = String(orgRow?.name || "").trim();
+          setOrgName(name);
+          setNeedsOrgSetup(isPlaceholderOrgName(name));
+        }
+      } else {
+        setOrgName("");
+        // No org id means something is wrong; treat as needing setup to be safe.
+        setNeedsOrgSetup(true);
+      }
+
+      // Load profile for the signed-in user.
+      const { data: profileRow, error: profileErr } = await supabase
+        .from("profiles")
+        .select("id,email,full_name,phone")
+        .eq("id", session.user.id)
+        .single();
+
+      if (profileErr) {
+        // If no profile exists yet, require profile setup.
+        console.warn("Failed to load profile", profileErr);
+        setProfile(null);
+        setNeedsProfileSetup(true);
+      } else {
+        setProfile(profileRow ?? null);
+        setNeedsProfileSetup(!String(profileRow?.full_name || "").trim());
+      }
+
       setLoadingOrg(false);
     };
 
@@ -149,9 +219,23 @@ const UserProvider = ({ children }) => {
       // org info
       orgId,
       role,
+      orgName,
+      needsOrgSetup,
+      profile,
+      needsProfileSetup,
       loadingOrg,
     }),
-    [user, authUser, orgId, role, loadingOrg],
+    [
+      user,
+      authUser,
+      orgId,
+      role,
+      orgName,
+      needsOrgSetup,
+      profile,
+      needsProfileSetup,
+      loadingOrg,
+    ],
   );
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;

@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabaseClient";
 
 export default function Auth() {
   const [mode, setMode] = useState("signin"); // signin | signup
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -14,8 +15,25 @@ export default function Auth() {
     setBusy(true);
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const trimmedName = fullName.trim();
+        if (!trimmedName) {
+          throw new Error("Full name is required");
+        }
+
+        const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
+
+        const userId = data?.user?.id;
+        if (userId) {
+          const { error: profileError } = await supabase
+            .from("profiles")
+            .upsert({
+              id: userId,
+              email: email.trim().toLowerCase(),
+              full_name: trimmedName,
+            });
+          if (profileError) throw profileError;
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email,
@@ -39,6 +57,18 @@ export default function Auth() {
         </p>
 
         <form onSubmit={submit} className="flex flex-col gap-3">
+          {mode === "signup" && (
+            <div>
+              <label className="text-sm text-gray-300">Full name</label>
+              <input
+                className="w-full mt-1 px-3 py-2 rounded bg-white text-black"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                type="text"
+                required
+              />
+            </div>
+          )}
           <div>
             <label className="text-sm text-gray-300">Email</label>
             <input
@@ -74,7 +104,10 @@ export default function Auth() {
           <button
             type="button"
             className="btn-secondary"
-            onClick={() => setMode(mode === "signup" ? "signin" : "signup")}
+            onClick={() => {
+              setErr("");
+              setMode(mode === "signup" ? "signin" : "signup");
+            }}
           >
             {mode === "signup"
               ? "Have an account? Sign in"
