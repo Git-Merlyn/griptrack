@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function Auth({ mode: entryMode = "normal" }) {
@@ -8,10 +9,20 @@ export default function Auth({ mode: entryMode = "normal" }) {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [success, setSuccess] = useState("");
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const emailFromUrl = String(searchParams.get("email") || "").trim();
+    if (emailFromUrl) {
+      setEmail(emailFromUrl);
+    }
+  }, [searchParams]);
 
   const submit = async (e) => {
     e.preventDefault();
     setErr("");
+    setSuccess("");
     setBusy(true);
     try {
       if (authMode === "signup") {
@@ -20,8 +31,21 @@ export default function Auth({ mode: entryMode = "normal" }) {
           throw new Error("Full name is required");
         }
 
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
+
+        // If email confirmation is enabled, Supabase often does not return a session here.
+        // Show a real success state instead of looking like nothing happened.
+        if (!data?.session) {
+          setSuccess(
+            isInviteMode
+              ? "Account created. Check your email to confirm it, then come back and sign in to join your team."
+              : "Account created. Check your email to confirm it, then sign in.",
+          );
+          setPassword("");
+          setAuthMode("signin");
+          return;
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email,
@@ -63,7 +87,11 @@ export default function Auth({ mode: entryMode = "normal" }) {
               <input
                 className="w-full mt-1 px-3 py-2 rounded bg-white text-black"
                 value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
+                onChange={(e) => {
+                  setErr("");
+                  setSuccess("");
+                  setFullName(e.target.value);
+                }}
                 type="text"
                 required
               />
@@ -74,7 +102,11 @@ export default function Auth({ mode: entryMode = "normal" }) {
             <input
               className="w-full mt-1 px-3 py-2 rounded bg-white text-black"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setErr("");
+                setSuccess("");
+                setEmail(e.target.value);
+              }}
               type="email"
               required
             />
@@ -85,13 +117,20 @@ export default function Auth({ mode: entryMode = "normal" }) {
             <input
               className="w-full mt-1 px-3 py-2 rounded bg-white text-black"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setErr("");
+                setSuccess("");
+                setPassword(e.target.value);
+              }}
               type="password"
               required
             />
           </div>
 
           {err ? <div className="text-red-400 text-sm">{err}</div> : null}
+          {success ? (
+            <div className="text-green-400 text-sm">{success}</div>
+          ) : null}
 
           <button
             type="submit"
@@ -110,6 +149,7 @@ export default function Auth({ mode: entryMode = "normal" }) {
             className="btn-secondary"
             onClick={() => {
               setErr("");
+              setSuccess("");
               setAuthMode(authMode === "signup" ? "signin" : "signup");
             }}
           >

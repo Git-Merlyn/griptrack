@@ -123,7 +123,7 @@ if (inviteRowError) {
     const { data: inviteData, error: inviteErr } =
       await admin.auth.admin.inviteUserByEmail(email, {
         // IMPORTANT: set this to your deployed URL
-        redirectTo: "https://griptrack-inventory.vercel.app/invite",
+        redirectTo: `https://griptrack-inventory.vercel.app/invite?email=${encodeURIComponent(email)}`,
       });
 
     if (inviteErr) {
@@ -141,7 +141,7 @@ if (inviteRowError) {
             type: "magiclink",
             email,
             options: {
-              redirectTo: "https://griptrack-inventory.vercel.app/invite",
+              redirectTo: `https://griptrack-inventory.vercel.app/invite?email=${encodeURIComponent(email)}`,
             },
           });
 
