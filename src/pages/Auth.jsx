@@ -20,20 +20,8 @@ export default function Auth({ mode: entryMode = "normal" }) {
           throw new Error("Full name is required");
         }
 
-        const { data, error } = await supabase.auth.signUp({ email, password });
+        const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
-
-        const userId = data?.user?.id;
-        if (userId) {
-          const { error: profileError } = await supabase
-            .from("profiles")
-            .upsert({
-              id: userId,
-              email: email.trim().toLowerCase(),
-              full_name: trimmedName,
-            });
-          if (profileError) throw profileError;
-        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email,
