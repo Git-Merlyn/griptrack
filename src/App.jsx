@@ -119,7 +119,12 @@ const App = () => {
     <PasswordGate>
       {!authUser ? (
         <>
-          <Auth />
+          <Routes>
+            <Route path="/auth" element={<Auth mode="normal" />} />
+            <Route path="/invite" element={<Auth mode="invite" />} />
+            <Route path="*" element={<Navigate to="/auth" replace />} />
+          </Routes>
+
           <Analytics />
           <SpeedInsights />
         </>

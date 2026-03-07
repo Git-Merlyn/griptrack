@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-export default function Auth() {
-  const [mode, setMode] = useState("signin"); // signin | signup
+export default function Auth({ mode: entryMode = "normal" }) {
+  const [authMode, setAuthMode] = useState("signin"); // signin | signup
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -14,7 +14,7 @@ export default function Auth() {
     setErr("");
     setBusy(true);
     try {
-      if (mode === "signup") {
+      if (authMode === "signup") {
         const trimmedName = fullName.trim();
         if (!trimmedName) {
           throw new Error("Full name is required");
@@ -48,16 +48,28 @@ export default function Auth() {
     }
   };
 
+  const isInviteMode = entryMode === "invite";
+
+  const heading = isInviteMode
+    ? "You've been invited to join GripTrack"
+    : "GripTrack";
+
+  const subtext = isInviteMode
+    ? authMode === "signup"
+      ? "Create your account to join your team. Your access will be linked automatically."
+      : "Sign in to join your team. Your access will be linked automatically."
+    : authMode === "signup"
+      ? "Create an account"
+      : "Sign in";
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-black">
       <div className="bg-surface rounded-2xl p-6 w-[92%] max-w-md shadow-lg">
-        <h1 className="text-2xl font-bold text-accent mb-1">GripTrack</h1>
-        <p className="text-gray-300 mb-6">
-          {mode === "signup" ? "Create an account" : "Sign in"}
-        </p>
+        <h1 className="text-2xl font-bold text-accent mb-1">{heading}</h1>
+        <p className="text-gray-300 mb-6">{subtext}</p>
 
         <form onSubmit={submit} className="flex flex-col gap-3">
-          {mode === "signup" && (
+          {authMode === "signup" && (
             <div>
               <label className="text-sm text-gray-300">Full name</label>
               <input
@@ -98,7 +110,11 @@ export default function Auth() {
             disabled={busy}
             className={busy ? "btn-disabled" : "btn-accent"}
           >
-            {busy ? "Please wait…" : mode === "signup" ? "Sign up" : "Sign in"}
+            {busy
+              ? "Please wait…"
+              : authMode === "signup"
+                ? "Sign up"
+                : "Sign in"}
           </button>
 
           <button
@@ -106,10 +122,10 @@ export default function Auth() {
             className="btn-secondary"
             onClick={() => {
               setErr("");
-              setMode(mode === "signup" ? "signin" : "signup");
+              setAuthMode(authMode === "signup" ? "signin" : "signup");
             }}
           >
-            {mode === "signup"
+            {authMode === "signup"
               ? "Have an account? Sign in"
               : "New here? Create an account"}
           </button>
