@@ -11,6 +11,8 @@ export default function Staff() {
   const [inviteRole, setInviteRole] = useState("member");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [generatedLink, setGeneratedLink] = useState("");
 
   const isAdmin = role === "owner" || role === "admin";
 
@@ -70,6 +72,8 @@ export default function Staff() {
 
   useEffect(() => {
     setError("");
+    setSuccess("");
+    setGeneratedLink("");
     loadData();
   }, [loadData]);
 
@@ -84,7 +88,7 @@ export default function Staff() {
 
     setLoading(true);
 
-    const { error } = await supabase.functions.invoke("invite-staff", {
+    const { data, error } = await supabase.functions.invoke("invite-staff", {
       body: {
         email,
         orgId,
@@ -95,8 +99,20 @@ export default function Staff() {
     setLoading(false);
 
     if (error) {
-      setError(error.message);
+      setError(data?.error || error.message || "Invite failed");
+      setSuccess("");
+      setGeneratedLink("");
       return;
+    }
+
+    if (data?.alreadyRegistered && data?.generatedLink) {
+      setSuccess(
+        "User already exists. They can use this fresh sign-in link to join the org.",
+      );
+      setGeneratedLink(data.generatedLink);
+    } else {
+      setSuccess("Invite sent successfully.");
+      setGeneratedLink("");
     }
 
     setEmail("");
@@ -137,6 +153,8 @@ export default function Staff() {
             value={email}
             onChange={(e) => {
               setError("");
+              setSuccess("");
+              setGeneratedLink("");
               setEmail(e.target.value);
             }}
           />
@@ -157,6 +175,24 @@ export default function Staff() {
       )}
 
       {error && <div className="text-red-400 mb-4">{error}</div>}
+
+      {success && <div className="text-green-400 mb-4">{success}</div>}
+
+      {generatedLink && (
+        <div className="mb-4 rounded bg-gray-800 p-3">
+          <div className="text-sm text-gray-300 mb-2">
+            Fresh sign-in link for existing user:
+          </div>
+          <a
+            href={generatedLink}
+            target="_blank"
+            rel="noreferrer"
+            className="text-blue-400 underline break-all"
+          >
+            {generatedLink}
+          </a>
+        </div>
+      )}
 
       <h2 className="text-xl mb-2">Members</h2>
 
