@@ -113,33 +113,62 @@ if (inviteRowError) {
   });
 }
 
-    // Invite via Supabase Auth (sends email for brand new users).
-    // If the user already exists, keep the pending org_invites row and return success.
+    // Invite via Supabase Auth.
+    // - Brand new user: send the normal invite email.
+    // - Existing user: generate a magic link so the app can still give them a fresh join link.
+    let alreadyRegistered = false;
+    let invitedUserId: string | null = null;
+    let generatedLink: string | null = null;
+
     const { data: inviteData, error: inviteErr } =
       await admin.auth.admin.inviteUserByEmail(email, {
         // IMPORTANT: set this to your deployed URL
         redirectTo: "https://griptrack-inventory.vercel.app/auth/callback",
       });
 
-    let alreadyRegistered = false;
-
     if (inviteErr) {
       const msg = String(inviteErr.message || "").toLowerCase();
-      if (msg.includes("already been registered")) {
+      const isAlreadyRegistered =
+        (msg.includes("already") && msg.includes("registered")) ||
+        (msg.includes("already") && msg.includes("exists")) ||
+        msg.includes("already been registered");
+
+      if (isAlreadyRegistered) {
         alreadyRegistered = true;
+
+        const { data: linkData, error: linkErr } =
+          await admin.auth.admin.generateLink({
+            type: "magiclink",
+            email,
+            options: {
+              redirectTo: "https://griptrack-inventory.vercel.app/auth/callback",
+            },
+          });
+
+        if (linkErr) {
+          return new Response(JSON.stringify({ error: linkErr.message }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        generatedLink = linkData?.properties?.action_link ?? null;
       } else {
         return new Response(JSON.stringify({ error: inviteErr.message }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+    } else {
+      invitedUserId = inviteData?.user?.id ?? null;
     }
 
     return new Response(
       JSON.stringify({
         ok: true,
         alreadyRegistered,
-        invitedUserId: inviteData?.user?.id ?? null,
+        invitedUserId,
+        generatedLink,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
