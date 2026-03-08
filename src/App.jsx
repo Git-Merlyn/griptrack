@@ -16,6 +16,7 @@ import MainLayout from "./components/layout/MainLayout";
 import PasswordGate from "./components/PasswordGate";
 import Auth from "./pages/Auth";
 import CompleteProfile from "./pages/CompleteProfile";
+import InviteAccept from "./pages/InviteAccept";
 import useUser from "./context/useUser";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
@@ -122,6 +123,7 @@ const App = () => {
           <Routes>
             <Route path="/auth" element={<Auth mode="normal" />} />
             <Route path="/invite" element={<Auth mode="invite" />} />
+            <Route path="/invite-accept" element={<InviteAccept />} />
             <Route path="*" element={<Navigate to="/auth" replace />} />
           </Routes>
 
@@ -165,6 +167,7 @@ const App = () => {
                 />
               }
             />
+            <Route path="/invite-accept" element={<InviteAccept />} />
 
             <Route path="/" element={<MainLayout />}>
               <Route index element={<Dashboard />} />
