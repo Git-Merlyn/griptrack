@@ -149,6 +149,8 @@ const App = () => {
           ) : null}
 
           <Routes>
+            <Route path="/auth" element={<Navigate to="/" replace />} />
+            <Route path="/invite" element={<Navigate to="/" replace />} />
             <Route
               path="/org-setup"
               element={
