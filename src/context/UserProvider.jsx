@@ -120,7 +120,15 @@ const UserProvider = ({ children }) => {
       setAuthUser(session.user);
       setLoadingOrg(true);
 
-      await supabase.rpc("accept_org_invite_for_user");
+      const { data: inviteData, error: inviteError } = await supabase.rpc(
+        "accept_org_invite_for_user",
+      );
+
+      if (inviteError) {
+        console.warn("accept_org_invite_for_user failed", inviteError);
+      } else if (Array.isArray(inviteData) && inviteData.length > 0) {
+        console.log("accept_org_invite_for_user matched invite", inviteData[0]);
+      }
 
       const { data, error } = await supabase.rpc("ensure_org_for_user");
       if (cancelled) return;
