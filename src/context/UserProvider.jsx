@@ -84,6 +84,9 @@ const UserProvider = ({ children }) => {
     } catch {
       // ignore
     }
+
+    // Force a clean reload to the login page.
+    window.location.href = "/auth";
   };
 
   // Keep localStorage in sync if user is ever set directly in the future

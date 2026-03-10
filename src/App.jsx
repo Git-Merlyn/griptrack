@@ -13,7 +13,6 @@ import Dashboard from "./pages/Dashboard";
 import Staff from "./pages/Staff";
 import NotFound from "./pages/NotFound";
 import MainLayout from "./components/layout/MainLayout";
-import PasswordGate from "./components/PasswordGate";
 import Auth from "./pages/Auth";
 import CompleteProfile from "./pages/CompleteProfile";
 import InviteAccept from "./pages/InviteAccept";
@@ -117,7 +116,7 @@ const App = () => {
     : needsProfileSetup;
 
   return (
-    <PasswordGate>
+    <>
       {!authUser ? (
         <>
           <Routes>
@@ -186,7 +185,7 @@ const App = () => {
           <SpeedInsights />
         </>
       )}
-    </PasswordGate>
+    </>
   );
 };
 
