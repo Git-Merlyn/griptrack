@@ -131,14 +131,22 @@ export default function Staff() {
     setError("");
     setSuccess("");
 
-    const { error: deleteError } = await supabase
+    const { data: deletedRows, error: deleteError } = await supabase
       .from("organization_members")
       .delete()
       .eq("org_id", orgId)
-      .eq("user_id", userId);
+      .eq("user_id", userId)
+      .select("user_id");
 
     if (deleteError) {
       setError(deleteError.message || "Failed to remove member.");
+      return;
+    }
+
+    if (!deletedRows || deletedRows.length === 0) {
+      setError(
+        "No member was removed. You may not have permission to delete this user.",
+      );
       return;
     }
 
