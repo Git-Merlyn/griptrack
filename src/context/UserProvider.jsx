@@ -138,6 +138,10 @@ const UserProvider = ({ children }) => {
         console.error("ensure_org_for_user failed", error);
         setOrgId(null);
         setRole(null);
+        setOrgName("");
+        setNeedsOrgSetup(false);
+        setProfile(null);
+        setNeedsProfileSetup(false);
         setLoadingOrg(false);
         return;
       }
@@ -168,6 +172,7 @@ const UserProvider = ({ children }) => {
         }
       } else {
         setOrgName("");
+        setProfile(null);
         // No org id means something is wrong; treat as needing setup to be safe.
         setNeedsOrgSetup(true);
       }

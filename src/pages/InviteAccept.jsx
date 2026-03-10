@@ -31,10 +31,16 @@ export default function InviteAccept() {
       return;
     }
 
-    // Invited users should not usually need org setup, but if it somehow happens,
-    // route them there rather than leaving them stuck.
+    // Invited users should NEVER create a new org. If an invite exists,
+    // org bootstrap should attach them automatically. If something still
+    // reports needsOrgSetup while coming from an invite, send them to the
+    // dashboard instead of org setup to prevent accidental org creation.
     if (needsOrgSetup) {
-      navigate("/org-setup", { replace: true });
+      if (invitedEmail) {
+        navigate("/", { replace: true });
+      } else {
+        navigate("/org-setup", { replace: true });
+      }
       return;
     }
 
