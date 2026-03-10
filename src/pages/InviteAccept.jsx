@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import useUser from "@/context/useUser";
 
@@ -9,7 +9,51 @@ export default function InviteAccept() {
 
   const invitedEmail = String(searchParams.get("email") || "").trim();
 
+  const [statusMessage, setStatusMessage] = useState(
+    "We’re finishing your sign-in and linking your account to the invited organization.",
+  );
+
+  const hashParams = useMemo(() => {
+    const raw = window.location.hash.startsWith("#")
+      ? window.location.hash.slice(1)
+      : window.location.hash;
+    return new URLSearchParams(raw);
+  }, []);
+
   useEffect(() => {
+    const inviteError = String(hashParams.get("error") || "").trim();
+    const inviteErrorCode = String(hashParams.get("error_code") || "").trim();
+    const inviteErrorDescription = String(
+      hashParams.get("error_description") || "",
+    ).trim();
+
+    if (inviteError) {
+      const isExpired =
+        inviteErrorCode === "otp_expired" ||
+        inviteErrorDescription.toLowerCase().includes("expired") ||
+        inviteErrorDescription.toLowerCase().includes("invalid");
+
+      if (isExpired) {
+        setStatusMessage(
+          "This invite link is invalid or has expired. Please request a fresh invite or sign in if you already have access.",
+        );
+      } else {
+        setStatusMessage(
+          inviteErrorDescription ||
+            "We couldn’t complete this invite link. Please try again.",
+        );
+      }
+
+      const next = invitedEmail
+        ? `/invite?email=${encodeURIComponent(invitedEmail)}`
+        : "/invite";
+      const timer = window.setTimeout(() => {
+        navigate(next, { replace: true });
+      }, 1800);
+
+      return () => window.clearTimeout(timer);
+    }
+
     // Wait until auth/org bootstrap finishes. UserProvider already handles:
     // 1) accept_org_invite_for_user()
     // 2) ensure_org_for_user()
@@ -48,6 +92,7 @@ export default function InviteAccept() {
     navigate("/", { replace: true });
   }, [
     authUser,
+    hashParams,
     invitedEmail,
     loadingOrg,
     navigate,
@@ -61,10 +106,7 @@ export default function InviteAccept() {
         <h1 className="text-2xl font-bold text-accent mb-2">
           Joining your team…
         </h1>
-        <p className="texts-gray-300">
-          We’re finishing your sign-in and linking your account to the invited
-          organization.
-        </p>
+        <p className="text-gray-300">{statusMessage}</p>
       </div>
     </div>
   );
