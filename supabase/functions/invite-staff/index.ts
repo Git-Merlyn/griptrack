@@ -92,6 +92,27 @@ serve(async (req) => {
       });
     }
 
+    // Load org name for invite email metadata.
+    const { data: orgRow } = await admin
+      .from("organizations")
+      .select("name")
+      .eq("id", orgId)
+      .single();
+
+    const orgName = String(orgRow?.name || "GripTrack").trim();
+
+    // Load inviter display name for invite email metadata.
+    const { data: inviterProfile } = await admin
+      .from("profiles")
+      .select("full_name,email")
+      .eq("id", user.id)
+      .single();
+
+    const inviterName =
+      String(inviterProfile?.full_name || "").trim() ||
+      String(user.email || "").trim() ||
+      "Someone";
+
     // Create/refresh invite row (pending)
     const { error: inviteRowError } = await admin
   .from("org_invites")
@@ -125,9 +146,9 @@ if (inviteRowError) {
         // IMPORTANT: land invited users on the dedicated invite-accept route.
         redirectTo: `https://griptrack.app/invite-accept?email=${encodeURIComponent(email)}`,
         data: {
-        org_name: orgName,
-        invited_by_name: inviterName
-  }
+          org_name: orgName,
+          invited_by_name: inviterName,
+        },
       });
 
     if (inviteErr) {
@@ -146,6 +167,10 @@ if (inviteRowError) {
             email,
             options: {
               redirectTo: `https://griptrack.app/invite-accept?email=${encodeURIComponent(email)}`,
+              data: {
+                org_name: orgName,
+                invited_by_name: inviterName,
+              },
             },
           });
 
