@@ -1,11 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import FeedbackModal from "./feedback/FeedbackModal";
 import useUser from "@/context/useUser";
 
 const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
-  const navigate = useNavigate();
-  const { role } = useUser();
+  const { role, logout } = useUser();
   const isAdmin = role === "owner" || role === "admin";
 
   // Mobile drawer
@@ -27,19 +26,6 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
     mq.addEventListener?.("change", apply);
     return () => mq.removeEventListener?.("change", apply);
   }, []);
-
-  const lockAndReload = () => {
-    try {
-      localStorage.removeItem("griptrack_beta_unlocked_v1");
-    } catch (e) {
-      // ignore
-      void e;
-    }
-
-    // Go back to root and force a reload so PasswordGate re-evaluates lock state
-    navigate("/");
-    window.location.reload();
-  };
 
   const closeDrawer = () => setDrawerOpen(false);
 
@@ -100,7 +86,7 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
         type="button"
         onClick={() => {
           onDone?.();
-          lockAndReload();
+          logout();
         }}
         title="Logout"
         className={`w-full ${navCollapsed ? "px-2" : "px-4"} py-2 text-left transition-colors ${
