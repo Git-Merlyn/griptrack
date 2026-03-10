@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabaseClient";
 import useUser from "@/context/useUser";
 
 export default function Staff() {
-  const { orgId, role } = useUser();
+  const { orgId, role, authUser } = useUser();
 
   const [members, setMembers] = useState([]);
   const [invites, setInvites] = useState([]);
@@ -120,25 +120,55 @@ export default function Staff() {
   };
 
   const removeMember = async (userId) => {
+    if (userId === authUser?.id) {
+      setError("You cannot remove your own account from the organization.");
+      setSuccess("");
+      return;
+    }
+
     if (!confirm("Remove this member?")) return;
 
-    await supabase
+    setError("");
+    setSuccess("");
+
+    const { error: deleteError } = await supabase
       .from("organization_members")
       .delete()
       .eq("org_id", orgId)
       .eq("user_id", userId);
 
-    loadData();
+    if (deleteError) {
+      setError(deleteError.message || "Failed to remove member.");
+      return;
+    }
+
+    setSuccess("Member removed.");
+    await loadData();
   };
 
   const changeRole = async (userId, newRole) => {
-    await supabase
+    if (userId === authUser?.id) {
+      setError("You cannot change your own role here.");
+      setSuccess("");
+      return;
+    }
+
+    setError("");
+    setSuccess("");
+
+    const { error: updateError } = await supabase
       .from("organization_members")
       .update({ role: newRole })
       .eq("org_id", orgId)
       .eq("user_id", userId);
 
-    loadData();
+    if (updateError) {
+      setError(updateError.message || "Failed to update role.");
+      return;
+    }
+
+    setSuccess("Role updated.");
+    await loadData();
   };
 
   return (
@@ -219,7 +249,7 @@ export default function Staff() {
                   onClick={() =>
                     changeRole(
                       m.user_id,
-                      m.role === "admin" ? "member" : "admin",
+                      m.role === "admin" ? "staff" : "admin",
                     )
                   }
                 >
