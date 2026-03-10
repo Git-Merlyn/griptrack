@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { supabase } from "@/lib/supabaseClient";
 import useUser from "@/context/useUser";
 
 export default function InviteAccept() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { authUser, loadingOrg, needsOrgSetup, needsProfileSetup } = useUser();
+  const { authUser, loadingOrg, needsOrgSetup, needsProfileSetup, profile } =
+    useUser();
 
   const invitedEmail = String(searchParams.get("email") || "").trim();
 
@@ -19,6 +21,18 @@ export default function InviteAccept() {
       : window.location.hash;
     return new URLSearchParams(raw);
   }, []);
+
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [formError, setFormError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setFullName(String(profile?.full_name || ""));
+    setPhone(String(profile?.phone || ""));
+  }, [profile]);
 
   useEffect(() => {
     const inviteError = String(hashParams.get("error") || "").trim();
@@ -69,9 +83,9 @@ export default function InviteAccept() {
     }
 
     // Authenticated + org bootstrap complete.
-    // If profile is incomplete, send them there first.
+    // If profile is incomplete, stay on this page and let the invited user
+    // finish onboarding here (set name / optional phone / password).
     if (needsProfileSetup) {
-      navigate("/complete-profile", { replace: true });
       return;
     }
 
@@ -100,7 +114,144 @@ export default function InviteAccept() {
     needsProfileSetup,
   ]);
 
-  return (
+  const submit = async (e) => {
+    e.preventDefault();
+    setFormError("");
+
+    const trimmedName = String(fullName || "").trim();
+    const trimmedPhone = String(phone || "").trim();
+
+    if (!authUser?.id) {
+      setFormError("No signed-in user found.");
+      return;
+    }
+
+    if (!trimmedName) {
+      setFormError("Full name is required.");
+      return;
+    }
+
+    if (!password) {
+      setFormError("Please create a password.");
+      return;
+    }
+
+    if (password.length < 8) {
+      setFormError("Password must be at least 8 characters.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setFormError("Passwords do not match.");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const { error: passwordError } = await supabase.auth.updateUser({
+        password,
+      });
+      if (passwordError) throw passwordError;
+
+      const { error: profileError } = await supabase.from("profiles").upsert({
+        id: authUser.id,
+        email: authUser.email?.trim().toLowerCase() || null,
+        full_name: trimmedName,
+        phone: trimmedPhone || null,
+      });
+      if (profileError) throw profileError;
+
+      navigate("/", { replace: true });
+    } catch (e2) {
+      setFormError(e2?.message || "Failed to finish invite setup.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return authUser && !loadingOrg && needsProfileSetup ? (
+    <div className="min-h-screen flex items-center justify-center bg-black text-gray-200">
+      <div className="bg-surface rounded-2xl p-6 w-[92%] max-w-md shadow-lg">
+        <h1 className="text-2xl font-bold text-accent mb-2">
+          Finish joining your team
+        </h1>
+        <p className="text-gray-300 mb-6">
+          Set your name and password to complete your GripTrack account.
+        </p>
+
+        <form onSubmit={submit} className="flex flex-col gap-3">
+          <div>
+            <label className="text-sm text-gray-300">Full name</label>
+            <input
+              className="w-full mt-1 px-3 py-2 rounded bg-white text-black"
+              value={fullName}
+              onChange={(e) => {
+                setFormError("");
+                setFullName(e.target.value);
+              }}
+              type="text"
+              autoFocus
+              required
+            />
+          </div>
+
+          <div>
+            <label className="text-sm text-gray-300">Phone (optional)</label>
+            <input
+              className="w-full mt-1 px-3 py-2 rounded bg-white text-black"
+              value={phone}
+              onChange={(e) => {
+                setFormError("");
+                setPhone(e.target.value);
+              }}
+              type="tel"
+              placeholder="(555) 555-5555"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm text-gray-300">Create password</label>
+            <input
+              className="w-full mt-1 px-3 py-2 rounded bg-white text-black"
+              value={password}
+              onChange={(e) => {
+                setFormError("");
+                setPassword(e.target.value);
+              }}
+              type="password"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="text-sm text-gray-300">Confirm password</label>
+            <input
+              className="w-full mt-1 px-3 py-2 rounded bg-white text-black"
+              value={confirmPassword}
+              onChange={(e) => {
+                setFormError("");
+                setConfirmPassword(e.target.value);
+              }}
+              type="password"
+              required
+            />
+          </div>
+
+          {formError ? (
+            <div className="text-red-400 text-sm">{formError}</div>
+          ) : null}
+
+          <button
+            type="submit"
+            disabled={busy}
+            className={busy ? "btn-disabled" : "btn-accent"}
+          >
+            {busy ? "Finishing…" : "Finish setup"}
+          </button>
+        </form>
+      </div>
+    </div>
+  ) : (
     <div className="min-h-screen flex items-center justify-center bg-black text-gray-200">
       <div className="bg-surface rounded-2xl p-6 w-[92%] max-w-md shadow-lg text-center">
         <h1 className="text-2xl font-bold text-accent mb-2">
