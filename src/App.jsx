@@ -140,11 +140,14 @@ const App = () => {
         </>
       ) : (
         <>
-          {effectiveNeedsOrgSetup && location.pathname !== "/org-setup" ? (
+          {effectiveNeedsOrgSetup &&
+          location.pathname !== "/org-setup" &&
+          location.pathname !== "/invite-accept" ? (
             <Navigate to="/org-setup" replace />
           ) : !effectiveNeedsOrgSetup &&
             effectiveNeedsProfileSetup &&
-            location.pathname !== "/complete-profile" ? (
+            location.pathname !== "/complete-profile" &&
+            location.pathname !== "/invite-accept" ? (
             <Navigate to="/complete-profile" replace />
           ) : null}
 
