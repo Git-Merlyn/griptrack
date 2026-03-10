@@ -8,7 +8,7 @@ export default function Staff() {
   const [members, setMembers] = useState([]);
   const [invites, setInvites] = useState([]);
   const [email, setEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState("member");
+  const [inviteRole, setInviteRole] = useState("staff");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -164,7 +164,7 @@ export default function Staff() {
             value={inviteRole}
             onChange={(e) => setInviteRole(e.target.value)}
           >
-            <option value="member">Member</option>
+            <option value="staff">Staff</option>
             <option value="admin">Admin</option>
           </select>
 
@@ -223,7 +223,7 @@ export default function Staff() {
                     )
                   }
                 >
-                  {m.role === "admin" ? "Make Member" : "Make Admin"}
+                  {m.role === "admin" ? "Make Staff" : "Make Admin"}
                 </button>
 
                 <button

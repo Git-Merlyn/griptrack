@@ -45,7 +45,7 @@ serve(async (req) => {
     const body = await req.json();
     const email = String(body?.email || "").trim().toLowerCase();
     const orgId = String(body?.orgId || "").trim();
-    const role = String(body?.role || "member").trim();
+    const role = String(body?.role || "staff").trim();
 
     if (!email || !email.includes("@")) {
       return new Response(JSON.stringify({ error: "Invalid email" }), {
@@ -59,7 +59,7 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (!["member", "admin", "owner"].includes(role)) {
+    if (!["staff", "admin", "owner"].includes(role)) {
       return new Response(JSON.stringify({ error: "Invalid role" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
