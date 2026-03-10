@@ -124,6 +124,10 @@ if (inviteRowError) {
       await admin.auth.admin.inviteUserByEmail(email, {
         // IMPORTANT: land invited users on the dedicated invite-accept route.
         redirectTo: `https://griptrack.app/invite-accept?email=${encodeURIComponent(email)}`,
+        data: {
+        org_name: orgName,
+        invited_by_name: inviterName
+  }
       });
 
     if (inviteErr) {
