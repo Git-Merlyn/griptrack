@@ -1,12 +1,29 @@
 # GripTrack
 
-GripTrack is a web-based inventory management system designed for film, grip, and electric departments. It focuses on fast, location-based inventory tracking and real-world workflows where equipment is frequently moved, split, and recombined.
+GripTrack is a full-stack inventory management app built for film crews to track equipment across trucks, storage, and locations in real time.
 
-The system is built as a multi-tenant SaaS application, supporting organizations, staff roles, and secure data isolation.
+It focuses on fast workflows, partial item movement, and handling the messy realities of production environments.
 
-The application is desktop-first for power users, with a mobile-friendly interface for quick updates on set.
+### Desktop View
+
+![Desktop View](./screenshots/desktop_view.png)
+
+### Mobile View
+
+![Mobile View](./screenshots/mobile_view.png)
+
+### Equipment Edit
+
+![Equipment Edit](./screenshots/edit_modal.png)
 
 ---
+
+## Overview
+
+- Multi-tenant SaaS architecture
+- Real-time inventory updates
+- Organization-based access control (RLS)
+- Designed for real production workflows
 
 ## Key Features
 
@@ -122,7 +139,7 @@ Admins and owners can invite staff via email.
 
 ## Project Structure (Key Areas)
 
-````text
+```text
 src/
 ├─ pages/
 │  ├─ Auth.jsx
@@ -149,6 +166,8 @@ supabase/
 └─ functions/
    └─ invite-staff/
 
+```
+
 ---
 
 ## Data Model
@@ -169,7 +188,7 @@ supabase/
   "rentalEnd": "string | null",
   "updatedBy": "string"
 }
-````
+```
 
 ### Additional Tables
 
@@ -238,28 +257,6 @@ All UI elements use shared Tailwind-based classes defined in `index.css`.
 - `text-danger` - overdue/damaged
 
 Direct color usage in components is avoided in favor of consistent design tokens.
-
----
-
-## Environment Configuration
-
-Separate environments are used for development and production.
-
-### Local Development (`.env.local`)
-
-```
-VITE_EQUIPMENT_TABLE=equipment_items_dev
-VITE_LOCATIONS_TABLE=locations_dev
-```
-
-### Production (`.env`)
-
-```
-VITE_EQUIPMENT_TABLE=equipment_items
-VITE_LOCATIONS_TABLE=locations
-```
-
-This ensures development work does not affect live data.
 
 ---
 
