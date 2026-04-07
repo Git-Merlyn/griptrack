@@ -1,174 +1,295 @@
-GripTrack
+# GripTrack
 
-GripTrack is a web-based inventory management system designed for film, grip, and electric departments.
-It focuses on fast location-based inventory tracking, rental periods, and real-world workflows where equipment is frequently moved, split, and recombined.
+GripTrack is a web-based inventory management system designed for film, grip, and electric departments. It focuses on fast, location-based inventory tracking and real-world workflows where equipment is frequently moved, split, and recombined.
 
-The app is desktop-first for power users, with a mobile-friendly web UI for quick checks and updates on set.
+The system is built as a multi-tenant SaaS application, supporting organizations, staff roles, and secure data isolation.
 
-⸻
+The application is desktop-first for power users, with a mobile-friendly interface for quick updates on set.
 
-✨ Key Features
+---
 
-Inventory Management
-• Track equipment by:
-• Name
-• Category
-• Source (e.g. Dean, White’s)
-• Location
-• Status (Available, Out, Damaged, etc.)
-• Quantity
-• Rental start & end dates
-• Automatic merging of items when moved back to the same location
-• Per-item update tracking (updatedBy)
+## Key Features
 
-Move & Split Logic
-• Move partial quantities between locations
-• Automatically merges rows when items return to the same location with matching metadata
-• Prevents duplicate rows for the same item/location/state
+### Inventory Management
 
-PDF Import
-• Upload rental PDFs and auto-parse inventory
-• Handles:
-• Grouped status sections (Full / Partial / Unopened)
-• Poor formatting and inconsistent spacing
-• Indented sub-lines (ignored when required)
-• Designed to be “good enough” for real-world rental paperwork
+- Track equipment by:
+  - Name
+  - Category
+  - Source (e.g., rental houses)
+  - Location (truck, storage, etc.)
+  - Status (Available, Out, Damaged, etc.)
+  - Quantity
+  - Rental start and end dates
+- Automatic merging of items when returned to the same location with matching metadata
+- Per-item update tracking (`updatedBy`)
+- Prevents duplicate rows for identical item/location/state combinations
 
-Export
-• Export inventory to:
-• CSV
-• PDF (print-to-PDF)
-• Export options:
-• All locations
-• Single location
-• Multiple locations
-• Current filtered/sorted view only
-• Intended for client offboarding and data ownership
+### Move and Split Logic
 
-Mobile Support
-• Card-based mobile layout
-• Key info visible at a glance
-• Details modal for viewing hidden fields (source, dates, updated by)
-• Editing, moving, deleting all supported on mobile
+- Move partial quantities between locations
+- Split inventory across multiple locations
+- Automatically merges rows when items return to the same state
+- Designed to reflect real production workflows rather than rigid inventory models
 
-Bulk Actions
-• Multi-select mode
-• Bulk location updates
-• Bulk delete
+### PDF Import
 
-Beta Feedback
-• Built-in feedback form for testers
-• Submits bugs and feature requests directly to the developer
+- Upload rental PDFs and automatically parse inventory data
+- Handles:
+  - Grouped sections (Full / Partial / Unopened)
+  - Inconsistent formatting and spacing
+  - Indented sub-lines (ignored when appropriate)
+- Designed to be resilient to real-world rental paperwork
 
-⸻
+### Export
 
-🧱 Tech Stack
-• Frontend: React + Vite
-• Styling: Tailwind CSS (with a centralized design system)
-• Backend: Supabase (Postgres + Auth)
-• State Management: React Context (no Redux)
+- Export inventory to:
+  - CSV
+  - PDF (print-friendly)
+- Export options:
+  - All locations
+  - Single or multiple locations
+  - Current filtered/sorted view
+- Intended for client offboarding and data ownership
 
-⸻
+### Mobile Support
 
-📁 Project Structure (Key Files)
+- Card-based mobile layout
+- Key information visible at a glance
+- Details modal for extended fields
+- Full support for editing, moving, and deleting items
 
+### Bulk Actions
+
+- Multi-select mode
+- Bulk location updates
+- Bulk deletion
+
+### Feedback System
+
+- Built-in feedback form for testers
+- Submits bug reports and feature requests directly
+
+---
+
+## Authentication and Organizations
+
+GripTrack is a multi-tenant system where users belong to organizations representing productions or companies.
+
+### Roles
+
+- **Owner**: Full control over the organization
+- **Admin**: Can manage staff and send invites
+- **Staff**: Standard operational access
+
+### Features
+
+- Email-based authentication (Supabase Auth)
+- Invite system via email
+- Organization-based data isolation using Row Level Security (RLS)
+- Guided onboarding for new users
+
+---
+
+## Invite System
+
+Admins and owners can invite staff via email.
+
+### Flow
+
+1. Admin sends an invite
+2. User receives an email with a secure link
+3. User signs in or creates an account
+4. The system attaches the user to the organization
+5. User completes profile setup and enters the dashboard
+
+### Implementation
+
+- Supabase Edge Functions for secure invite handling
+- Resend SMTP for email delivery
+- Postgres RPC (`accept_org_invite_for_user`) for transactional acceptance
+
+---
+
+## Tech Stack
+
+- **Frontend**: React + Vite
+- **Styling**: Tailwind CSS (custom design system)
+- **Backend**: Supabase (Postgres, Auth, Edge Functions, RLS)
+- **Email**: Resend (SMTP)
+- **State Management**: React Context
+
+---
+
+## Project Structure (Key Areas)
+
+````text
 src/
 ├─ pages/
-│ └─ Dashboard.jsx # Main application UI & logic
-├─ context/
-│ └─ EquipmentContext.jsx # Inventory CRUD + move/merge logic
+│  ├─ Auth.jsx
+│  ├─ InviteAccept.jsx
+│  ├─ Staff.jsx
+│  ├─ OrgSetup.jsx
+│  └─ dashboard/
+│     ├─ DashboardPage.jsx
+│     ├─ components/
+│     ├─ hooks/
+│     └─ utils/
 ├─ components/
-│ ├─ ImportFileModal.jsx # PDF import & parsing
-│ └─ Feedback/
-│ ├─ FeedbackModal.jsx
-│ └─ FeedbackForm.jsx
+│  ├─ layout/
+│  ├─ feedback/
+│  ├─ import/
+│  └─ export/
+├─ context/
+│  ├─ UserProvider.jsx
+│  └─ EquipmentContext.jsx
 ├─ lib/
-│ └─ supabaseClient.js # Supabase client (canonical import)
-├─ index.css # Design system & shared button styles
+│  └─ supabaseClient.js
 
-🎨 Design System
+supabase/
+└─ functions/
+   └─ invite-staff/
 
-All buttons and interactive elements use shared CSS classes defined in index.css.
+---
 
-Do not hardcode Tailwind colors on buttons.
+## Data Model
 
-Common classes:
-• btn-accent
-• btn-secondary
-• btn-danger
-• btn-disabled
-• Small variants: \*-sm
+### Inventory Item
 
-Text colors:
-• text-text – default
-• text-accent – headers/highlights
-• text-success – Available
-• text-warning – Upcoming / Out
-• text-danger – Overdue / Damaged
-
-⸻
-
-📦 Data Model
-
-Each inventory row contains:
-
+```json
 {
-id: string // UUID (primary key)
-itemId: string|null // Internal code (hidden in UI)
-name: string
-category: string
-source: string
-location: string
-status: string
-quantity: number
-rentalStart: string|null
-rentalEnd: string|null
-updatedBy: string
+  "id": "uuid",
+  "itemId": "string | null",
+  "name": "string",
+  "category": "string",
+  "source": "string",
+  "location": "string",
+  "status": "string",
+  "quantity": "number",
+  "rentalStart": "string | null",
+  "rentalEnd": "string | null",
+  "updatedBy": "string"
 }
+````
 
-⚠️ itemId is intentionally hidden from normal UI views
-(It appears only in exports and optional detail views.)
+### Additional Tables
 
-⸻
+**organizations**
 
-🌍 Environment Separation
+- id
+- name
 
-Development and production use separate database tables.
+**organization_members**
 
-Local Development (.env.local)
+- org_id
+- user_id
+- role
+- status
 
+**org_invites**
+
+- email
+- role
+- status
+
+**profiles**
+
+- id (matches `auth.users.id`)
+- email
+- full_name
+
+---
+
+## Backend Architecture
+
+GripTrack uses Supabase as a backend platform.
+
+### Key Capabilities
+
+- Row Level Security (RLS) for multi-tenant data isolation
+- Edge Functions for secure server-side operations
+- Postgres RPC for transactional workflows
+
+### Core Systems
+
+- `invite-staff` (Edge Function)
+- `accept_org_invite_for_user()` (RPC)
+
+All sensitive operations such as invites, role changes, and membership updates are enforced at the database level.
+
+---
+
+## Design System
+
+All UI elements use shared Tailwind-based classes defined in `index.css`.
+
+### Button Classes
+
+- `btn-accent`
+- `btn-secondary`
+- `btn-danger`
+- `btn-disabled`
+
+### Text Classes
+
+- `text-text` - default
+- `text-accent` - highlights
+- `text-success` - available
+- `text-warning` - out/upcoming
+- `text-danger` - overdue/damaged
+
+Direct color usage in components is avoided in favor of consistent design tokens.
+
+---
+
+## Environment Configuration
+
+Separate environments are used for development and production.
+
+### Local Development (`.env.local`)
+
+```
 VITE_EQUIPMENT_TABLE=equipment_items_dev
 VITE_LOCATIONS_TABLE=locations_dev
+```
 
-Production (.env)
+### Production (`.env`)
 
+```
 VITE_EQUIPMENT_TABLE=equipment_items
 VITE_LOCATIONS_TABLE=locations
+```
 
-This ensures local testing never affects live client data.
+This ensures development work does not affect live data.
 
-⸻
+---
 
-🛠️ Local Development
+## Local Development
 
+```bash
 npm install
 npm run dev
+```
 
-Local app runs at:
+App runs at:
 
+```
 http://localhost:5173
+```
 
-🧪 Project Philosophy
-• Real-world workflows > perfect data
-• Desktop power > mobile completeness
-• Clear UI > clever UI
-• Modals over browser confirms
-• Data integrity over visual polish
+---
 
-GripTrack is built to survive messy PDFs, rushed set days, and human error — not idealized demos.
+## Project Philosophy
 
-⸻
+- Real-world workflows over idealized data models
+- Desktop efficiency over mobile completeness
+- Clarity over cleverness
+- Modals over browser-native confirms
+- Data integrity over visual polish
 
-📌 Status
+GripTrack is designed to handle messy inputs, rapid workflows, and human error typical of film production environments.
 
-GripTrack is currently in active beta with real testers and ongoing feature development.
+---
+
+## Status
+
+GripTrack is currently in active development with real-world testing and ongoing feature expansion.

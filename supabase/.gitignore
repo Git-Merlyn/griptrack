@@ -1,8 +1,22 @@
-# Supabase
-.branches
-.temp
+# dependencies/build
+node_modules
+dist
 
-# dotenvx
-.env.keys
+# env
+.env
 .env.local
 .env.*.local
+.env.keys
+
+# vscode
+.vscode/settings.json
+
+# supabase
+supabase/.branches
+supabase/.temp
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*

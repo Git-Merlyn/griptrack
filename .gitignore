@@ -1,4 +1,20 @@
+# =========================
+# Dependencies & Builds
+# =========================
+node_modules/
+dist/
+dist-ssr/
+.vite/
+coverage/
+.vitest/
+
+# Supabase (local/dev artifacts)
+supabase/.temp
+supabase/.branches
+
+# =========================
 # Logs
+# =========================
 logs
 *.log
 npm-debug.log*
@@ -7,14 +23,18 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules/
-dist/
-dist-ssr/
-server/node_modules/
-coverage/
-.vitest/
+# =========================
+# Environment Variables
+# =========================
+.env
+.env.local
+.env.*.local
+.env.keys
+!.env.example
 
-# Editor directories and files
+# =========================
+# Editor / OS Files
+# =========================
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -25,10 +45,7 @@ coverage/
 *.sln
 *.sw?
 
-# Vite-specific
-.vite/
-
-# Environment variables
-.env
-.env.*
-!.env.example
+# =========================
+# Misc
+# =========================
+*.tsbuildinfo
