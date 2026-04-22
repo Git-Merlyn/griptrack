@@ -69,6 +69,15 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
         </NavLink>
       )}
 
+      <NavLink
+        to="/requests"
+        onClick={() => onDone?.()}
+        title="Requests"
+        className={({ isActive }) => navLinkClass(isActive, navCollapsed)}
+      >
+        {navCollapsed ? "R" : "Requests"}
+      </NavLink>
+
       {isOwner && (
         <NavLink
           to="/billing"
