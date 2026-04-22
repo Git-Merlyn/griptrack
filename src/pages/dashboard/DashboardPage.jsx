@@ -2,6 +2,7 @@ import React, { useContext, useState, useEffect } from "react";
 import ImportFileModal from "@/components/ImportFileModal";
 import EquipmentContext from "@/context/EquipmentContext";
 import useUser from "@/context/useUser";
+import { supabase } from "@/lib/supabaseClient";
 import DesktopDashboard from "./DesktopDashboard";
 import MobileDashboard from "./MobileDashboard";
 import EditModal from "./components/EditModal";
@@ -11,6 +12,7 @@ import MoveModal from "./components/MoveModal";
 import AddLocationModal from "./components/AddLocationModal";
 import ExportModal from "./components/ExportModal";
 import SummaryReportModal from "./components/SummaryReportModal";
+import { fetchAndDownloadAuditCsv } from "./utils/auditExport";
 import useBulkSelection from "./hooks/useBulkSelection";
 import useInventoryView from "./hooks/useInventoryView";
 import useEditFlow from "./hooks/useEditFlow";
@@ -31,10 +33,12 @@ const InventoryCard = ({ children }) => {
 
 const DashboardHeader = ({
   importInProgress,
+  exportingHistory,
   onAddItem,
   onImport,
   onExport,
   onSummary,
+  onExportHistory,
   hideActions = false,
 }) => {
   return (
@@ -64,6 +68,17 @@ const DashboardHeader = ({
 
           <button type="button" onClick={onSummary} className="btn-secondary">
             <span className="whitespace-nowrap">Summary</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onExportHistory}
+            disabled={exportingHistory}
+            className={exportingHistory ? "btn-disabled" : "btn-secondary"}
+          >
+            <span className="whitespace-nowrap">
+              {exportingHistory ? "Exporting…" : "History"}
+            </span>
           </button>
         </div>
       )}
@@ -301,7 +316,7 @@ const DashboardPage = () => {
     importSummaryMessage,
     clearImportSummary,
   } = useContext(EquipmentContext);
-  const { user } = useUser();
+  const { user, orgId } = useUser();
 
   const { allLocations, addCustomLocation } = useLocation({
     contextLocations,
@@ -344,6 +359,7 @@ const DashboardPage = () => {
   const [showToast, setShowToast] = useState(false);
 
   const [showSummaryModal, setShowSummaryModal] = useState(false);
+  const [exportingHistory, setExportingHistory] = useState(false);
 
   // Mobile layout
   const [isMobile, setIsMobile] = useState(false);
@@ -545,6 +561,27 @@ const DashboardPage = () => {
     }
   };
 
+  // Export full org audit log as a CSV for wrap reports.
+  const handleExportHistory = async () => {
+    if (!orgId) return;
+    setExportingHistory(true);
+    try {
+      // Build equipment_id → name lookup from the current equipment array
+      const nameMap = {};
+      for (const item of equipment) {
+        nameMap[String(item.id)] = item.name || "";
+      }
+
+      const count = await fetchAndDownloadAuditCsv(supabase, orgId, nameMap);
+      window.toast?.success?.(`Exported ${count} movement event${count !== 1 ? "s" : ""}`);
+    } catch (e) {
+      console.error("[ExportHistory]", e);
+      window.toast?.error?.(e?.message || "Failed to export history");
+    } finally {
+      setExportingHistory(false);
+    }
+  };
+
   const handleMoveSubmit = async () => {
     if (!movingItem || moveData.qty <= 0 || !moveData.newLocation) return;
     try {
@@ -684,6 +721,7 @@ const DashboardPage = () => {
     <div className="px-3 sm:px-6 md:p-8 flex flex-col gap-6 text-text relative">
       <DashboardHeader
         importInProgress={importInProgress}
+        exportingHistory={exportingHistory}
         onAddItem={openAdd}
         onImport={() => {
           setPdfModalMode("import");
@@ -691,6 +729,7 @@ const DashboardPage = () => {
         }}
         onExport={() => setShowExportModal(true)}
         onSummary={() => setShowSummaryModal(true)}
+        onExportHistory={handleExportHistory}
         hideActions={isMobile}
       />
 
