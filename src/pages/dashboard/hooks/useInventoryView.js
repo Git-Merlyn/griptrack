@@ -8,6 +8,11 @@ export default function useInventoryView({
   // Search
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Dropdown filters
+  const [filterLocation, setFilterLocation] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
+
   // Table sorting
   const [sortKey, setSortKey] = useState(initialSortKey);
   const [sortDir, setSortDir] = useState(initialSortDir); // 'asc' | 'desc'
@@ -35,13 +40,23 @@ export default function useInventoryView({
     const q = String(searchQuery || "")
       .trim()
       .toLowerCase();
-    if (!q) return visibleEquipment;
 
     return visibleEquipment.filter((e) => {
-      const name = String(e?.name || "").toLowerCase();
-      return name.includes(q);
+      // Name search
+      if (q && !String(e?.name || "").toLowerCase().includes(q)) return false;
+
+      // Location filter
+      if (filterLocation && e?.location !== filterLocation) return false;
+
+      // Status filter
+      if (filterStatus && e?.status !== filterStatus) return false;
+
+      // Category filter
+      if (filterCategory && e?.category !== filterCategory) return false;
+
+      return true;
     });
-  }, [visibleEquipment, searchQuery]);
+  }, [visibleEquipment, searchQuery, filterLocation, filterStatus, filterCategory]);
 
   const sortedEquipment = useMemo(() => {
     const rows = [...filteredVisibleEquipment];
@@ -91,6 +106,12 @@ export default function useInventoryView({
   return {
     searchQuery,
     setSearchQuery,
+    filterLocation,
+    setFilterLocation,
+    filterStatus,
+    setFilterStatus,
+    filterCategory,
+    setFilterCategory,
     sortKey,
     sortDir,
     toggleSort,

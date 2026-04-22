@@ -88,9 +88,50 @@ const ImportToast = ({ show, message, onDismiss }) => {
   );
 };
 
+const FilterSelect = ({ value, onChange, placeholder, options }) => (
+  <div className="relative flex items-center">
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={`px-3 py-2 rounded-lg border shadow-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition appearance-none pr-8 ${
+        value
+          ? "bg-accent/10 border-accent text-accent font-medium"
+          : "bg-white/90 border-gray-300 text-gray-500"
+      }`}
+    >
+      <option value="">{placeholder}</option>
+      {options.map((opt) => (
+        <option key={opt} value={opt}>
+          {opt}
+        </option>
+      ))}
+    </select>
+    {value && (
+      <button
+        type="button"
+        onClick={() => onChange("")}
+        className="absolute right-1 top-1/2 -translate-y-1/2 text-accent hover:text-accent/70 text-xs font-bold px-1"
+        aria-label={`Clear ${placeholder} filter`}
+      >
+        ✕
+      </button>
+    )}
+  </div>
+);
+
 const BulkToolbar = ({
   searchQuery,
   setSearchQuery,
+
+  filterLocation,
+  setFilterLocation,
+  filterStatus,
+  setFilterStatus,
+  filterCategory,
+  setFilterCategory,
+  allLocations,
+  statusOptions,
+  categoryOptions,
 
   bulkMode,
   toggleBulkMode,
@@ -100,59 +141,99 @@ const BulkToolbar = ({
 
   bulkLocation,
   setBulkLocation,
-  allLocations,
   onAddNewLocation,
 
   onApplyBulkLocation,
   onBulkDelete,
 }) => {
+  const hasActiveFilters = filterLocation || filterStatus || filterCategory;
+
   return (
-    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search by Name"
-          className="w-full max-w-md px-3 py-2 rounded-lg bg-white/90 text-text border border-gray-300 text-text placeholder:text-gray-500 shadow-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition"
+    <div className="flex flex-col gap-3 mb-4">
+      {/* Row 1: Search + Multi-select controls */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by Name"
+            className="w-full max-w-md px-3 py-2 rounded-lg bg-white/90 text-text border border-gray-300 placeholder:text-gray-500 shadow-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition"
+          />
+          {searchQuery.trim() ? (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="btn-secondary-sm"
+            >
+              Clear
+            </button>
+          ) : null}
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={toggleBulkMode}
+            className="btn-secondary-sm"
+          >
+            {bulkMode ? "Exit Multi-Select" : "Multi-Select"}
+          </button>
+
+          {bulkMode && (
+            <button
+              type="button"
+              onClick={onSelectFromFile}
+              className="btn-secondary-sm"
+            >
+              Select from File
+            </button>
+          )}
+
+          {bulkMode && (
+            <span className="text-sm text-gray-300">
+              Selected: <span className="font-semibold">{selectedCount}</span>
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Row 2: Dropdown filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        <FilterSelect
+          value={filterLocation}
+          onChange={setFilterLocation}
+          placeholder="All Locations"
+          options={allLocations}
         />
-        {searchQuery.trim() ? (
+        <FilterSelect
+          value={filterStatus}
+          onChange={setFilterStatus}
+          placeholder="All Statuses"
+          options={statusOptions}
+        />
+        <FilterSelect
+          value={filterCategory}
+          onChange={setFilterCategory}
+          placeholder="All Categories"
+          options={categoryOptions}
+        />
+        {hasActiveFilters && (
           <button
             type="button"
-            onClick={() => setSearchQuery("")}
-            className="btn-secondary-sm"
+            onClick={() => {
+              setFilterLocation("");
+              setFilterStatus("");
+              setFilterCategory("");
+            }}
+            className="text-xs text-gray-400 hover:text-gray-200 underline underline-offset-2 transition"
           >
-            Clear
+            Clear all filters
           </button>
-        ) : null}
-      </div>
-
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={toggleBulkMode}
-          className="btn-secondary-sm"
-        >
-          {bulkMode ? "Exit Multi-Select" : "Multi-Select"}
-        </button>
-
-        {bulkMode && (
-          <button
-            type="button"
-            onClick={onSelectFromFile}
-            className="btn-secondary-sm"
-          >
-            Select from File
-          </button>
-        )}
-
-        {bulkMode && (
-          <span className="text-sm text-gray-300">
-            Selected: <span className="font-semibold">{selectedCount}</span>
-          </span>
         )}
       </div>
 
+      {/* Row 3: Bulk action controls (only in bulk mode) */}
       {bulkMode && (
         <div className="flex flex-wrap items-center gap-2">
           <select
@@ -228,6 +309,10 @@ const DashboardPage = () => {
       "Damaged",
       ...equipment.map((e) => e.status).filter(Boolean),
     ]),
+  ).sort((a, b) => String(a).localeCompare(String(b)));
+
+  const categoryOptions = Array.from(
+    new Set(equipment.map((e) => e.category).filter(Boolean)),
   ).sort((a, b) => String(a).localeCompare(String(b)));
 
   // Edit/Add modal state and logic handled by useEditFlow below
@@ -517,6 +602,12 @@ const DashboardPage = () => {
   const {
     searchQuery,
     setSearchQuery,
+    filterLocation,
+    setFilterLocation,
+    filterStatus,
+    setFilterStatus,
+    filterCategory,
+    setFilterCategory,
     toggleSort,
     sortArrow,
     visibleEquipment,
@@ -638,6 +729,15 @@ const DashboardPage = () => {
         <BulkToolbar
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
+          filterLocation={filterLocation}
+          setFilterLocation={setFilterLocation}
+          filterStatus={filterStatus}
+          setFilterStatus={setFilterStatus}
+          filterCategory={filterCategory}
+          setFilterCategory={setFilterCategory}
+          allLocations={allLocations}
+          statusOptions={statusOptions}
+          categoryOptions={categoryOptions}
           bulkMode={bulkMode}
           toggleBulkMode={() => setBulkMode((v) => !v)}
           onSelectFromFile={() => {
@@ -647,7 +747,6 @@ const DashboardPage = () => {
           selectedCount={selectedIds.length}
           bulkLocation={bulkLocation}
           setBulkLocation={setBulkLocation}
-          allLocations={allLocations}
           onAddNewLocation={() => {
             setIsAddingLocationTo("bulk");
             setShowAddLocationModal(true);
