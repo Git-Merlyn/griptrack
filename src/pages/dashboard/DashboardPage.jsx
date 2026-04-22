@@ -10,6 +10,7 @@ import ConfirmDeleteModal from "./components/ConfirmDeleteModal";
 import MoveModal from "./components/MoveModal";
 import AddLocationModal from "./components/AddLocationModal";
 import ExportModal from "./components/ExportModal";
+import SummaryReportModal from "./components/SummaryReportModal";
 import useBulkSelection from "./hooks/useBulkSelection";
 import useInventoryView from "./hooks/useInventoryView";
 import useEditFlow from "./hooks/useEditFlow";
@@ -33,6 +34,7 @@ const DashboardHeader = ({
   onAddItem,
   onImport,
   onExport,
+  onSummary,
   hideActions = false,
 }) => {
   return (
@@ -58,6 +60,10 @@ const DashboardHeader = ({
 
           <button type="button" onClick={onExport} className="btn-secondary">
             <span className="whitespace-nowrap">Export</span>
+          </button>
+
+          <button type="button" onClick={onSummary} className="btn-secondary">
+            <span className="whitespace-nowrap">Summary</span>
           </button>
         </div>
       )}
@@ -336,6 +342,8 @@ const DashboardPage = () => {
 
   // Toast for import summary
   const [showToast, setShowToast] = useState(false);
+
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
 
   // Mobile layout
   const [isMobile, setIsMobile] = useState(false);
@@ -644,6 +652,7 @@ const DashboardPage = () => {
       setDeleteTarget(null);
       setBulkDeleteTarget(null);
       setShowExportModal(false);
+      setShowSummaryModal(false);
       setShowMobileDetailsModal(false);
       setMobileDetailsItem(null);
       closeEdit();
@@ -681,6 +690,7 @@ const DashboardPage = () => {
           setShowUploadModal(true);
         }}
         onExport={() => setShowExportModal(true)}
+        onSummary={() => setShowSummaryModal(true)}
         hideActions={isMobile}
       />
 
@@ -940,6 +950,13 @@ const DashboardPage = () => {
           allLocations={allLocations}
         />
       )}
+
+      {/* Summary Report */}
+      <SummaryReportModal
+        isOpen={showSummaryModal}
+        onClose={() => setShowSummaryModal(false)}
+        equipment={sortedEquipment}
+      />
 
       {/* Export */}
       <ExportModal
