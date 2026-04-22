@@ -17,59 +17,20 @@ const AUDIT_TABLE =
   import.meta.env.VITE_EQUIPMENT_AUDIT_TABLE || "equipment_audit";
 
 const EquipmentContext = createContext();
-const DEFAULT_LOCATIONS = [
-  "G1",
-  "G2",
-  "G3",
-  "Akerley Studio",
-  "Morris Studio",
-  "Splinter Unit",
-  "Dean’s Storage",
-  "Whites",
-];
 
 export const EquipmentProvider = ({ children }) => {
   const { orgId, loadingOrg } = useContext(UserContext) || {};
 
   const [equipmentData, setEquipmentData] = useState([]);
+
+  // Locations loaded from the DB locations table (source of truth)
   const [locations, setLocations] = useState([]);
 
-  // Custom locations (persisted locally so we can add options without creating placeholder inventory rows)
-  const [customLocations, setCustomLocations] = useState([]);
-
-  // Load custom locations once
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("griptrack_custom_locations");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) setCustomLocations(parsed);
-      }
-    } catch (e) {
-      console.warn("Failed to load custom locations", e);
-    }
-  }, []);
-
-  // Persist custom locations
-  useEffect(() => {
-    try {
-      localStorage.setItem(
-        "griptrack_custom_locations",
-        JSON.stringify(customLocations),
-      );
-    } catch (e) {
-      console.warn("Failed to save custom locations", e);
-    }
-  }, [customLocations]);
-
-  // Always-available + database-derived + custom locations (deduped)
-  const allLocations = Array.from(
-    new Set([
-      ...DEFAULT_LOCATIONS,
-      ...(Array.isArray(locations) ? locations : []),
-      ...(Array.isArray(customLocations) ? customLocations : []),
-    ]),
-  ).sort();
+  // allLocations for dropdowns — only active location names, sorted
+  const allLocations = locations
+    .filter((l) => l.is_active !== false)
+    .map((l) => l.name)
+    .sort();
 
   const [uploadedPDFItems, setUploadedPDFItems] = useState([]);
   const [pdfUploadModalOpen, setPdfUploadModalOpen] = useState(false);
@@ -108,16 +69,30 @@ export const EquipmentProvider = ({ children }) => {
     }
   };
 
-  const registerLocation = (name) => {
+  // Saves a new location to the DB and refreshes the list.
+  // Returns the new location row or null if it already exists.
+  const registerLocation = async (name) => {
     const trimmed = String(name || "").trim();
-    if (!trimmed) return;
+    if (!trimmed || !orgId) return null;
 
-    setCustomLocations((prev) => {
-      const exists = prev.some(
-        (l) => String(l).toLowerCase() === trimmed.toLowerCase(),
-      );
-      return exists ? prev : [...prev, trimmed];
-    });
+    const alreadyExists = locations.some(
+      (l) => l.name.toLowerCase() === trimmed.toLowerCase(),
+    );
+    if (alreadyExists) return null;
+
+    const { data, error } = await supabase
+      .from("locations")
+      .insert({ org_id: orgId, name: trimmed })
+      .select("id, name, description, is_active")
+      .single();
+
+    if (error) {
+      console.warn("Failed to register location", error);
+      return null;
+    }
+
+    setLocations((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+    return data;
   };
 
   const safeDateOnly = (value) => {
@@ -222,28 +197,27 @@ export const EquipmentProvider = ({ children }) => {
     };
   }, [loadEquipmentFromSupabase]);
 
+  // Load locations from DB whenever orgId is available
+  const loadLocations = useCallback(async () => {
+    if (!orgId) return;
+    try {
+      const { data, error } = await supabase
+        .from("locations")
+        .select("id, name, description, is_active")
+        .eq("org_id", orgId)
+        .order("name", { ascending: true });
+
+      if (error) throw error;
+      setLocations(data ?? []);
+    } catch (err) {
+      console.error("Failed to load locations", err);
+      setLocations([]);
+    }
+  }, [orgId]);
+
   useEffect(() => {
-    const loadLocations = async () => {
-      try {
-        const { data, error } = await supabase
-          .from(EQUIPMENT_TABLE)
-          .select("location");
-
-        if (error) throw error;
-
-        const locs = Array.from(
-          new Set((data || []).map((r) => r.location).filter(Boolean)),
-        ).sort();
-
-        setLocations(locs);
-      } catch (err) {
-        console.error("Failed to load locations", err);
-        setLocations([]);
-      }
-    };
-
     loadLocations();
-  }, []);
+  }, [loadLocations]);
 
   // Insert many items (used by PDF import). Duplicates are allowed.
   const addMultipleItems = async (items) => {
@@ -492,9 +466,10 @@ export const EquipmentProvider = ({ children }) => {
         updateEquipment,
         moveEquipment,
         clearImportSummary,
-        locations,
-        allLocations,
+        locations,       // full location objects [{ id, name, description, is_active }]
+        allLocations,    // just active names, for dropdowns
         registerLocation,
+        loadLocations,
         setLocations,
         uploadedPDFItems,
         setUploadedPDFItems,

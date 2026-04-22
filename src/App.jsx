@@ -19,6 +19,7 @@ import InviteAccept from "./pages/InviteAccept";
 import LandingPage from "./pages/LandingPage";
 import PricingPage from "./pages/PricingPage";
 import BillingPage from "./pages/BillingPage";
+import LocationsPage from "./pages/LocationsPage";
 import useUser from "./context/useUser";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
@@ -183,6 +184,7 @@ const App = () => {
               <Route index element={<Dashboard />} />
               <Route path="staff" element={<Staff />} />
               <Route path="billing" element={<BillingPage />} />
+              <Route path="locations" element={<LocationsPage />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />
