@@ -5,6 +5,7 @@ import useUser from "@/context/useUser";
 
 const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
   const { role, logout } = useUser();
+  const isOwner = role === "owner";
   const isAdmin = role === "owner" || role === "admin";
 
   // Mobile drawer
@@ -29,6 +30,11 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
 
   const closeDrawer = () => setDrawerOpen(false);
 
+  const navLinkClass = (isActive, navCollapsed) =>
+    `w-full ${navCollapsed ? "px-2" : "px-4"} py-2 text-left transition-colors ${
+      navCollapsed ? "text-center" : ""
+    } ${isActive ? "bg-accent/20 text-accent font-semibold" : "text-text/60 hover:text-accent"}`;
+
   const NavItems = ({ onDone, collapsed: navCollapsed = false }) => (
     <nav className="flex flex-col gap-0.5">
       <NavLink
@@ -36,15 +42,7 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
         end
         onClick={() => onDone?.()}
         title="Dashboard"
-        className={({ isActive }) =>
-          `w-full ${navCollapsed ? "px-2" : "px-4"} py-2 text-left transition-colors ${
-            navCollapsed ? "text-center" : ""
-          } ${
-            isActive
-              ? "bg-accent/20 text-accent font-semibold"
-              : "text-text/60 hover:text-accent"
-          }`
-        }
+        className={({ isActive }) => navLinkClass(isActive, navCollapsed)}
       >
         {navCollapsed ? "D" : "Dashboard"}
       </NavLink>
@@ -54,17 +52,20 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
           to="/staff"
           onClick={() => onDone?.()}
           title="Staff"
-          className={({ isActive }) =>
-            `w-full ${navCollapsed ? "px-2" : "px-4"} py-2 text-left transition-colors ${
-              navCollapsed ? "text-center" : ""
-            } ${
-              isActive
-                ? "bg-accent/20 text-accent font-semibold"
-                : "text-text/60 hover:text-accent"
-            }`
-          }
+          className={({ isActive }) => navLinkClass(isActive, navCollapsed)}
         >
           {navCollapsed ? "S" : "Staff"}
+        </NavLink>
+      )}
+
+      {isOwner && (
+        <NavLink
+          to="/billing"
+          onClick={() => onDone?.()}
+          title="Billing"
+          className={({ isActive }) => navLinkClass(isActive, navCollapsed)}
+        >
+          {navCollapsed ? "B" : "Billing"}
         </NavLink>
       )}
 

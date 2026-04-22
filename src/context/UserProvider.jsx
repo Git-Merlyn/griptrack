@@ -2,21 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import UserContext from "./UserContext";
 import { supabase } from "@/lib/supabaseClient";
 
-const STORAGE_KEY = "griptrack_username";
-
 const UserProvider = ({ children }) => {
-  // Legacy/local identity (kept for now so existing PasswordGate flows don't implode)
-  const [user, setUser] = useState(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      const username = stored ? String(stored).trim() : "";
-      return username ? { username } : null;
-    } catch {
-      return null;
-    }
-  });
-
-  // Supabase-auth identity (preferred going forward)
+  // Supabase auth identity
   const [authUser, setAuthUser] = useState(null);
 
   // Org context
@@ -28,41 +15,16 @@ const UserProvider = ({ children }) => {
   const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
   const [loadingOrg, setLoadingOrg] = useState(true);
 
+  // Subscription context
+  const [subscription, setSubscription] = useState(null);
+  const [loadingSubscription, setLoadingSubscription] = useState(false);
+
   const isPlaceholderOrgName = (name) => {
-    const n = String(name || "").trim();
-    // Treat empty or obvious placeholders as "needs setup"
-    return (
-      !n ||
-      n.toLowerCase() === "default org" ||
-      n.toLowerCase() === "new company" ||
-      n.toLowerCase() === "organization" ||
-      n.toLowerCase() === "company"
-    );
-  };
-
-  const login = (username) => {
-    // NOTE: This is legacy. Real auth should happen via Supabase auth UI/flows.
-    const name = String(username ?? "").trim();
-    if (!name) {
-      setUser(null);
-      try {
-        localStorage.removeItem(STORAGE_KEY);
-      } catch {
-        // ignore
-      }
-      return;
-    }
-
-    setUser({ username: name });
-    try {
-      localStorage.setItem(STORAGE_KEY, name);
-    } catch {
-      // ignore
-    }
+    const n = String(name || "").trim().toLowerCase();
+    return !n || ["default org", "new company", "organization", "company"].includes(n);
   };
 
   const logout = async () => {
-    setUser(null);
     setAuthUser(null);
     setOrgId(null);
     setRole(null);
@@ -71,36 +33,41 @@ const UserProvider = ({ children }) => {
     setProfile(null);
     setNeedsProfileSetup(false);
     setLoadingOrg(false);
+    setSubscription(null);
 
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // ignore
-    }
-
-    // If the app is using Supabase auth, sign out there too.
     try {
       await supabase.auth.signOut();
     } catch {
       // ignore
     }
 
-    // Force a clean reload to the login page.
     window.location.href = "/auth";
   };
 
-  // Keep localStorage in sync if user is ever set directly in the future
-  useEffect(() => {
-    try {
-      if (user?.username) {
-        localStorage.setItem(STORAGE_KEY, String(user.username));
-      }
-    } catch {
-      // ignore
-    }
-  }, [user]);
+  const loadSubscription = async (currentOrgId) => {
+    if (!currentOrgId) return;
 
-  // 5B) Org bootstrap: on any valid Supabase session, ensure the user has an org
+    setLoadingSubscription(true);
+    try {
+      const { data, error } = await supabase
+        .from("subscriptions")
+        .select("plan, status, current_period_end, cancel_at_period_end, stripe_customer_id, stripe_subscription_id")
+        .eq("org_id", currentOrgId)
+        .single();
+
+      if (error && error.code !== "PGRST116") {
+        // PGRST116 = no rows found — that's fine, org is on free plan
+        console.warn("Failed to load subscription", error);
+      }
+
+      setSubscription(data ?? null);
+    } catch (e) {
+      console.warn("Subscription load error", e);
+    } finally {
+      setLoadingSubscription(false);
+    }
+  };
+
   useEffect(() => {
     let unsub = null;
     let cancelled = false;
@@ -117,27 +84,23 @@ const UserProvider = ({ children }) => {
         setProfile(null);
         setNeedsProfileSetup(false);
         setLoadingOrg(false);
+        setSubscription(null);
         return;
       }
 
       setAuthUser(session.user);
       setLoadingOrg(true);
 
-      const { data: inviteData, error: inviteError } = await supabase.rpc(
-        "accept_org_invite_for_user",
-      );
-
+      // Auto-link invited user to their org if applicable
+      const { error: inviteError } = await supabase.rpc("accept_org_invite_for_user");
       if (inviteError) {
         console.warn("accept_org_invite_for_user failed", inviteError);
-      } else if (Array.isArray(inviteData) && inviteData.length > 0) {
-        console.log("accept_org_invite_for_user matched invite", inviteData[0]);
       }
 
       const { data, error } = await supabase.rpc("ensure_org_for_user");
       if (cancelled) return;
 
       if (error) {
-        // Fail closed: no org context.
         console.error("ensure_org_for_user failed", error);
         setOrgId(null);
         setRole(null);
@@ -150,12 +113,11 @@ const UserProvider = ({ children }) => {
       }
 
       const row = Array.isArray(data) ? data[0] : data;
-
       const nextOrgId = row?.org_id ?? null;
       setOrgId(nextOrgId);
       setRole(row?.role ?? null);
 
-      // Fetch org name to determine if setup is required.
+      // Load org name
       if (nextOrgId) {
         const { data: orgRow, error: orgErr } = await supabase
           .from("organizations")
@@ -164,7 +126,6 @@ const UserProvider = ({ children }) => {
           .single();
 
         if (orgErr) {
-          // If we can't read org name, fail open (don't block app in setup loop)
           console.warn("Failed to load organization name", orgErr);
           setOrgName("");
           setNeedsOrgSetup(false);
@@ -173,22 +134,22 @@ const UserProvider = ({ children }) => {
           setOrgName(name);
           setNeedsOrgSetup(isPlaceholderOrgName(name));
         }
+
+        // Load subscription for org
+        await loadSubscription(nextOrgId);
       } else {
         setOrgName("");
-        setProfile(null);
-        // No org id means something is wrong; treat as needing setup to be safe.
         setNeedsOrgSetup(true);
       }
 
-      // Load profile for the signed-in user.
+      // Load user profile
       const { data: profileRow, error: profileErr } = await supabase
         .from("profiles")
-        .select("id,email,full_name,phone")
+        .select("id, email, full_name, phone")
         .eq("id", session.user.id)
         .single();
 
       if (profileErr) {
-        // If no profile exists yet, require profile setup.
         console.warn("Failed to load profile", profileErr);
         setProfile(null);
         setNeedsProfileSetup(true);
@@ -222,17 +183,19 @@ const UserProvider = ({ children }) => {
     };
   }, []);
 
+  // Derive the active plan — treat any non-active subscription as free
+  const plan = useMemo(() => {
+    if (!subscription) return "free";
+    if (subscription.status === "active" || subscription.status === "trialing") {
+      return subscription.plan ?? "free";
+    }
+    return "free";
+  }, [subscription]);
+
   const value = useMemo(
     () => ({
-      // legacy user
-      user,
-      login,
-      logout,
-
-      // supabase auth user (preferred)
       authUser,
-
-      // org info
+      logout,
       orgId,
       role,
       orgName,
@@ -240,9 +203,12 @@ const UserProvider = ({ children }) => {
       profile,
       needsProfileSetup,
       loadingOrg,
+      subscription,
+      plan,
+      loadingSubscription,
+      refreshSubscription: () => loadSubscription(orgId),
     }),
     [
-      user,
       authUser,
       orgId,
       role,
@@ -251,6 +217,9 @@ const UserProvider = ({ children }) => {
       profile,
       needsProfileSetup,
       loadingOrg,
+      subscription,
+      plan,
+      loadingSubscription,
     ],
   );
 

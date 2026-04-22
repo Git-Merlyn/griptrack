@@ -16,6 +16,9 @@ import MainLayout from "./components/layout/MainLayout";
 import Auth from "./pages/Auth";
 import CompleteProfile from "./pages/CompleteProfile";
 import InviteAccept from "./pages/InviteAccept";
+import LandingPage from "./pages/LandingPage";
+import PricingPage from "./pages/PricingPage";
+import BillingPage from "./pages/BillingPage";
 import useUser from "./context/useUser";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
@@ -104,8 +107,6 @@ const App = () => {
     needsProfileSetup,
   } = useUser();
 
-  // Local override so after saving the org name we don't get stuck on /org-setup
-  // even if the provider hasn't reloaded orgName yet.
   const [orgNameLocal, setOrgNameLocal] = useState(null);
   const effectiveOrgName = orgNameLocal ?? orgName;
   const effectiveNeedsOrgSetup = orgNameLocal ? false : needsOrgSetup;
@@ -117,27 +118,25 @@ const App = () => {
 
   return (
     <>
-      {!authUser ? (
-        <>
-          <Routes>
-            <Route path="/auth" element={<Auth mode="normal" />} />
-            <Route path="/invite" element={<Auth mode="invite" />} />
-            <Route path="/invite-accept" element={<InviteAccept />} />
-            <Route path="*" element={<Navigate to="/auth" replace />} />
-          </Routes>
+      <Analytics />
+      <SpeedInsights />
 
-          <Analytics />
-          <SpeedInsights />
-        </>
+      {!authUser ? (
+        // Unauthenticated: show public pages, redirect protected routes to /auth
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/pricing" element={<PricingPage />} />
+          <Route path="/auth" element={<Auth mode="normal" />} />
+          <Route path="/invite" element={<Auth mode="invite" />} />
+          <Route path="/invite-accept" element={<InviteAccept />} />
+          <Route path="*" element={<Navigate to="/auth" replace />} />
+        </Routes>
       ) : loadingOrg ? (
-        <>
-          <div className="min-h-screen flex items-center justify-center bg-black text-gray-200">
-            Loading…
-          </div>
-          <Analytics />
-          <SpeedInsights />
-        </>
+        <div className="min-h-screen flex items-center justify-center bg-black text-gray-200">
+          Loading…
+        </div>
       ) : (
+        // Authenticated
         <>
           {effectiveNeedsOrgSetup &&
           location.pathname !== "/org-setup" &&
@@ -151,8 +150,14 @@ const App = () => {
           ) : null}
 
           <Routes>
+            {/* Redirect auth pages to app */}
             <Route path="/auth" element={<Navigate to="/" replace />} />
             <Route path="/invite" element={<Navigate to="/" replace />} />
+
+            {/* Public pages remain accessible when logged in */}
+            <Route path="/pricing" element={<PricingPage />} />
+
+            {/* Onboarding */}
             <Route
               path="/org-setup"
               element={
@@ -173,16 +178,15 @@ const App = () => {
             />
             <Route path="/invite-accept" element={<InviteAccept />} />
 
+            {/* Main app */}
             <Route path="/" element={<MainLayout />}>
               <Route index element={<Dashboard />} />
               <Route path="staff" element={<Staff />} />
+              <Route path="billing" element={<BillingPage />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />
           </Routes>
-
-          <Analytics />
-          <SpeedInsights />
         </>
       )}
     </>
