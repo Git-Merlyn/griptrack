@@ -1,13 +1,18 @@
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import useUser from "@/context/useUser";
 import { redirectToCheckout } from "@/lib/stripe";
 
+// Pricing per billing cycle.
+// annualMonthly = displayed monthly equivalent when billed annually.
+// annualTotal   = actual charge per year.
+// annualSaving  = amount saved vs paying monthly for 12 months.
 const plans = [
   {
     key: "free",
     name: "Free",
-    price: "$0",
-    period: "forever",
+    monthly: { display: "$0", period: "forever" },
+    annual:  { display: "$0", period: "forever" },
     description: "Get started and see if GripTrack fits your workflow.",
     cta: "Get started free",
     ctaStyle: "border border-gray-700 text-white hover:border-gray-500",
@@ -28,8 +33,8 @@ const plans = [
   {
     key: "pro",
     name: "Pro",
-    price: "$39",
-    period: "per month",
+    monthly: { display: "$39",  period: "per month" },
+    annual:  { display: "$32",  period: "per month", billed: "$384/yr", saving: "$84" },
     description: "For active productions that need full team access.",
     cta: "Upgrade to Pro",
     ctaStyle: "bg-accent text-black font-bold hover:bg-accent/90",
@@ -48,8 +53,8 @@ const plans = [
   {
     key: "team",
     name: "Team",
-    price: "$89",
-    period: "per month",
+    monthly: { display: "$89",  period: "per month" },
+    annual:  { display: "$74",  period: "per month", billed: "$888/yr", saving: "$180" },
     description: "For larger crews and multi-production companies.",
     cta: "Upgrade to Team",
     ctaStyle: "border border-accent text-accent hover:bg-accent/10",
@@ -76,9 +81,58 @@ const X = () => (
   </svg>
 );
 
+/** Monthly / Annual pill toggle */
+const BillingToggle = ({ billing, onChange }) => (
+  <div className="flex items-center justify-center gap-3 mt-8">
+    <span
+      className={`text-sm font-medium transition-colors ${
+        billing === "monthly" ? "text-white" : "text-gray-500"
+      }`}
+    >
+      Monthly
+    </span>
+
+    <button
+      type="button"
+      role="switch"
+      aria-checked={billing === "annual"}
+      onClick={() => onChange(billing === "monthly" ? "annual" : "monthly")}
+      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+        billing === "annual" ? "bg-accent" : "bg-gray-700"
+      }`}
+    >
+      <span
+        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+          billing === "annual" ? "translate-x-6" : "translate-x-1"
+        }`}
+      />
+    </button>
+
+    <span
+      className={`text-sm font-medium transition-colors ${
+        billing === "annual" ? "text-white" : "text-gray-500"
+      }`}
+    >
+      Annual
+    </span>
+
+    {/* "2 months free" badge — only visible when annual is not yet selected */}
+    <span
+      className={`text-xs font-semibold px-2 py-0.5 rounded-full transition-opacity ${
+        billing === "annual"
+          ? "bg-accent/20 text-accent opacity-100"
+          : "bg-gray-800 text-gray-400 opacity-100"
+      }`}
+    >
+      {billing === "annual" ? "2 months free ✓" : "Save 2 months"}
+    </span>
+  </div>
+);
+
 const PricingPage = () => {
   const { authUser, plan: currentPlan } = useUser();
   const navigate = useNavigate();
+  const [billing, setBilling] = useState("monthly");
 
   const handleCta = async (planKey) => {
     if (planKey === "free") {
@@ -91,9 +145,11 @@ const PricingPage = () => {
       return;
     }
 
-    // Redirect to Stripe checkout
+    // Pass billing cycle to checkout so the correct Stripe price is used.
+    // redirectToCheckout should accept an optional second argument when
+    // annual Stripe price IDs are configured.
     try {
-      await redirectToCheckout(planKey);
+      await redirectToCheckout(planKey, billing);
     } catch (e) {
       console.error("Checkout error", e);
       alert("Unable to start checkout. Please try again.");
@@ -133,7 +189,7 @@ const PricingPage = () => {
         </div>
       </header>
 
-      {/* Header */}
+      {/* Header + billing toggle */}
       <section className="max-w-4xl mx-auto px-4 sm:px-6 pt-16 pb-12 text-center">
         <h1 className="text-4xl sm:text-5xl font-bold mb-4">
           Simple, transparent pricing
@@ -141,6 +197,8 @@ const PricingPage = () => {
         <p className="text-gray-400 text-lg max-w-xl mx-auto">
           Start free and upgrade as your crew grows. No hidden fees, no surprises.
         </p>
+
+        <BillingToggle billing={billing} onChange={setBilling} />
       </section>
 
       {/* Plans */}
@@ -148,6 +206,7 @@ const PricingPage = () => {
         <div className="grid sm:grid-cols-3 gap-6 items-start">
           {plans.map((p) => {
             const isCurrentPlan = authUser && currentPlan === p.key;
+            const pricing = billing === "annual" ? p.annual : p.monthly;
 
             return (
               <div
@@ -172,10 +231,22 @@ const PricingPage = () => {
 
                 <div className="mb-6">
                   <h3 className="text-lg font-bold text-white mb-1">{p.name}</h3>
-                  <div className="flex items-baseline gap-1 mb-2">
-                    <span className="text-4xl font-bold text-white">{p.price}</span>
-                    <span className="text-gray-500 text-sm">/{p.period}</span>
+
+                  <div className="flex items-baseline gap-1 mb-1">
+                    <span className="text-4xl font-bold text-white">{pricing.display}</span>
+                    <span className="text-gray-500 text-sm">/{pricing.period}</span>
                   </div>
+
+                  {/* Annual sub-line: "Billed $384/yr · Save $84" */}
+                  {billing === "annual" && pricing.billed && (
+                    <p className="text-xs text-gray-500 mb-2">
+                      Billed {pricing.billed}
+                      <span className="ml-2 text-accent font-medium">
+                        Save {pricing.saving}
+                      </span>
+                    </p>
+                  )}
+
                   <p className="text-gray-400 text-sm">{p.description}</p>
                 </div>
 
