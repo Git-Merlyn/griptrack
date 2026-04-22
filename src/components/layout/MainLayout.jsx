@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Sidebar from "../Sidebar";
+import TrialBanner from "../TrialBanner";
 import { Outlet } from "react-router-dom";
 
 const MainLayout = () => {
@@ -30,8 +31,11 @@ const MainLayout = () => {
         onToggleCollapsed={() => setSidebarCollapsed((v) => !v)}
       />
 
-      <main className="flex-1 overflow-y-auto p-4 md:p-6">
-        <Outlet />
+      <main className="flex-1 overflow-y-auto flex flex-col">
+        <TrialBanner />
+        <div className="flex-1 p-4 md:p-6">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

@@ -2,11 +2,14 @@ import React, { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import FeedbackModal from "./feedback/FeedbackModal";
 import useUser from "@/context/useUser";
+import useTrial from "@/hooks/useTrial";
 
 const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
   const { role, logout } = useUser();
   const isOwner = role === "owner";
   const isAdmin = role === "owner" || role === "admin";
+
+  const { isTrialActive, isTrialExpired, daysLeft } = useTrial();
 
   // Mobile drawer
   const [isMobile, setIsMobile] = useState(false);
@@ -102,6 +105,61 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
       >
         {navCollapsed ? "F" : "Beta Feedback"}
       </button>
+
+      {/* Trial status indicator */}
+      {(isTrialActive || isTrialExpired) && (
+        <NavLink
+          to="/billing"
+          title={
+            isTrialExpired
+              ? "Trial expired — upgrade to continue"
+              : `Trial: ${daysLeft} day${daysLeft === 1 ? "" : "s"} left`
+          }
+          className={({ isActive }) =>
+            `w-full ${navCollapsed ? "px-2" : "px-4"} py-2 text-left transition-colors ${
+              navCollapsed ? "text-center" : ""
+            } ${isActive ? "bg-accent/20 text-accent font-semibold" : ""}`
+          }
+          onClick={() => onDone?.()}
+        >
+          {navCollapsed ? (
+            /* Colored dot when collapsed */
+            <span
+              className={`inline-block w-2 h-2 rounded-full ${
+                isTrialExpired
+                  ? "bg-danger"
+                  : daysLeft !== null && daysLeft <= 7
+                  ? "bg-warning"
+                  : "bg-green-400"
+              }`}
+            />
+          ) : (
+            /* Full pill when expanded */
+            <span
+              className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-full ${
+                isTrialExpired
+                  ? "bg-danger/20 text-danger"
+                  : daysLeft !== null && daysLeft <= 7
+                  ? "bg-warning/20 text-warning"
+                  : "bg-green-400/20 text-green-400"
+              }`}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  isTrialExpired
+                    ? "bg-danger"
+                    : daysLeft !== null && daysLeft <= 7
+                    ? "bg-warning"
+                    : "bg-green-400"
+                }`}
+              />
+              {isTrialExpired
+                ? "Trial expired"
+                : `Trial: ${daysLeft}d left`}
+            </span>
+          )}
+        </NavLink>
+      )}
 
       <button
         type="button"

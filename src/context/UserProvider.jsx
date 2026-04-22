@@ -19,6 +19,9 @@ const UserProvider = ({ children }) => {
   const [subscription, setSubscription] = useState(null);
   const [loadingSubscription, setLoadingSubscription] = useState(false);
 
+  // Trial
+  const [trialEndsAt, setTrialEndsAt] = useState(null);
+
   const isPlaceholderOrgName = (name) => {
     const n = String(name || "").trim().toLowerCase();
     return !n || ["default org", "new company", "organization", "company"].includes(n);
@@ -34,6 +37,7 @@ const UserProvider = ({ children }) => {
     setNeedsProfileSetup(false);
     setLoadingOrg(false);
     setSubscription(null);
+    setTrialEndsAt(null);
 
     try {
       await supabase.auth.signOut();
@@ -85,6 +89,7 @@ const UserProvider = ({ children }) => {
         setNeedsProfileSetup(false);
         setLoadingOrg(false);
         setSubscription(null);
+        setTrialEndsAt(null);
         return;
       }
 
@@ -121,7 +126,7 @@ const UserProvider = ({ children }) => {
       if (nextOrgId) {
         const { data: orgRow, error: orgErr } = await supabase
           .from("organizations")
-          .select("name")
+          .select("name, trial_ends_at")
           .eq("id", nextOrgId)
           .single();
 
@@ -129,10 +134,12 @@ const UserProvider = ({ children }) => {
           console.warn("Failed to load organization name", orgErr);
           setOrgName("");
           setNeedsOrgSetup(false);
+          setTrialEndsAt(null);
         } else {
           const name = String(orgRow?.name || "").trim();
           setOrgName(name);
           setNeedsOrgSetup(isPlaceholderOrgName(name));
+          setTrialEndsAt(orgRow?.trial_ends_at ?? null);
         }
 
         // Load subscription for org
@@ -206,6 +213,7 @@ const UserProvider = ({ children }) => {
       subscription,
       plan,
       loadingSubscription,
+      trialEndsAt,
       refreshSubscription: () => loadSubscription(orgId),
     }),
     [
@@ -220,6 +228,7 @@ const UserProvider = ({ children }) => {
       subscription,
       plan,
       loadingSubscription,
+      trialEndsAt,
     ],
   );
 
