@@ -1,4 +1,5 @@
 import React, { useContext, useState, useEffect } from "react";
+import { NavLink } from "react-router-dom";
 import ImportFileModal from "@/components/ImportFileModal";
 import EquipmentContext from "@/context/EquipmentContext";
 import useUser from "@/context/useUser";
@@ -303,6 +304,139 @@ const BulkToolbar = ({
   );
 };
 
+const WELCOME_DISMISSED_KEY = "griptrack_welcome_dismissed";
+
+// Shown the first time a new org lands on the dashboard with no inventory.
+const WelcomeBanner = ({ onAddItem, onImport, onDismiss }) => (
+  <div className="bg-accent/10 border border-accent/30 rounded-xl p-5 flex flex-col gap-4">
+    <div className="flex items-start justify-between gap-2">
+      <div>
+        <h3 className="text-lg font-bold text-accent mb-1">
+          Welcome to GripTrack
+        </h3>
+        <p className="text-sm text-gray-300">
+          Get your inventory set up in three steps.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onDismiss}
+        className="text-gray-500 hover:text-gray-300 text-xs shrink-0 mt-1 transition"
+        aria-label="Dismiss welcome banner"
+      >
+        Dismiss
+      </button>
+    </div>
+
+    <ol className="flex flex-col gap-3 text-sm">
+      <li className="flex items-start gap-3">
+        <span className="shrink-0 w-6 h-6 rounded-full bg-accent/20 text-accent text-xs font-bold flex items-center justify-center">
+          1
+        </span>
+        <span className="text-gray-300">
+          <NavLink to="/locations" className="text-accent underline underline-offset-2">
+            Add your locations
+          </NavLink>{" "}
+          — trucks, stages, or anywhere gear lives.
+        </span>
+      </li>
+
+      <li className="flex items-start gap-3">
+        <span className="shrink-0 w-6 h-6 rounded-full bg-accent/20 text-accent text-xs font-bold flex items-center justify-center">
+          2
+        </span>
+        <span className="text-gray-300">
+          <button
+            type="button"
+            onClick={onImport}
+            className="text-accent underline underline-offset-2"
+          >
+            Import a rental PDF
+          </button>{" "}
+          or{" "}
+          <button
+            type="button"
+            onClick={onAddItem}
+            className="text-accent underline underline-offset-2"
+          >
+            add items manually
+          </button>
+          .
+        </span>
+      </li>
+
+      <li className="flex items-start gap-3">
+        <span className="shrink-0 w-6 h-6 rounded-full bg-accent/20 text-accent text-xs font-bold flex items-center justify-center">
+          3
+        </span>
+        <span className="text-gray-300">
+          <NavLink to="/staff" className="text-accent underline underline-offset-2">
+            Invite your crew
+          </NavLink>{" "}
+          to see and request gear in real time.
+        </span>
+      </li>
+    </ol>
+  </div>
+);
+
+// Shown inside the inventory card when no rows are visible.
+const EmptyState = ({ hasActiveFilters, onClearFilters, onAddItem, onImport }) => {
+  if (hasActiveFilters) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-16 text-center">
+        <p className="text-gray-400 text-sm">
+          No items match your current filters.
+        </p>
+        <button
+          type="button"
+          onClick={onClearFilters}
+          className="btn-secondary-sm"
+        >
+          Clear filters
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-4 py-16 text-center">
+      {/* Box icon */}
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="48"
+        height="48"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="text-gray-600"
+      >
+        <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
+        <path d="m3.3 7 8.7 5 8.7-5" />
+        <path d="M12 22V12" />
+      </svg>
+      <div>
+        <p className="text-gray-200 font-medium mb-1">No inventory yet</p>
+        <p className="text-gray-500 text-sm max-w-xs">
+          Add your first item manually or import a rental PDF or CSV to get
+          started.
+        </p>
+      </div>
+      <div className="flex gap-2 mt-1">
+        <button type="button" onClick={onAddItem} className="btn-accent">
+          Add Item
+        </button>
+        <button type="button" onClick={onImport} className="btn-secondary">
+          Import
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const DashboardPage = () => {
   const {
     equipment,
@@ -360,6 +494,16 @@ const DashboardPage = () => {
 
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [exportingHistory, setExportingHistory] = useState(false);
+
+  // Welcome banner — shown once when org has no equipment, dismissed via localStorage
+  const [welcomeDismissed, setWelcomeDismissed] = useState(
+    () => localStorage.getItem(WELCOME_DISMISSED_KEY) === "true",
+  );
+
+  const dismissWelcome = () => {
+    localStorage.setItem(WELCOME_DISMISSED_KEY, "true");
+    setWelcomeDismissed(true);
+  };
 
   // Mobile layout
   const [isMobile, setIsMobile] = useState(false);
@@ -733,7 +877,17 @@ const DashboardPage = () => {
         hideActions={isMobile}
       />
 
-      <div className="text-xs text-gray-500 mb-2"></div>
+      {/* Welcome banner — visible only when org has no equipment and not dismissed */}
+      {visibleEquipment.length === 0 && !welcomeDismissed && (
+        <WelcomeBanner
+          onAddItem={openAdd}
+          onImport={() => {
+            setPdfModalMode("import");
+            setShowUploadModal(true);
+          }}
+          onDismiss={dismissWelcome}
+        />
+      )}
 
       <ImportToast
         show={showToast}
@@ -804,53 +958,75 @@ const DashboardPage = () => {
           onBulkDelete={handleBulkDelete}
         />
 
-        {/* Inventory List */}
-        {isMobile ? (
-          <MobileDashboard
-            sortedEquipment={sortedEquipment}
-            bulkMode={bulkMode}
-            selectedIds={selectedIds}
-            isSelected={isSelected}
-            toggleSelected={toggleSelected}
-            selectAllVisible={selectAllVisible}
-            clearSelection={clearSelection}
-            editingId={editingId}
-            onOpenDetails={(item) => {
-              setMobileDetailsItem(item);
-              setShowMobileDetailsModal(true);
+        {/* Empty state — no results after filters, or genuinely empty inventory */}
+        {sortedEquipment.length === 0 && (
+          <EmptyState
+            hasActiveFilters={
+              !!(filterLocation || filterStatus || filterCategory || searchQuery.trim())
+            }
+            onClearFilters={() => {
+              setFilterLocation("");
+              setFilterStatus("");
+              setFilterCategory("");
+              setSearchQuery("");
             }}
-            onOpenEdit={(item) => {
-              openEditForItem(item);
-            }}
-            onOpenMove={(item) => {
-              setMovingItem({ ...item });
-              setMoveData({ qty: 1, newLocation: "" });
+            onAddItem={openAdd}
+            onImport={() => {
+              setPdfModalMode("import");
+              setShowUploadModal(true);
             }}
           />
-        ) : (
-          <DesktopDashboard
-            sortedEquipment={sortedEquipment}
-            bulkMode={bulkMode}
-            selectedIds={selectedIds}
-            isSelected={isSelected}
-            toggleSelected={toggleSelected}
-            selectAllVisible={selectAllVisible}
-            clearSelection={clearSelection}
-            toggleSort={toggleSort}
-            sortArrow={sortArrow}
-            editingId={editingId}
-            onOpenDetails={(item) => {
-              setMobileDetailsItem(item);
-              setShowMobileDetailsModal(true);
-            }}
-            onOpenEdit={(item) => {
-              openEditForItem(item);
-            }}
-            onOpenMove={(item) => {
-              setMovingItem({ ...item });
-              setMoveData({ qty: 1, newLocation: "" });
-            }}
-          />
+        )}
+
+        {/* Inventory List — only mounts when there are rows to show */}
+        {sortedEquipment.length > 0 && (
+          isMobile ? (
+            <MobileDashboard
+              sortedEquipment={sortedEquipment}
+              bulkMode={bulkMode}
+              selectedIds={selectedIds}
+              isSelected={isSelected}
+              toggleSelected={toggleSelected}
+              selectAllVisible={selectAllVisible}
+              clearSelection={clearSelection}
+              editingId={editingId}
+              onOpenDetails={(item) => {
+                setMobileDetailsItem(item);
+                setShowMobileDetailsModal(true);
+              }}
+              onOpenEdit={(item) => {
+                openEditForItem(item);
+              }}
+              onOpenMove={(item) => {
+                setMovingItem({ ...item });
+                setMoveData({ qty: 1, newLocation: "" });
+              }}
+            />
+          ) : (
+            <DesktopDashboard
+              sortedEquipment={sortedEquipment}
+              bulkMode={bulkMode}
+              selectedIds={selectedIds}
+              isSelected={isSelected}
+              toggleSelected={toggleSelected}
+              selectAllVisible={selectAllVisible}
+              clearSelection={clearSelection}
+              toggleSort={toggleSort}
+              sortArrow={sortArrow}
+              editingId={editingId}
+              onOpenDetails={(item) => {
+                setMobileDetailsItem(item);
+                setShowMobileDetailsModal(true);
+              }}
+              onOpenEdit={(item) => {
+                openEditForItem(item);
+              }}
+              onOpenMove={(item) => {
+                setMovingItem({ ...item });
+                setMoveData({ qty: 1, newLocation: "" });
+              }}
+            />
+          )
         )}
       </InventoryCard>
 
