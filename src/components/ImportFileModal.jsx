@@ -423,16 +423,52 @@ const ImportFileModal = ({
       const normalizedLines = splitMergedLines(allLines);
 
       const fullTextForDates = allLines.join("\n");
-      let shipDate = "";
-      let returnDate = "";
 
-      const shipMatch = fullTextForDates.match(/Ship Date[:\s]*([0-9./-]+)/i);
-      if (shipMatch) shipDate = shipMatch[1].trim();
+      // Normalise raw date strings to YYYY-MM-DD for Supabase.
+      // Handles: MM/DD/YYYY, MM-DD-YYYY, YYYY/MM/DD, DD.MM.YYYY, and existing ISO.
+      const normalizeDate = (raw) => {
+        const s = String(raw || "").trim().replace(/\s+/g, "");
+        if (!s) return "";
+        // Already ISO
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+        // MM/DD/YYYY or MM-DD-YYYY (US)
+        const mdy = s.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})$/);
+        if (mdy) {
+          return `${mdy[3]}-${mdy[1].padStart(2, "0")}-${mdy[2].padStart(2, "0")}`;
+        }
+        // YYYY/MM/DD
+        const ymd = s.match(/^(\d{4})[/\-](\d{2})[/\-](\d{2})$/);
+        if (ymd) return `${ymd[1]}-${ymd[2]}-${ymd[3]}`;
+        // DD.MM.YYYY (European)
+        const dmy = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+        if (dmy) {
+          return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
+        }
+        return raw.trim(); // unknown format — store as-is
+      };
 
-      const returnMatch = fullTextForDates.match(
-        /Return Date[:\s]*([0-9./-]+)/i,
-      );
-      if (returnMatch) returnDate = returnMatch[1].trim();
+      // Try multiple field-name aliases used by different rental houses.
+      const extractDate = (text, type) => {
+        const pats =
+          type === "start"
+            ? [
+                /(?:ship|out|start|delivery|pickup|rental\s*start)\s*date\s*[:\-]?\s*([0-9][0-9./\-]+)/i,
+                /date\s*(?:out|shipped|start)\s*[:\-]?\s*([0-9][0-9./\-]+)/i,
+              ]
+            : [
+                /(?:return|due|end|rental\s*end)\s*date\s*[:\-]?\s*([0-9][0-9./\-]+)/i,
+                /date\s*(?:in|due|return|back)\s*[:\-]?\s*([0-9][0-9./\-]+)/i,
+                /expected\s*return\s*[:\-]?\s*([0-9][0-9./\-]+)/i,
+              ];
+        for (const re of pats) {
+          const m = text.match(re);
+          if (m?.[1]) return normalizeDate(m[1]);
+        }
+        return "";
+      };
+
+      const shipDate = extractDate(fullTextForDates, "start");
+      const returnDate = extractDate(fullTextForDates, "end");
 
       const items = [];
       const codeRe = /\b([A-Z]{3,}[A-Z0-9]*\d{3,})\b/;
@@ -455,7 +491,7 @@ const ImportFileModal = ({
 
         // Leading qty token (must be followed by whitespace and NOT immediately followed by a quote/apostrophe)
         const qtyAfterCodeMatch = remainder.match(
-          /^\s*(\d{1,3})\s+(?!['’"”″])/,
+          /^\s*(\d{1,4})\s+(?![‘’””″])/,
         );
 
         // Trailing qty token (at end of remainder)
@@ -536,19 +572,66 @@ const ImportFileModal = ({
         });
       }
 
-      console.log("Parsed items from PDF (line-based, split-merged):", items);
+      console.log("Parsed items from PDF (code-based):", items);
+
+      // ── Fallback: codeless parser ─────────────────────────────────────────
+      // Used when the rental house PDF has no equipment codes (e.g. "2 Baby Stand").
+      // Runs only if the code-based pass found nothing.
+      if (items.length === 0) {
+        // Pattern: line starts with 1-4 digits, optional "x/×", then description
+        const codelessQtyRe = /^\s*(\d{1,4})\s+(?:[xX×]\s*)?(.{3,})$/;
+        // Category header: ALL CAPS words only, no digits, 4+ chars total
+        const categoryHeaderRe = /^[A-Z][A-Z\s&/\-]{3,}$/;
+
+        let fallbackCategory = "";
+
+        for (const line of normalizedLines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.length < 3) continue;
+
+          // Section header → update sticky category
+          if (categoryHeaderRe.test(trimmed) && !/\d/.test(trimmed)) {
+            fallbackCategory = trimmed;
+            continue;
+          }
+
+          const m = trimmed.match(codelessQtyRe);
+          if (!m) continue;
+
+          const qty = parseInt(m[1], 10);
+          const desc = m[2].trim();
+
+          if (qty <= 0 || qty > 9999 || desc.length < 3) continue;
+          // Skip financial/summary lines
+          if (/^\$|^total|^subtotal|^tax|^amount/i.test(desc)) continue;
+
+          items.push({
+            id: "",
+            name: desc,
+            category: fallbackCategory,
+            status: "Available",
+            source: "",
+            quantity: qty,
+            startDate: shipDate,
+            endDate: returnDate,
+            location: "",
+          });
+        }
+
+        if (items.length > 0) {
+          console.log("Parsed items from PDF (codeless fallback):", items);
+        }
+      }
 
       if (items.length > 0) {
         setParsedData(items);
         setPdfParsingStatus && setPdfParsingStatus("done");
       } else {
         setPdfParsingStatus && setPdfParsingStatus("error");
-        setErrorMessage(
-          "No matching items found in PDF. (Line parsing found zero rows.)",
-        );
-        window.toast?.error?.(
-          "No matching items found in PDF. (Line parsing found zero rows.)",
-        );
+        const msg =
+          "No items found in PDF. The file may use an unsupported format — try exporting as CSV from the rental house's system.";
+        setErrorMessage(msg);
+        window.toast?.error?.(msg);
       }
     } catch (err) {
       console.error("PDF parse error", err);
