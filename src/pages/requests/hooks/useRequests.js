@@ -52,6 +52,56 @@ export default function useRequests() {
     fetchRequests();
   }, [fetchRequests]);
 
+  // ── Realtime subscription for equipment_requests ───────────────────────────
+  // Broadcasts new and updated requests to all org members in real time.
+  //
+  // One-time setup required (run once in Supabase SQL editor):
+  //   alter publication supabase_realtime add table equipment_requests;
+  useEffect(() => {
+    if (!orgId) return;
+
+    const channel = supabase
+      .channel(`requests-org-${orgId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: TABLE,
+          filter: `org_id=eq.${orgId}`,
+        },
+        (payload) => {
+          const newReq = payload.new;
+          // Crew only see their own requests
+          if (!isAdmin && newReq.requested_by !== authUser?.id) return;
+          setRequests((prev) => {
+            if (prev.some((r) => r.id === newReq.id)) return prev;
+            return [newReq, ...prev];
+          });
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: TABLE,
+          filter: `org_id=eq.${orgId}`,
+        },
+        (payload) => {
+          const updated = payload.new;
+          setRequests((prev) =>
+            prev.map((r) => (r.id === updated.id ? updated : r)),
+          );
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [orgId, isAdmin, authUser?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Submit a new request (crew) ────────────────────────────────────────────
 
   const submitRequest = useCallback(async ({ itemName, quantity, notes }) => {

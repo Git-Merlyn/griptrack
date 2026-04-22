@@ -24,7 +24,7 @@ create index if not exists equipment_requests_org_created
 
 alter table equipment_requests enable row level security;
 
--- Helper: look up the caller's org_id from their profile row.
+-- Helper: look up the caller's org_id from organization_members.
 -- Avoids repeating a subquery in every policy.
 create or replace function auth_org_id()
 returns uuid
@@ -32,7 +32,7 @@ language sql
 stable
 security definer
 as $$
-  select org_id from profiles where id = auth.uid() limit 1;
+  select org_id from organization_members where user_id = auth.uid() limit 1;
 $$;
 
 -- Org members can read all requests for their org

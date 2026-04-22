@@ -219,6 +219,95 @@ export const EquipmentProvider = ({ children }) => {
     loadLocations();
   }, [loadLocations]);
 
+  // ── Realtime subscriptions ────────────────────────────────────────────────
+  // Supabase broadcasts row-level changes to all connected clients in the org.
+  // Each event is merged into local state so the UI updates without a reload.
+  //
+  // One-time setup required in Supabase (run once in SQL editor):
+  //   alter publication supabase_realtime add table equipment_items;
+  //   alter publication supabase_realtime add table locations;
+  //
+  // Or enable per-table in Dashboard → Database → Replication.
+  useEffect(() => {
+    if (!orgId) return;
+
+    const channel = supabase
+      .channel(`equipment-org-${orgId}`)
+      // Equipment inserts from other clients
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: EQUIPMENT_TABLE,
+          filter: `org_id=eq.${orgId}`,
+        },
+        (payload) => {
+          const row = normalizeRowFromDb(payload.new);
+          setEquipmentData((prev) => {
+            // Skip if we already applied this row optimistically
+            if (prev.some((x) => String(x.id) === String(row.id))) return prev;
+            return [row, ...prev];
+          });
+        },
+      )
+      // Equipment updates from other clients
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: EQUIPMENT_TABLE,
+          filter: `org_id=eq.${orgId}`,
+        },
+        (payload) => {
+          const row = normalizeRowFromDb(payload.new);
+          setEquipmentData((prev) =>
+            prev.map((x) => (String(x.id) === String(row.id) ? row : x)),
+          );
+        },
+      )
+      // Equipment deletes from other clients
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: EQUIPMENT_TABLE,
+          filter: `org_id=eq.${orgId}`,
+        },
+        (payload) => {
+          const deletedId = String(payload.old?.id);
+          setEquipmentData((prev) =>
+            prev.filter((x) => String(x.id) !== deletedId),
+          );
+        },
+      )
+      // Locations: any change → just reload (simpler than merging location objects)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "locations",
+          filter: `org_id=eq.${orgId}`,
+        },
+        () => {
+          loadLocations();
+        },
+      )
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR") {
+          console.warn("[Realtime] equipment channel error — falling back to polling");
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [orgId, loadLocations]); // eslint-disable-line react-hooks/exhaustive-deps
+  // normalizeRowFromDb is a stable pure fn defined in this scope; omitting from deps is intentional.
+
   // Insert many items (used by PDF import). Duplicates are allowed.
   const addMultipleItems = async (items) => {
     // Org scoping: inserts must always include org_id.
