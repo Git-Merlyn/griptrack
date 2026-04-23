@@ -22,6 +22,8 @@ import ResetPassword from "./pages/ResetPassword";
 import BillingPage from "./pages/BillingPage";
 import LocationsPage from "./pages/LocationsPage";
 import RequestsPage from "./pages/requests/RequestsPage";
+import ProductionsPage from "./pages/ProductionsPage";
+import { ProductionProvider } from "./context/ProductionProvider";
 import useUser from "./context/useUser";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
@@ -141,6 +143,7 @@ const App = () => {
         </div>
       ) : (
         // Authenticated
+        <ProductionProvider>
         <>
           {effectiveNeedsOrgSetup &&
           location.pathname !== "/org-setup" &&
@@ -193,11 +196,13 @@ const App = () => {
               <Route path="billing" element={<BillingPage />} />
               <Route path="locations" element={<LocationsPage />} />
               <Route path="requests" element={<RequestsPage />} />
+              <Route path="productions" element={<ProductionsPage />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />
           </Routes>
         </>
+        </ProductionProvider>
       )}
     </>
   );

@@ -124,20 +124,9 @@ export default function Auth({ mode: entryMode = "normal" }) {
 
           {authMode !== "forgot" && (
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-sm text-gray-300">Password</label>
-                {authMode === "signin" && (
-                  <button
-                    type="button"
-                    onClick={() => switchMode("forgot")}
-                    className="text-xs text-gray-500 hover:text-accent transition-colors"
-                  >
-                    Forgot password?
-                  </button>
-                )}
-              </div>
+              <label className="text-sm text-gray-300">Password</label>
               <input
-                className="w-full px-3 py-2 rounded bg-white text-black"
+                className="w-full mt-1 px-3 py-2 rounded bg-white text-black"
                 value={password}
                 onChange={(e) => { setErr(""); setSuccess(""); setPassword(e.target.value); }}
                 type="password"
@@ -172,15 +161,26 @@ export default function Auth({ mode: entryMode = "normal" }) {
               Back to sign in
             </button>
           ) : (
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => switchMode(authMode === "signup" ? "signin" : "signup")}
-            >
-              {authMode === "signup"
-                ? "Have an account? Sign in"
-                : "New here? Create an account"}
-            </button>
+            <>
+              {authMode === "signin" && (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => switchMode("forgot")}
+                >
+                  Forgot password?
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => switchMode(authMode === "signup" ? "signin" : "signup")}
+              >
+                {authMode === "signup"
+                  ? "Have an account? Sign in"
+                  : "New here? Create an account"}
+              </button>
+            </>
           )}
         </form>
       </div>

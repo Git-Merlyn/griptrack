@@ -8,6 +8,7 @@ import {
 import { supabase } from "../lib/supabaseClient";
 import { findMergeDestination } from "./equipmentMoveUtils";
 import UserContext from "./UserContext";
+import ProductionContext from "./ProductionContext";
 
 // Allow dev/prod separation via env var
 const EQUIPMENT_TABLE =
@@ -20,6 +21,9 @@ const EquipmentContext = createContext();
 
 export const EquipmentProvider = ({ children }) => {
   const { orgId, loadingOrg } = useContext(UserContext) || {};
+
+  // Read active production so we can scope equipment queries
+  const { activeProductionId } = useContext(ProductionContext) || {};
 
   const [equipmentData, setEquipmentData] = useState([]);
 
@@ -108,8 +112,15 @@ export const EquipmentProvider = ({ children }) => {
     // item_id is optional; keep duplicates allowed
     const itemId = item?.item_id ?? item?.itemId ?? item?.id ?? null;
 
+    // production_id: prefer explicit override on the item, fall back to active production
+    const productionId =
+      item?.production_id !== undefined
+        ? item.production_id
+        : (activeProductionId ?? null);
+
     return {
       org_id: orgId ?? null,
+      production_id: productionId,
       item_id: itemId ? String(itemId) : null,
       name: String(item?.name ?? "").trim() || "(Unnamed)",
       category: String(item?.category ?? "").trim() || null,
@@ -140,6 +151,9 @@ export const EquipmentProvider = ({ children }) => {
   const normalizeRowFromDb = (row) => ({
     id: row.id,
 
+    // Production scoping
+    production_id: row.production_id ?? null,
+
     // Legacy fields expected by the current Dashboard.jsx
     itemId: row.item_id ?? "",
     category: row.category ?? "",
@@ -164,14 +178,23 @@ export const EquipmentProvider = ({ children }) => {
   });
 
   const loadEquipmentFromSupabase = useCallback(async () => {
-    const { data, error } = await supabase
+    let query = supabase
       .from(EQUIPMENT_TABLE)
       .select("*")
       .order("created_at", { ascending: false });
 
+    // Scope to the active production, or to the General pool (production_id IS NULL)
+    if (activeProductionId) {
+      query = query.eq("production_id", activeProductionId);
+    } else {
+      query = query.is("production_id", null);
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
     return (data ?? []).map(normalizeRowFromDb);
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProductionId]);
 
   // Load equipment from Supabase on app start (Supabase is the single source of truth)
   useEffect(() => {
@@ -244,6 +267,14 @@ export const EquipmentProvider = ({ children }) => {
         },
         (payload) => {
           const row = normalizeRowFromDb(payload.new);
+
+          // Only apply if this row belongs to our current production scope
+          const rowProdId = payload.new?.production_id ?? null;
+          const inScope = activeProductionId
+            ? rowProdId === activeProductionId
+            : rowProdId === null;
+          if (!inScope) return;
+
           setEquipmentData((prev) => {
             // Skip if we already applied this row optimistically
             if (prev.some((x) => String(x.id) === String(row.id))) return prev;
@@ -305,7 +336,8 @@ export const EquipmentProvider = ({ children }) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [orgId, loadLocations]); // eslint-disable-line react-hooks/exhaustive-deps
+  // activeProductionId included so INSERT scoping stays current when switching productions
+  }, [orgId, loadLocations, activeProductionId]); // eslint-disable-line react-hooks/exhaustive-deps
   // normalizeRowFromDb is a stable pure fn defined in this scope; omitting from deps is intentional.
 
   // Insert many items (used by PDF import). Duplicates are allowed.
