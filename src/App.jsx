@@ -6,27 +6,38 @@ import {
   useLocation,
   useNavigate,
 } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-import Dashboard from "./pages/Dashboard";
-import Staff from "./pages/Staff";
-import NotFound from "./pages/NotFound";
+// Always-eager: tiny shells needed before auth resolves
 import MainLayout from "./components/layout/MainLayout";
 import Auth from "./pages/Auth";
-import CompleteProfile from "./pages/CompleteProfile";
-import InviteAccept from "./pages/InviteAccept";
-import LandingPage from "./pages/LandingPage";
-import PricingPage from "./pages/PricingPage";
 import ResetPassword from "./pages/ResetPassword";
-import BillingPage from "./pages/BillingPage";
-import LocationsPage from "./pages/LocationsPage";
-import RequestsPage from "./pages/requests/RequestsPage";
-import ProductionsPage from "./pages/ProductionsPage";
+
+// Lazy-loaded: each becomes its own JS chunk, only fetched when navigated to
+const Dashboard     = lazy(() => import("./pages/Dashboard"));
+const Staff         = lazy(() => import("./pages/Staff"));
+const NotFound      = lazy(() => import("./pages/NotFound"));
+const CompleteProfile = lazy(() => import("./pages/CompleteProfile"));
+const InviteAccept  = lazy(() => import("./pages/InviteAccept"));
+const LandingPage   = lazy(() => import("./pages/LandingPage"));
+const PricingPage   = lazy(() => import("./pages/PricingPage"));
+const BillingPage   = lazy(() => import("./pages/BillingPage"));
+const LocationsPage = lazy(() => import("./pages/LocationsPage"));
+const RequestsPage  = lazy(() => import("./pages/requests/RequestsPage"));
+const ProductionsPage = lazy(() => import("./pages/ProductionsPage"));
+
 import { ProductionProvider } from "./context/ProductionProvider";
 import useUser from "./context/useUser";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
+
+// Minimal fallback shown while a lazy chunk loads
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center bg-black text-gray-400 text-sm">
+    Loading…
+  </div>
+);
 
 const OrgSetup = ({ orgId, initialName, onSaved }) => {
   const navigate = useNavigate();
@@ -128,15 +139,17 @@ const App = () => {
 
       {!authUser ? (
         // Unauthenticated: show public pages, redirect protected routes to /auth
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/pricing" element={<PricingPage />} />
-          <Route path="/auth" element={<Auth mode="normal" />} />
-          <Route path="/invite" element={<Auth mode="invite" />} />
-          <Route path="/invite-accept" element={<InviteAccept />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="*" element={<Navigate to="/auth" replace />} />
-        </Routes>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/pricing" element={<PricingPage />} />
+            <Route path="/auth" element={<Auth mode="normal" />} />
+            <Route path="/invite" element={<Auth mode="invite" />} />
+            <Route path="/invite-accept" element={<InviteAccept />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="*" element={<Navigate to="/auth" replace />} />
+          </Routes>
+        </Suspense>
       ) : loadingOrg ? (
         <div className="min-h-screen flex items-center justify-center bg-black text-gray-200">
           Loading…
@@ -156,51 +169,52 @@ const App = () => {
             <Navigate to="/complete-profile" replace />
           ) : null}
 
-          <Routes>
-            {/* Redirect auth pages to app */}
-            <Route path="/auth" element={<Navigate to="/" replace />} />
-            <Route path="/invite" element={<Navigate to="/" replace />} />
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              {/* Redirect auth pages to app */}
+              <Route path="/auth" element={<Navigate to="/" replace />} />
+              <Route path="/invite" element={<Navigate to="/" replace />} />
 
-            {/* Password reset — must be accessible when authUser is set because
-                Supabase creates a recovery session before the user sets their password */}
-            <Route path="/reset-password" element={<ResetPassword />} />
+              {/* Password reset — recovery session exists before password is set */}
+              <Route path="/reset-password" element={<ResetPassword />} />
 
-            {/* Public pages remain accessible when logged in */}
-            <Route path="/pricing" element={<PricingPage />} />
+              {/* Public pages remain accessible when logged in */}
+              <Route path="/pricing" element={<PricingPage />} />
 
-            {/* Onboarding */}
-            <Route
-              path="/org-setup"
-              element={
-                <OrgSetup
-                  orgId={orgId}
-                  initialName={effectiveOrgName}
-                  onSaved={(name) => setOrgNameLocal(name)}
-                />
-              }
-            />
-            <Route
-              path="/complete-profile"
-              element={
-                <CompleteProfile
-                  onSaved={() => setProfileCompletedLocal(true)}
-                />
-              }
-            />
-            <Route path="/invite-accept" element={<InviteAccept />} />
+              {/* Onboarding */}
+              <Route
+                path="/org-setup"
+                element={
+                  <OrgSetup
+                    orgId={orgId}
+                    initialName={effectiveOrgName}
+                    onSaved={(name) => setOrgNameLocal(name)}
+                  />
+                }
+              />
+              <Route
+                path="/complete-profile"
+                element={
+                  <CompleteProfile
+                    onSaved={() => setProfileCompletedLocal(true)}
+                  />
+                }
+              />
+              <Route path="/invite-accept" element={<InviteAccept />} />
 
-            {/* Main app */}
-            <Route path="/" element={<MainLayout />}>
-              <Route index element={<Dashboard />} />
-              <Route path="staff" element={<Staff />} />
-              <Route path="billing" element={<BillingPage />} />
-              <Route path="locations" element={<LocationsPage />} />
-              <Route path="requests" element={<RequestsPage />} />
-              <Route path="productions" element={<ProductionsPage />} />
-            </Route>
+              {/* Main app */}
+              <Route path="/" element={<MainLayout />}>
+                <Route index element={<Dashboard />} />
+                <Route path="staff" element={<Staff />} />
+                <Route path="billing" element={<BillingPage />} />
+                <Route path="locations" element={<LocationsPage />} />
+                <Route path="requests" element={<RequestsPage />} />
+                <Route path="productions" element={<ProductionsPage />} />
+              </Route>
 
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
         </>
         </ProductionProvider>
       )}

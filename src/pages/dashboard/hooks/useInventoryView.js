@@ -1,12 +1,14 @@
 import { useMemo, useState } from "react";
+import useDebounce from "@/hooks/useDebounce";
 
 export default function useInventoryView({
   equipment,
   initialSortKey = "name",
   initialSortDir = "asc",
 } = {}) {
-  // Search
+  // Search — raw value bound to the input, debounced value used for filtering
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearch = useDebounce(searchQuery, 200);
 
   // Dropdown filters
   const [filterLocation, setFilterLocation] = useState("");
@@ -40,7 +42,8 @@ export default function useInventoryView({
   }, [equipment]);
 
   const filteredVisibleEquipment = useMemo(() => {
-    const q = String(searchQuery || "")
+    // Use the debounced value so filtering only runs after the user pauses typing
+    const q = String(debouncedSearch || "")
       .trim()
       .toLowerCase();
 
@@ -66,7 +69,7 @@ export default function useInventoryView({
 
       return true;
     });
-  }, [visibleEquipment, searchQuery, filterLocation, filterStatus, filterCategory, showBelowReserve]);
+  }, [visibleEquipment, debouncedSearch, filterLocation, filterStatus, filterCategory, showBelowReserve]);
 
   const sortedEquipment = useMemo(() => {
     const rows = [...filteredVisibleEquipment];
