@@ -13,6 +13,9 @@ export default function useInventoryView({
   const [filterStatus, setFilterStatus] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
 
+  // Toggle: only show items where qty < reserveMin (and reserveMin > 0)
+  const [showBelowReserve, setShowBelowReserve] = useState(false);
+
   // Table sorting
   const [sortKey, setSortKey] = useState(initialSortKey);
   const [sortDir, setSortDir] = useState(initialSortDir); // 'asc' | 'desc'
@@ -54,9 +57,16 @@ export default function useInventoryView({
       // Category filter
       if (filterCategory && e?.category !== filterCategory) return false;
 
+      // Below-reserve filter: qty < reserveMin (and reserveMin must be set)
+      if (showBelowReserve) {
+        const qty = Number(e?.quantity) || 0;
+        const reserve = Number(e?.reserveMin) || 0;
+        if (reserve <= 0 || qty >= reserve) return false;
+      }
+
       return true;
     });
-  }, [visibleEquipment, searchQuery, filterLocation, filterStatus, filterCategory]);
+  }, [visibleEquipment, searchQuery, filterLocation, filterStatus, filterCategory, showBelowReserve]);
 
   const sortedEquipment = useMemo(() => {
     const rows = [...filteredVisibleEquipment];
@@ -112,6 +122,8 @@ export default function useInventoryView({
     setFilterStatus,
     filterCategory,
     setFilterCategory,
+    showBelowReserve,
+    setShowBelowReserve,
     sortKey,
     sortDir,
     toggleSort,

@@ -145,7 +145,15 @@ const DesktopDashboard = ({
                 </td>
               )}
 
-              <td className="p-2 text-accent font-medium">{item.name}</td>
+              <td className="p-2">
+                <button
+                  type="button"
+                  onClick={() => onOpenDetails(item)}
+                  className="text-accent font-medium hover:underline underline-offset-2 text-left"
+                >
+                  {item.name}
+                </button>
+              </td>
 
               <td className="p-2">{item.category || "-"}</td>
 
@@ -175,13 +183,6 @@ const DesktopDashboard = ({
 
               <td className="p-2 whitespace-nowrap">
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => onOpenDetails(item)}
-                    className="btn-secondary-sm"
-                  >
-                    Details
-                  </button>
                   <button
                     type="button"
                     onClick={() => onOpenEdit(item)}

@@ -14,12 +14,14 @@ import AddLocationModal from "./components/AddLocationModal";
 import ExportModal from "./components/ExportModal";
 import SummaryReportModal from "./components/SummaryReportModal";
 import { fetchAndDownloadAuditCsv } from "./utils/auditExport";
+import { lowStockToCsv, downloadCsv } from "./utils/export";
 import useBulkSelection from "./hooks/useBulkSelection";
 import useInventoryView from "./hooks/useInventoryView";
 import useEditFlow from "./hooks/useEditFlow";
 import useLocation from "./hooks/useLocation";
 import useExport from "./hooks/useExport";
 import { matchFileItemsToEquipment } from "./utils/pdfSelect";
+import useFilterPresets from "./hooks/useFilterPresets";
 
 // --- Presentational components (extracted from DashboardPage for readability) ---
 
@@ -39,6 +41,7 @@ const DashboardHeader = ({
   onExport,
   onSummary,
   onExportHistory,
+  onExportLowStock,
   hideActions = false,
 }) => {
   return (
@@ -79,6 +82,15 @@ const DashboardHeader = ({
             <span className="whitespace-nowrap">
               {exportingHistory ? "Exporting…" : "History"}
             </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onExportLowStock}
+            className="btn-secondary"
+            title="Export items where quantity is below reserve minimum"
+          >
+            <span className="whitespace-nowrap">Low Stock</span>
           </button>
         </div>
       )}
@@ -150,6 +162,8 @@ const BulkToolbar = ({
   setFilterStatus,
   filterCategory,
   setFilterCategory,
+  showBelowReserve,
+  setShowBelowReserve,
   allLocations,
   statusOptions,
   categoryOptions,
@@ -167,7 +181,7 @@ const BulkToolbar = ({
   onApplyBulkLocation,
   onBulkDelete,
 }) => {
-  const hasActiveFilters = filterLocation || filterStatus || filterCategory;
+  const hasActiveFilters = filterLocation || filterStatus || filterCategory || showBelowReserve;
 
   return (
     <div className="flex flex-col gap-3 mb-4">
@@ -239,6 +253,20 @@ const BulkToolbar = ({
           placeholder="All Categories"
           options={categoryOptions}
         />
+
+        {/* Below-reserve toggle */}
+        <button
+          type="button"
+          onClick={() => setShowBelowReserve((v) => !v)}
+          className={`px-3 py-2 rounded-lg border text-sm font-medium transition ${
+            showBelowReserve
+              ? "bg-danger/10 border-danger text-danger"
+              : "bg-white/90 border-gray-300 text-gray-500 hover:border-gray-400"
+          }`}
+        >
+          Below Reserve
+        </button>
+
         {hasActiveFilters && (
           <button
             type="button"
@@ -246,6 +274,7 @@ const BulkToolbar = ({
               setFilterLocation("");
               setFilterStatus("");
               setFilterCategory("");
+              setShowBelowReserve(false);
             }}
             className="text-xs text-gray-400 hover:text-gray-200 underline underline-offset-2 transition"
           >
@@ -296,6 +325,105 @@ const BulkToolbar = ({
             }
           >
             Delete
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/**
+ * Saved filter preset chips + inline save form.
+ *
+ * Props:
+ *   presets       — array of { id, name, filters }
+ *   activeFilters — current filter state object (to save)
+ *   onApply       — (filters) => void  — apply a preset's filters
+ *   onSave        — (name, filters) => void  — persist new preset
+ *   onDelete      — (id) => void
+ */
+const FilterPresets = ({ presets, activeFilters, onApply, onSave, onDelete }) => {
+  const [saving, setSaving] = useState(false);
+  const [name, setName] = useState("");
+
+  const hasAnyFilter = Object.values(activeFilters).some((v) =>
+    typeof v === "boolean" ? v : Boolean(v),
+  );
+
+  const handleSave = () => {
+    if (!name.trim()) return;
+    onSave(name.trim(), { ...activeFilters });
+    setName("");
+    setSaving(false);
+  };
+
+  if (presets.length === 0 && !hasAnyFilter) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 -mt-1 mb-1">
+      {/* Existing preset chips */}
+      {presets.map((p) => (
+        <div
+          key={p.id}
+          className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-full pl-3 pr-1 py-1"
+        >
+          <button
+            type="button"
+            onClick={() => onApply(p.filters)}
+            className="text-xs text-gray-300 hover:text-accent transition"
+          >
+            {p.name}
+          </button>
+          <button
+            type="button"
+            onClick={() => onDelete(p.id)}
+            aria-label={`Delete preset "${p.name}"`}
+            className="text-gray-600 hover:text-danger transition text-xs px-1"
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+
+      {/* Save current filters as a new preset */}
+      {hasAnyFilter && !saving && (
+        <button
+          type="button"
+          onClick={() => setSaving(true)}
+          className="text-xs text-gray-500 hover:text-accent underline underline-offset-2 transition"
+        >
+          + Save as preset
+        </button>
+      )}
+
+      {saving && (
+        <div className="flex items-center gap-1">
+          <input
+            autoFocus
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSave();
+              if (e.key === "Escape") { setSaving(false); setName(""); }
+            }}
+            placeholder="Preset name…"
+            className="text-xs px-2 py-1 rounded bg-white/10 border border-white/20 text-gray-200 placeholder:text-gray-500 focus:outline-none focus:border-accent w-36"
+          />
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!name.trim()}
+            className={name.trim() ? "btn-accent-sm" : "btn-disabled-sm"}
+          >
+            Save
+          </button>
+          <button
+            type="button"
+            onClick={() => { setSaving(false); setName(""); }}
+            className="text-xs text-gray-500 hover:text-gray-300 transition"
+          >
+            Cancel
           </button>
         </div>
       )}
@@ -790,11 +918,45 @@ const DashboardPage = () => {
     setFilterStatus,
     filterCategory,
     setFilterCategory,
+    showBelowReserve,
+    setShowBelowReserve,
     toggleSort,
     sortArrow,
     visibleEquipment,
     sortedEquipment,
   } = useInventoryView({ equipment });
+
+  const { presets, savePreset, deletePreset } = useFilterPresets({ orgId });
+
+  // The current active filter state — passed to FilterPresets for saving
+  const activeFilters = {
+    searchQuery,
+    filterLocation,
+    filterStatus,
+    filterCategory,
+    showBelowReserve,
+  };
+
+  // Apply a saved preset by restoring all its filter values
+  const applyPreset = (filters) => {
+    if (filters.searchQuery !== undefined) setSearchQuery(filters.searchQuery);
+    if (filters.filterLocation !== undefined) setFilterLocation(filters.filterLocation);
+    if (filters.filterStatus !== undefined) setFilterStatus(filters.filterStatus);
+    if (filters.filterCategory !== undefined) setFilterCategory(filters.filterCategory);
+    if (filters.showBelowReserve !== undefined) setShowBelowReserve(filters.showBelowReserve);
+  };
+
+  const handleExportLowStock = () => {
+    const csv = lowStockToCsv(equipment);
+    // Count rows: split by newline, subtract header, ignore BOM
+    const count = csv.split("\n").length - 2; // -1 header -1 BOM line
+    if (count <= 0) {
+      window.toast?.info?.("No items are currently below their reserve minimum.");
+      return;
+    }
+    downloadCsv(csv, "griptrack-low-stock");
+    window.toast?.success?.(`Exported ${count} below-reserve item${count !== 1 ? "s" : ""}`);
+  };
 
   const {
     showExportModal,
@@ -867,6 +1029,7 @@ const DashboardPage = () => {
         onExport={() => setShowExportModal(true)}
         onSummary={() => setShowSummaryModal(true)}
         onExportHistory={handleExportHistory}
+        onExportLowStock={handleExportLowStock}
         hideActions={isMobile}
       />
 
@@ -931,6 +1094,8 @@ const DashboardPage = () => {
           setFilterStatus={setFilterStatus}
           filterCategory={filterCategory}
           setFilterCategory={setFilterCategory}
+          showBelowReserve={showBelowReserve}
+          setShowBelowReserve={setShowBelowReserve}
           allLocations={allLocations}
           statusOptions={statusOptions}
           categoryOptions={categoryOptions}
@@ -951,17 +1116,26 @@ const DashboardPage = () => {
           onBulkDelete={handleBulkDelete}
         />
 
+        <FilterPresets
+          presets={presets}
+          activeFilters={activeFilters}
+          onApply={applyPreset}
+          onSave={savePreset}
+          onDelete={deletePreset}
+        />
+
         {/* Empty state — no results after filters, or genuinely empty inventory */}
         {sortedEquipment.length === 0 && (
           <EmptyState
             hasActiveFilters={
-              !!(filterLocation || filterStatus || filterCategory || searchQuery.trim())
+              !!(filterLocation || filterStatus || filterCategory || searchQuery.trim() || showBelowReserve)
             }
             onClearFilters={() => {
               setFilterLocation("");
               setFilterStatus("");
               setFilterCategory("");
               setSearchQuery("");
+              setShowBelowReserve(false);
             }}
             onAddItem={openAdd}
             onImport={() => {

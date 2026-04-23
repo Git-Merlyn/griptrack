@@ -125,6 +125,53 @@ export function rowsToPrintHtml(rows, title = "GripTrack Export") {
 </html>`;
 }
 
+/**
+ * Build a CSV for items that are below their reserve minimum.
+ * Includes an extra "Shortage" column (reserveMin - qty).
+ *
+ * @param {object[]} allEquipment - Full equipment array (unfiltered)
+ * @returns {string} UTF-8 BOM + CSV text
+ */
+export function lowStockToCsv(allEquipment) {
+  const rows = (Array.isArray(allEquipment) ? allEquipment : []).filter((e) => {
+    const qty = Number(e?.quantity) || 0;
+    const reserve = Number(e?.reserveMin) || 0;
+    return reserve > 0 && qty < reserve;
+  });
+
+  const header = [
+    "Name",
+    "Category",
+    "Location",
+    "Status",
+    "Qty",
+    "Reserve Min",
+    "Shortage",
+  ];
+
+  const lines = [header.map(csvEscape).join(",")];
+
+  for (const it of rows) {
+    const qty = Number(it?.quantity) || 0;
+    const reserve = Number(it?.reserveMin) || 0;
+    lines.push(
+      [
+        it?.name || "",
+        it?.category || "",
+        it?.location || "",
+        it?.status || "",
+        qty,
+        reserve,
+        reserve - qty,
+      ]
+        .map(csvEscape)
+        .join(","),
+    );
+  }
+
+  return "\ufeff" + lines.join("\n");
+}
+
 export function openPrintWindow(html, { onBlocked } = {}) {
   const w = window.open("", "_blank");
   if (!w) {

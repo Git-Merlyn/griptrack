@@ -69,9 +69,13 @@ const MobileDashboard = ({
 
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="font-semibold text-accent truncate">
+                <button
+                  type="button"
+                  onClick={() => onOpenDetails(item)}
+                  className="font-semibold text-accent truncate text-left hover:underline underline-offset-2"
+                >
                   {item.name}
-                </div>
+                </button>
 
                 <div className="text-sm text-gray-300 mt-2">
                   <span className="text-gray-400">Category:</span>{" "}
@@ -97,14 +101,6 @@ const MobileDashboard = ({
               </div>
 
               <div className="flex flex-col gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => onOpenDetails(item)}
-                  className="btn-secondary-sm"
-                >
-                  Details
-                </button>
-
                 <button
                   type="button"
                   onClick={() => onOpenEdit(item)}
