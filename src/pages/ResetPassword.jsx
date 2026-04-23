@@ -2,18 +2,20 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 
-// Supabase sends the user to this page with a recovery token in the URL hash.
-// The Supabase JS client automatically exchanges the token for a temporary
-// session and fires a PASSWORD_RECOVERY auth event. We listen for that event,
-// then let the user set a new password.
+// Supabase sends the user here with a recovery token in the URL hash.
+// The Supabase JS client exchanges the token for a session and fires
+// PASSWORD_RECOVERY via onAuthStateChange. We wait for that event.
+//
+// IMPORTANT: Do NOT use window.location.hash to detect recovery — Supabase
+// clears the hash before this component mounts, making hash checks unreliable.
 
 export default function ResetPassword() {
   const navigate = useNavigate();
 
-  // "waiting" → listening for recovery event
-  // "ready"   → recovery session established, show new-password form
+  // "waiting" → listening for PASSWORD_RECOVERY event
+  // "ready"   → recovery session confirmed, show new-password form
   // "done"    → password updated successfully
-  // "error"   → no recovery token found or link expired
+  // "error"   → no recovery event after timeout, or link already used
   const [stage, setStage] = useState("waiting");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -21,37 +23,25 @@ export default function ResetPassword() {
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    // Listen for the PASSWORD_RECOVERY event that Supabase fires when the
-    // recovery link is opened.
+    // Listen for the PASSWORD_RECOVERY event Supabase fires after exchanging
+    // the token. This is the only reliable signal — don't rely on the URL hash.
     const { data: listener } = supabase.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") {
         setStage("ready");
       }
     });
 
-    // If Supabase already parsed the hash before this component mounted,
-    // check for an existing session with recovery type.
-    supabase.auth.getSession().then(({ data }) => {
-      if (data?.session) {
-        // A session exists — could be a normal session or a recovery one.
-        // We rely on the onAuthStateChange event above for the recovery case.
-        // If the hash is gone (page refresh after recovery), redirect to sign-in.
-        if (!window.location.hash.includes("type=recovery") && stage === "waiting") {
-          // Give the event listener a moment to fire first
-          setTimeout(() => {
-            setStage((prev) => (prev === "waiting" ? "error" : prev));
-          }, 800);
-        }
-      } else if (!window.location.hash.includes("access_token")) {
-        // No session and no token in hash — stale or invalid link
-        setStage("error");
-      }
-    });
+    // Fallback: if PASSWORD_RECOVERY hasn't fired after 3 seconds,
+    // the link is stale, already used, or the user landed here directly.
+    const timeout = setTimeout(() => {
+      setStage((prev) => (prev === "waiting" ? "error" : prev));
+    }, 3000);
 
     return () => {
       listener?.subscription?.unsubscribe?.();
+      clearTimeout(timeout);
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -78,23 +68,32 @@ export default function ResetPassword() {
     }
   };
 
+  // Sign out before navigating back so the recovery session doesn't
+  // accidentally log the user into the app.
+  const handleBackToSignIn = async () => {
+    await supabase.auth.signOut();
+    navigate("/auth");
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-black">
       <div className="bg-surface rounded-2xl p-6 w-[92%] max-w-md shadow-lg">
         <h1 className="text-2xl font-bold text-accent mb-1">Reset password</h1>
 
         {stage === "waiting" && (
-          <p className="text-gray-400 text-sm mt-2">Verifying reset link…</p>
+          <p className="text-gray-400 text-sm mt-2 animate-pulse">
+            Verifying reset link…
+          </p>
         )}
 
         {stage === "error" && (
           <>
             <p className="text-red-400 text-sm mt-2">
-              This reset link is invalid or has expired. Please request a new one.
+              This reset link is invalid or has already been used. Please request a new one.
             </p>
             <button
               type="button"
-              onClick={() => navigate("/auth")}
+              onClick={handleBackToSignIn}
               className="btn-secondary mt-4 w-full"
             >
               Back to sign in
@@ -145,7 +144,7 @@ export default function ResetPassword() {
         {stage === "done" && (
           <>
             <p className="text-green-400 text-sm mt-2">
-              Password updated. You're now signed in.
+              Password updated successfully.
             </p>
             <button
               type="button"
