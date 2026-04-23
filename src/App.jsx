@@ -18,6 +18,7 @@ import CompleteProfile from "./pages/CompleteProfile";
 import InviteAccept from "./pages/InviteAccept";
 import LandingPage from "./pages/LandingPage";
 import PricingPage from "./pages/PricingPage";
+import ResetPassword from "./pages/ResetPassword";
 import BillingPage from "./pages/BillingPage";
 import LocationsPage from "./pages/LocationsPage";
 import RequestsPage from "./pages/requests/RequestsPage";
@@ -131,6 +132,7 @@ const App = () => {
           <Route path="/auth" element={<Auth mode="normal" />} />
           <Route path="/invite" element={<Auth mode="invite" />} />
           <Route path="/invite-accept" element={<InviteAccept />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="*" element={<Navigate to="/auth" replace />} />
         </Routes>
       ) : loadingOrg ? (
@@ -155,6 +157,10 @@ const App = () => {
             {/* Redirect auth pages to app */}
             <Route path="/auth" element={<Navigate to="/" replace />} />
             <Route path="/invite" element={<Navigate to="/" replace />} />
+
+            {/* Password reset — must be accessible when authUser is set because
+                Supabase creates a recovery session before the user sets their password */}
+            <Route path="/reset-password" element={<ResetPassword />} />
 
             {/* Public pages remain accessible when logged in */}
             <Route path="/pricing" element={<PricingPage />} />
