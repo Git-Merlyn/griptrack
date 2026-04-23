@@ -157,9 +157,16 @@ const UserProvider = ({ children }) => {
         .single();
 
       if (profileErr) {
-        console.warn("Failed to load profile", profileErr);
-        setProfile(null);
-        setNeedsProfileSetup(true);
+        // AbortError means the request was cancelled mid-flight (e.g. rapid
+        // navigation on iOS Safari). Don't treat this as a real failure —
+        // leave needsProfileSetup as-is so the user isn't wrongly redirected.
+        if (profileErr.name === "AbortError" || profileErr.message?.includes("aborted")) {
+          console.warn("Profile load aborted — skipping needsProfileSetup update");
+        } else {
+          console.warn("Failed to load profile", profileErr);
+          setProfile(null);
+          setNeedsProfileSetup(true);
+        }
       } else {
         setProfile(profileRow ?? null);
         setNeedsProfileSetup(!String(profileRow?.full_name || "").trim());
@@ -172,7 +179,13 @@ const UserProvider = ({ children }) => {
       const { data } = await supabase.auth.getSession();
       await ensureOrg(data?.session);
 
-      const { data: sub } = supabase.auth.onAuthStateChange((_, session) => {
+      const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+        // USER_UPDATED fires when updateUser() is called (e.g. password reset).
+        // PASSWORD_RECOVERY fires when a reset link is opened.
+        // Neither requires a full org/profile re-check — skipping prevents
+        // the in-flight requests from being aborted by the subsequent navigation,
+        // which would incorrectly flip needsProfileSetup to true.
+        if (event === "USER_UPDATED" || event === "PASSWORD_RECOVERY") return;
         ensureOrg(session);
       });
       unsub = sub?.subscription;

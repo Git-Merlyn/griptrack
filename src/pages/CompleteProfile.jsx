@@ -48,7 +48,11 @@ export default function CompleteProfile({ onSaved }) {
       if (typeof onSaved === "function") onSaved();
       navigate("/", { replace: true });
     } catch (e2) {
-      setErr(e2?.message || "Failed to save profile.");
+      if (e2?.name === "AbortError" || e2?.message?.includes("aborted")) {
+        setErr("Connection interrupted — please tap Save & Continue again.");
+      } else {
+        setErr(e2?.message || "Failed to save profile.");
+      }
     } finally {
       setBusy(false);
     }
