@@ -185,7 +185,10 @@ const UserProvider = ({ children }) => {
         // Neither requires a full org/profile re-check — skipping prevents
         // the in-flight requests from being aborted by the subsequent navigation,
         // which would incorrectly flip needsProfileSetup to true.
-        if (event === "USER_UPDATED" || event === "PASSWORD_RECOVERY") return;
+        // USER_UPDATED fires after updateUser() (e.g. password reset complete).
+        // Re-running ensureOrg here causes in-flight requests to be aborted by
+        // the subsequent navigation, which flips needsProfileSetup incorrectly.
+        if (event === "USER_UPDATED") return;
         ensureOrg(session);
       });
       unsub = sub?.subscription;

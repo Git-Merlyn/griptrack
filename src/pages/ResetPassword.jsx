@@ -24,18 +24,28 @@ export default function ResetPassword() {
 
   useEffect(() => {
     // Listen for the PASSWORD_RECOVERY event Supabase fires after exchanging
-    // the token. This is the only reliable signal — don't rely on the URL hash.
+    // the reset token. This is the primary signal.
     const { data: listener } = supabase.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") {
         setStage("ready");
       }
     });
 
-    // Fallback: if PASSWORD_RECOVERY hasn't fired after 3 seconds,
-    // the link is stale, already used, or the user landed here directly.
+    // Secondary check: with PKCE flow Supabase can exchange the token and fire
+    // PASSWORD_RECOVERY before this component mounts, meaning the listener above
+    // never sees it. If a session already exists when we mount, treat it as a
+    // valid recovery session and show the form immediately.
+    supabase.auth.getSession().then(({ data }) => {
+      if (data?.session) {
+        setStage((prev) => (prev === "waiting" ? "ready" : prev));
+      }
+    });
+
+    // Final fallback: if neither the event nor an existing session was found
+    // after 4 seconds, the link is stale or invalid.
     const timeout = setTimeout(() => {
       setStage((prev) => (prev === "waiting" ? "error" : prev));
-    }, 3000);
+    }, 4000);
 
     return () => {
       listener?.subscription?.unsubscribe?.();
