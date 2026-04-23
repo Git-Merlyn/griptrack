@@ -9,22 +9,22 @@ import {
 import { useEffect, useState, lazy, Suspense } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-// Always-eager: tiny shells needed before auth resolves
+// Always-eager: these are entry points — every session hits one of them immediately
 import MainLayout from "./components/layout/MainLayout";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
+import Dashboard from "./pages/Dashboard";
+import LandingPage from "./pages/LandingPage";
 
-// Lazy-loaded: each becomes its own JS chunk, only fetched when navigated to
-const Dashboard     = lazy(() => import("./pages/Dashboard"));
-const Staff         = lazy(() => import("./pages/Staff"));
-const NotFound      = lazy(() => import("./pages/NotFound"));
+// Lazy-loaded: secondary routes, only fetched when navigated to
+const Staff           = lazy(() => import("./pages/Staff"));
+const NotFound        = lazy(() => import("./pages/NotFound"));
 const CompleteProfile = lazy(() => import("./pages/CompleteProfile"));
-const InviteAccept  = lazy(() => import("./pages/InviteAccept"));
-const LandingPage   = lazy(() => import("./pages/LandingPage"));
-const PricingPage   = lazy(() => import("./pages/PricingPage"));
-const BillingPage   = lazy(() => import("./pages/BillingPage"));
-const LocationsPage = lazy(() => import("./pages/LocationsPage"));
-const RequestsPage  = lazy(() => import("./pages/requests/RequestsPage"));
+const InviteAccept    = lazy(() => import("./pages/InviteAccept"));
+const PricingPage     = lazy(() => import("./pages/PricingPage"));
+const BillingPage     = lazy(() => import("./pages/BillingPage"));
+const LocationsPage   = lazy(() => import("./pages/LocationsPage"));
+const RequestsPage    = lazy(() => import("./pages/requests/RequestsPage"));
 const ProductionsPage = lazy(() => import("./pages/ProductionsPage"));
 
 import { ProductionProvider } from "./context/ProductionProvider";
@@ -32,10 +32,11 @@ import useUser from "./context/useUser";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 
-// Minimal fallback shown while a lazy chunk loads
+// Branded fallback shown while a lazy chunk loads
 const PageLoader = () => (
-  <div className="min-h-screen flex items-center justify-center bg-black text-gray-400 text-sm">
-    Loading…
+  <div className="min-h-screen flex flex-col items-center justify-center bg-black gap-3">
+    <span className="text-2xl font-bold text-accent">GripTrack</span>
+    <span className="text-gray-500 text-sm animate-pulse">Loading…</span>
   </div>
 );
 
@@ -151,8 +152,9 @@ const App = () => {
           </Routes>
         </Suspense>
       ) : loadingOrg ? (
-        <div className="min-h-screen flex items-center justify-center bg-black text-gray-200">
-          Loading…
+        <div className="min-h-screen flex flex-col items-center justify-center bg-black gap-3">
+          <span className="text-2xl font-bold text-accent">GripTrack</span>
+          <span className="text-gray-500 text-sm animate-pulse">Loading…</span>
         </div>
       ) : (
         // Authenticated

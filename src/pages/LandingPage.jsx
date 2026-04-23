@@ -56,21 +56,22 @@ const LandingPage = () => {
           <nav className="flex items-center gap-2 sm:gap-4">
             <Link
               to="/pricing"
-              className="text-sm text-gray-400 hover:text-white transition-colors px-2 py-1"
+              className="hidden sm:block text-sm text-gray-400 hover:text-white transition-colors px-2 py-1"
             >
               Pricing
             </Link>
             <Link
               to="/auth"
-              className="text-sm text-gray-400 hover:text-white transition-colors px-2 py-1"
+              className="hidden sm:block text-sm text-gray-400 hover:text-white transition-colors px-2 py-1"
             >
               Sign in
             </Link>
             <Link
               to="/auth?mode=signup"
-              className="text-sm bg-accent text-black font-semibold px-4 py-2 rounded-lg hover:bg-accent/90 transition-colors"
+              className="text-sm bg-accent text-black font-semibold px-3 py-2 sm:px-4 rounded-lg hover:bg-accent/90 transition-colors whitespace-nowrap"
             >
-              Get started free
+              <span className="sm:hidden">Get started</span>
+              <span className="hidden sm:inline">Get started free</span>
             </Link>
           </nav>
         </div>
