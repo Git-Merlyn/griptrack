@@ -35,13 +35,10 @@ const InventoryCard = ({ children }) => {
 
 const DashboardHeader = ({
   importInProgress,
-  exportingHistory,
   onAddItem,
   onImport,
   onExport,
   onSummary,
-  onExportHistory,
-  onExportLowStock,
   hideActions = false,
 }) => {
   return (
@@ -71,26 +68,6 @@ const DashboardHeader = ({
 
           <button type="button" onClick={onSummary} className="btn-secondary">
             <span className="whitespace-nowrap">Summary</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={onExportHistory}
-            disabled={exportingHistory}
-            className={exportingHistory ? "btn-disabled" : "btn-secondary"}
-          >
-            <span className="whitespace-nowrap">
-              {exportingHistory ? "Exporting…" : "History"}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={onExportLowStock}
-            className="btn-secondary"
-            title="Export items where quantity is below reserve minimum"
-          >
-            <span className="whitespace-nowrap">Low Stock</span>
           </button>
         </div>
       )}
@@ -206,30 +183,45 @@ const BulkToolbar = ({
           ) : null}
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={toggleBulkMode}
-            className="btn-secondary-sm"
-          >
-            {bulkMode ? "Exit Multi-Select" : "Multi-Select"}
-          </button>
-
-          {bulkMode && (
+        <div className="flex flex-col items-end gap-1.5">
+          <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={onSelectFromFile}
+              onClick={toggleBulkMode}
               className="btn-secondary-sm"
             >
-              Select from File
+              {bulkMode ? "Exit Multi-Select" : "Multi-Select"}
             </button>
-          )}
 
-          {bulkMode && (
-            <span className="text-sm text-gray-300">
-              Selected: <span className="font-semibold">{selectedCount}</span>
-            </span>
-          )}
+            {bulkMode && (
+              <button
+                type="button"
+                onClick={onSelectFromFile}
+                className="btn-secondary-sm"
+              >
+                Select from File
+              </button>
+            )}
+
+            {bulkMode && (
+              <span className="text-sm text-gray-300">
+                Selected: <span className="font-semibold">{selectedCount}</span>
+              </span>
+            )}
+          </div>
+
+          {/* Below Reserve sits directly under Multi-Select */}
+          <button
+            type="button"
+            onClick={() => setShowBelowReserve((v) => !v)}
+            className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition ${
+              showBelowReserve
+                ? "bg-danger/10 border-danger text-danger"
+                : "bg-white/90 border-gray-300 text-gray-500 hover:border-gray-400"
+            }`}
+          >
+            Below Reserve
+          </button>
         </div>
       </div>
 
@@ -253,19 +245,6 @@ const BulkToolbar = ({
           placeholder="All Categories"
           options={categoryOptions}
         />
-
-        {/* Below-reserve toggle */}
-        <button
-          type="button"
-          onClick={() => setShowBelowReserve((v) => !v)}
-          className={`px-3 py-2 rounded-lg border text-sm font-medium transition ${
-            showBelowReserve
-              ? "bg-danger/10 border-danger text-danger"
-              : "bg-white/90 border-gray-300 text-gray-500 hover:border-gray-400"
-          }`}
-        >
-          Below Reserve
-        </button>
 
         {hasActiveFilters && (
           <button
@@ -1020,7 +999,6 @@ const DashboardPage = () => {
     <div className="px-3 sm:px-6 md:p-8 flex flex-col gap-6 text-text relative">
       <DashboardHeader
         importInProgress={importInProgress}
-        exportingHistory={exportingHistory}
         onAddItem={openAdd}
         onImport={() => {
           setPdfModalMode("import");
@@ -1028,8 +1006,6 @@ const DashboardPage = () => {
         }}
         onExport={() => setShowExportModal(true)}
         onSummary={() => setShowSummaryModal(true)}
-        onExportHistory={handleExportHistory}
-        onExportLowStock={handleExportLowStock}
         hideActions={isMobile}
       />
 
@@ -1357,12 +1333,14 @@ const DashboardPage = () => {
         allLocations={allLocations}
         getExportRows={getExportRows}
         onDoExport={() => {
-          const result = doExport(); // doExport internally uses getExportRows + format
+          const result = doExport();
           if (!result?.count) return;
-
           window.toast?.success?.(`Exported ${result.count} item(s)`);
           setShowExportModal(false);
         }}
+        onExportLowStock={handleExportLowStock}
+        onExportHistory={handleExportHistory}
+        exportingHistory={exportingHistory}
       />
     </div>
   );

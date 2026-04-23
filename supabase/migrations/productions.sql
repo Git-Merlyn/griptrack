@@ -27,21 +27,21 @@ create index if not exists equipment_items_production_id_idx on equipment_items 
 -- 3. Row-level security (mirror equipment_items policy pattern)
 alter table productions enable row level security;
 
--- Org members can read their own productions
+-- Org members can read productions for their org
 create policy "org members can read productions"
   on productions for select
   using (
     org_id in (
-      select organization_id from profiles where id = auth.uid()
+      select org_id from organization_members where user_id = auth.uid()
     )
   );
 
--- Admins and owners can insert/update/delete
+-- Admins and owners can insert/update/delete productions
 create policy "admins can manage productions"
   on productions for all
   using (
     org_id in (
-      select organization_id from profiles
-      where id = auth.uid() and role in ('owner', 'admin')
+      select org_id from organization_members
+      where user_id = auth.uid() and role in ('owner', 'admin')
     )
   );
