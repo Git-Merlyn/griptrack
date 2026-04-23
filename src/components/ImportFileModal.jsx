@@ -321,11 +321,6 @@ const ImportFileModal = ({
         allLineObjs = allLineObjs.concat(lineObjs);
       }
 
-      console.log(
-        "PDF lines sample:",
-        allLineObjs.slice(0, 30).map((l) => l.text),
-      );
-
       // Ignore indented sub-items (even if they have codes) using robust baselines PER PAGE.
       // Baselines are computed from the LEFT-most 20% of rows so indented rows can't skew them.
       const takeLowPercentileMean = (arr, pct = 0.2) => {
@@ -572,8 +567,6 @@ const ImportFileModal = ({
         });
       }
 
-      console.log("Parsed items from PDF (code-based):", items);
-
       // ── Fallback: codeless parser ─────────────────────────────────────────
       // Used when the rental house PDF has no equipment codes (e.g. "2 Baby Stand").
       // Runs only if the code-based pass found nothing.
@@ -618,9 +611,6 @@ const ImportFileModal = ({
           });
         }
 
-        if (items.length > 0) {
-          console.log("Parsed items from PDF (codeless fallback):", items);
-        }
       }
 
       if (items.length > 0) {

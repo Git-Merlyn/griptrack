@@ -19,7 +19,6 @@ import useInventoryView from "./hooks/useInventoryView";
 import useEditFlow from "./hooks/useEditFlow";
 import useLocation from "./hooks/useLocation";
 import useExport from "./hooks/useExport";
-// (helpers import removed, now unused)
 import { matchFileItemsToEquipment } from "./utils/pdfSelect";
 
 // --- Presentational components (extracted from DashboardPage for readability) ---
@@ -729,12 +728,6 @@ const DashboardPage = () => {
   const handleMoveSubmit = async () => {
     if (!movingItem || moveData.qty <= 0 || !moveData.newLocation) return;
     try {
-      console.log("[MoveSubmit] movingItem", movingItem);
-      window.toast?.info?.(
-        `MoveSubmit id=${movingItem?.id || "-"} itemId=${
-          movingItem?.itemId || "-"
-        } name=${movingItem?.name || "-"}`,
-      );
       const qtyToMove = Math.max(1, Number(moveData.qty) || 1);
       await moveEquipment(movingItem.id, qtyToMove, moveData.newLocation);
       setMovingItem(null);
