@@ -17,12 +17,17 @@ export function isOrgAdmin(role: Role): boolean {
   return role === 'owner' || role === 'admin';
 }
 
+// ─── Equipment status constants ───────────────────────────────────────────────
+
+// Core statuses that always appear in pickers regardless of data
+export const CORE_STATUSES = ['Available', 'Out', 'Damaged'] as const;
+
 // ─── Core domain types ────────────────────────────────────────────────────────
 
 export interface EquipmentItem {
   id: string;
   org_id: string;
-  team_id: string;           // every item belongs to a team (no null)
+  team_id: string;
   item_id: string | null;
   name: string;
   category: string | null;
@@ -33,7 +38,7 @@ export interface EquipmentItem {
   status: string;            // 'Available' | 'Out' | 'Damaged' | etc.
   start_date: string | null;
   end_date: string | null;
-  updated_by: string;        // kept for display; audit log stores user_id separately
+  updated_by: string;
   created_at: string;
 }
 
@@ -47,7 +52,7 @@ export interface Location {
 export interface Team {
   id: string;
   org_id: string;
-  name: string;              // e.g. 'Grip', 'Electric', 'Camera'
+  name: string;
   max_seats: number | null;
 }
 
@@ -66,7 +71,7 @@ export interface UserProfile {
   email: string;
   full_name: string | null;
   org_id: string;
-  team_id: string | null;    // null until schema migration adds team_id to organization_members
+  team_id: string | null;
   role: Role;
 }
 
@@ -92,4 +97,5 @@ export type AppTabParamList = {
 export type InventoryStackParamList = {
   InventoryList: undefined;
   ItemDetail: { item: EquipmentItem };
+  ItemForm: { mode: 'add' } | { mode: 'edit'; item: EquipmentItem };
 };

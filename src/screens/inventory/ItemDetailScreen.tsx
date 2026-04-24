@@ -1,75 +1,173 @@
-import React from 'react';
-import { View, Text, ScrollView } from 'react-native';
+import React, { useState, useLayoutEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { InventoryStackParamList } from '../../lib/types';
+import { Ionicons } from '@expo/vector-icons';
+
+import { InventoryStackParamList, EquipmentItem, canManageInventory, isOrgAdmin } from '../../lib/types';
+import { useAuthContext } from '../../context/AuthContext';
+import { useEquipmentMutations } from '../../hooks/useEquipmentMutations';
+import DamageReportModal from '../../components/DamageReportModal';
 import { statusColor, getQty, qtyColor, formatDate } from '../../lib/helpers';
 
 type Props = NativeStackScreenProps<InventoryStackParamList, 'ItemDetail'>;
 
-export default function ItemDetailScreen({ route }: Props) {
-  const { item } = route.params;
+export default function ItemDetailScreen({ route, navigation }: Props) {
+  const { profile } = useAuthContext();
+  const { deleteItem } = useEquipmentMutations();
+
+  // Keep a local copy so the screen updates after damage is reported
+  const [item, setItem] = useState<EquipmentItem>(route.params.item);
+  const [damageModalVisible, setDamageModalVisible] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const canManage = profile?.role != null && canManageInventory(profile.role);
+  const canDelete = profile?.role != null && isOrgAdmin(profile.role);
+
   const qty = getQty(item);
   const qtyCol = qtyColor(item);
   const statusCol = statusColor(item.status);
+  const isDamaged = item.status.toLowerCase() === 'damaged';
+
+  useLayoutEffect(() => {
+    if (!canManage) return;
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity
+          onPress={() => navigation.navigate('ItemForm', { mode: 'edit', item })}
+          hitSlop={8}
+          className="mr-1"
+        >
+          <Text className="text-accent text-sm font-medium">Edit</Text>
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, canManage, item]);
+
+  function confirmDelete() {
+    Alert.alert(
+      'Delete item',
+      `Are you sure you want to permanently delete "${item.name}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: handleDelete,
+        },
+      ]
+    );
+  }
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      await deleteItem(item.id);
+      navigation.goBack();
+    } catch (err: any) {
+      Alert.alert('Error', err?.message ?? 'Failed to delete item.');
+      setDeleting(false);
+    }
+  }
 
   return (
-    <ScrollView className="flex-1 bg-background" contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+    <>
+      <ScrollView
+        className="flex-1 bg-background"
+        contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
+      >
+        {/* Header card */}
+        <View className="bg-surface border border-white/10 rounded-2xl p-5 mb-4">
+          <Text className="text-accent text-xl font-bold mb-1">{item.name}</Text>
 
-      {/* Header card */}
-      <View className="bg-surface border border-white/10 rounded-2xl p-5 mb-4">
-        <Text className="text-accent text-xl font-bold mb-1">{item.name}</Text>
+          <View className="flex-row items-center gap-2 mb-4">
+            <View style={{ backgroundColor: statusCol }} className="w-2.5 h-2.5 rounded-full" />
+            <Text style={{ color: statusCol }} className="text-sm font-semibold">
+              {item.status ?? '—'}
+            </Text>
+          </View>
 
-        {/* Status badge */}
-        <View className="flex-row items-center gap-2 mb-4">
-          <View style={{ backgroundColor: statusCol }} className="w-2.5 h-2.5 rounded-full" />
-          <Text style={{ color: statusCol }} className="text-sm font-semibold">
-            {item.status ?? '—'}
-          </Text>
+          <View className="flex-row items-baseline gap-2">
+            <Text style={{ color: qtyCol }} className="text-4xl font-bold">{qty}</Text>
+            <Text className="text-text text-sm">
+              {item.reserve_min > 0 ? `/ ${item.reserve_min} minimum` : 'in stock'}
+            </Text>
+          </View>
         </View>
 
-        {/* Quantity */}
-        <View className="flex-row items-baseline gap-2">
-          <Text style={{ color: qtyCol }} className="text-4xl font-bold">
-            {qty}
-          </Text>
-          <Text className="text-text text-sm">
-            {item.reserve_min > 0 ? `/ ${item.reserve_min} minimum` : 'in stock'}
-          </Text>
-        </View>
-      </View>
-
-      {/* Details card */}
-      <View className="bg-surface border border-white/10 rounded-2xl p-5 mb-4">
-        <Text className="text-slate-400 text-xs font-semibold uppercase tracking-widest mb-3">
-          Details
-        </Text>
-
-        <DetailRow label="Category" value={item.category} />
-        <DetailRow label="Location" value={item.location} />
-        <DetailRow label="Source" value={item.source} />
-      </View>
-
-      {/* Dates card */}
-      {(item.start_date || item.end_date) && (
+        {/* Details card */}
         <View className="bg-surface border border-white/10 rounded-2xl p-5 mb-4">
           <Text className="text-slate-400 text-xs font-semibold uppercase tracking-widest mb-3">
-            Rental Period
+            Details
           </Text>
-          <DetailRow label="Start" value={formatDate(item.start_date)} />
-          <DetailRow label="End" value={formatDate(item.end_date)} />
+          <DetailRow label="Category" value={item.category} />
+          <DetailRow label="Location" value={item.location} />
+          <DetailRow label="Source" value={item.source} />
         </View>
-      )}
 
-      {/* Meta card */}
-      <View className="bg-surface border border-white/10 rounded-2xl p-5">
-        <Text className="text-slate-400 text-xs font-semibold uppercase tracking-widest mb-3">
-          Record Info
-        </Text>
-        <DetailRow label="Updated by" value={item.updated_by} />
-        <DetailRow label="Created" value={formatDate(item.created_at)} />
-      </View>
+        {/* Dates card */}
+        {(item.start_date || item.end_date) && (
+          <View className="bg-surface border border-white/10 rounded-2xl p-5 mb-4">
+            <Text className="text-slate-400 text-xs font-semibold uppercase tracking-widest mb-3">
+              Rental Period
+            </Text>
+            <DetailRow label="Start" value={formatDate(item.start_date)} />
+            <DetailRow label="End" value={formatDate(item.end_date)} />
+          </View>
+        )}
 
-    </ScrollView>
+        {/* Record info */}
+        <View className="bg-surface border border-white/10 rounded-2xl p-5 mb-4">
+          <Text className="text-slate-400 text-xs font-semibold uppercase tracking-widest mb-3">
+            Record Info
+          </Text>
+          <DetailRow label="Updated by" value={item.updated_by} />
+          <DetailRow label="Created" value={formatDate(item.created_at)} />
+        </View>
+
+        {/* Action buttons — dept_head and above */}
+        {canManage && (
+          <View className="gap-3">
+            {/* Report damage — only show if not already damaged */}
+            {!isDamaged && (
+              <TouchableOpacity
+                className="bg-surface border border-danger/25 rounded-xl p-4 flex-row items-center gap-3"
+                onPress={() => setDamageModalVisible(true)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="warning-outline" size={20} color="#ff4d4d" />
+                <Text className="text-danger font-medium">Report damage</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Delete — admin/owner only */}
+            {canDelete && (
+              <TouchableOpacity
+                className="bg-surface border border-danger/25 rounded-xl p-4 flex-row items-center gap-3"
+                onPress={confirmDelete}
+                disabled={deleting}
+                activeOpacity={0.8}
+              >
+                {deleting ? (
+                  <ActivityIndicator size="small" color="#ff4d4d" />
+                ) : (
+                  <Ionicons name="trash-outline" size={20} color="#ff4d4d" />
+                )}
+                <Text className="text-danger font-medium">
+                  {deleting ? 'Deleting…' : 'Delete item'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+      </ScrollView>
+
+      <DamageReportModal
+        visible={damageModalVisible}
+        item={item}
+        onClose={() => setDamageModalVisible(false)}
+        onDamageReported={(updated) => setItem(updated)}
+      />
+    </>
   );
 }
 

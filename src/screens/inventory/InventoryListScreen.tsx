@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useState } from 'react';
+import React, { useLayoutEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,22 +11,47 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
-import { InventoryStackParamList, EquipmentItem } from '../../lib/types';
+import { InventoryStackParamList, EquipmentItem, canManageInventory } from '../../lib/types';
 import { useInventory } from '../../hooks/useInventory';
 import { useTeamContext } from '../../context/TeamContext';
+import { useAuthContext } from '../../context/AuthContext';
 import TeamSwitcher from '../../components/TeamSwitcher';
 import { statusColor, getQty, qtyColor } from '../../lib/helpers';
 
 type Props = NativeStackScreenProps<InventoryStackParamList, 'InventoryList'>;
 
 export default function InventoryListScreen({ navigation }: Props) {
-  const { filteredEquipment, loading, error, searchQuery, setSearchQuery, refresh } =
+  const { filteredEquipment, equipment, loading, error, searchQuery, setSearchQuery, refresh } =
     useInventory();
   const { activeTeam, canSwitch } = useTeamContext();
+  const { profile } = useAuthContext();
+
   const [switcherVisible, setSwitcherVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [showBelowReserve, setShowBelowReserve] = useState(false);
 
-  // Header: show team name always; add switcher button only for admin/owner
+  const canManage = profile?.role != null && canManageInventory(profile.role);
+
+  // Apply below-reserve filter on top of search filter
+  const displayItems = useMemo(() => {
+    if (!showBelowReserve) return filteredEquipment;
+    return filteredEquipment.filter((item) => {
+      const qty = getQty(item);
+      const reserve = Number(item.reserve_min) || 0;
+      return reserve > 0 && qty < reserve;
+    });
+  }, [filteredEquipment, showBelowReserve]);
+
+  // Count of below-reserve items (for badge)
+  const belowReserveCount = useMemo(
+    () => equipment.filter((i) => {
+      const qty = getQty(i);
+      const r = Number(i.reserve_min) || 0;
+      return r > 0 && qty < r;
+    }).length,
+    [equipment]
+  );
+
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () =>
@@ -43,7 +68,6 @@ export default function InventoryListScreen({ navigation }: Props) {
             <Ionicons name="chevron-down" size={14} color="#4debf9" />
           </TouchableOpacity>
         ) : (
-          // Non-admins see their team name as a static label
           <View className="flex-row items-center gap-1.5 mr-1">
             <Ionicons name="people-outline" size={16} color="#6b7280" />
             <Text className="text-text text-sm" numberOfLines={1}>
@@ -58,10 +82,6 @@ export default function InventoryListScreen({ navigation }: Props) {
     setRefreshing(true);
     await refresh();
     setRefreshing(false);
-  }
-
-  function handleItemPress(item: EquipmentItem) {
-    navigation.navigate('ItemDetail', { item });
   }
 
   return (
@@ -83,14 +103,38 @@ export default function InventoryListScreen({ navigation }: Props) {
         </View>
       </View>
 
-      {/* Result count */}
-      {!loading && (
-        <View className="px-4 pb-1">
-          <Text className="text-text text-xs">
-            {filteredEquipment.length} item{filteredEquipment.length !== 1 ? 's' : ''}
+      {/* Filter bar */}
+      <View className="px-4 pb-2 flex-row items-center gap-2">
+        <TouchableOpacity
+          onPress={() => setShowBelowReserve((v) => !v)}
+          className={`flex-row items-center gap-1.5 px-3 py-1.5 rounded-full border ${
+            showBelowReserve
+              ? 'bg-warning/15 border-warning/40'
+              : 'bg-surface border-white/10'
+          }`}
+          activeOpacity={0.8}
+        >
+          <Ionicons
+            name="alert-circle-outline"
+            size={14}
+            color={showBelowReserve ? '#ffd600' : '#6b7280'}
+          />
+          <Text className={`text-xs font-medium ${showBelowReserve ? 'text-warning' : 'text-text'}`}>
+            Below reserve
           </Text>
-        </View>
-      )}
+          {belowReserveCount > 0 && (
+            <View className="bg-warning/25 rounded-full px-1.5 py-0.5">
+              <Text className="text-warning text-xs font-bold">{belowReserveCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        {!loading && (
+          <Text className="text-text text-xs ml-auto">
+            {displayItems.length} item{displayItems.length !== 1 ? 's' : ''}
+          </Text>
+        )}
+      </View>
 
       {/* Error */}
       {error && (
@@ -105,36 +149,47 @@ export default function InventoryListScreen({ navigation }: Props) {
         </View>
       ) : (
         <FlatList
-          data={filteredEquipment}
+          data={displayItems}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: canManage ? 96 : 24 }}
           ItemSeparatorComponent={() => <View className="h-2.5" />}
           refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor="#4debf9"
-            />
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#4debf9" />
           }
           ListEmptyComponent={
             <View className="items-center justify-center pt-20">
               <Ionicons name="cube-outline" size={40} color="#374151" />
               <Text className="text-text mt-3 text-sm">
-                {searchQuery ? 'No items match your search' : 'No equipment in this team'}
+                {showBelowReserve
+                  ? 'No items below reserve'
+                  : searchQuery
+                  ? 'No items match your search'
+                  : 'No equipment in this team'}
               </Text>
             </View>
           }
           renderItem={({ item }) => (
-            <EquipmentCard item={item} onPress={() => handleItemPress(item)} />
+            <EquipmentCard
+              item={item}
+              onPress={() => navigation.navigate('ItemDetail', { item })}
+            />
           )}
         />
       )}
 
+      {/* FAB — dept_head / admin / owner only */}
+      {canManage && (
+        <TouchableOpacity
+          className="absolute bottom-6 right-5 bg-accent w-14 h-14 rounded-full items-center justify-center shadow-lg"
+          onPress={() => navigation.navigate('ItemForm', { mode: 'add' })}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="add" size={28} color="#0f1117" />
+        </TouchableOpacity>
+      )}
+
       {canSwitch && (
-        <TeamSwitcher
-          visible={switcherVisible}
-          onClose={() => setSwitcherVisible(false)}
-        />
+        <TeamSwitcher visible={switcherVisible} onClose={() => setSwitcherVisible(false)} />
       )}
     </View>
   );
