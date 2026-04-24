@@ -122,6 +122,7 @@ serve(async (req) => {
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${appUrl}/billing?success=true`,
       cancel_url: `${appUrl}/billing?canceled=true`,
+      allow_promotion_codes: true,
       metadata: { org_id: memberRow.org_id },
       subscription_data: {
         metadata: { org_id: memberRow.org_id },
