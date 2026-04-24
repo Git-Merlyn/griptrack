@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { UserProfile } from '../lib/types';
+import { UserProfile, Role } from '../lib/types';
 
 interface UseAuthReturn {
   session: Session | null;
@@ -18,14 +18,12 @@ export function useAuth(): UseAuthReturn {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Load the initial session from SecureStore
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) loadProfile(session.user.id);
       else setLoading(false);
     });
 
-    // Subscribe to auth state changes (token refresh, sign out, etc.)
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) {
@@ -42,10 +40,10 @@ export function useAuth(): UseAuthReturn {
   async function loadProfile(userId: string) {
     setLoading(true);
     try {
-      // Get the user's org membership to determine role and org
+      // Load org membership — now includes team_id and the expanded role
       const { data: member, error: memberError } = await supabase
         .from('organization_members')
-        .select('org_id, role')
+        .select('org_id, team_id, role')
         .eq('user_id', userId)
         .single();
 
@@ -62,7 +60,8 @@ export function useAuth(): UseAuthReturn {
         email: user?.email ?? '',
         full_name: user?.user_metadata?.full_name ?? null,
         org_id: member.org_id,
-        role: member.role,
+        team_id: member.team_id,
+        role: member.role as Role,
       });
     } finally {
       setLoading(false);

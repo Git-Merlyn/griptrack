@@ -7,7 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 
 import { AuthProvider } from './src/context/AuthContext';
-import { ProductionProvider } from './src/context/ProductionContext';
+import { TeamProvider } from './src/context/TeamContext';
 import RootNavigator from './src/navigation/RootNavigator';
 
 export default function App() {
@@ -15,10 +15,10 @@ export default function App() {
     <SafeAreaProvider>
       <NavigationContainer>
         <AuthProvider>
-          <ProductionProvider>
+          <TeamProvider>
             <StatusBar style="light" />
             <RootNavigator />
-          </ProductionProvider>
+          </TeamProvider>
         </AuthProvider>
       </NavigationContainer>
     </SafeAreaProvider>

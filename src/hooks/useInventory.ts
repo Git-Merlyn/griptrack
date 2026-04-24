@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { EquipmentItem } from '../lib/types';
 import { useAuthContext } from '../context/AuthContext';
-import { useProductionContext } from '../context/ProductionContext';
+import { useTeamContext } from '../context/TeamContext';
 
 interface UseInventoryReturn {
   equipment: EquipmentItem[];
@@ -16,7 +16,7 @@ interface UseInventoryReturn {
 
 export function useInventory(): UseInventoryReturn {
   const { profile } = useAuthContext();
-  const { activeProductionId } = useProductionContext();
+  const { activeTeamId } = useTeamContext();
 
   const [equipment, setEquipment] = useState<EquipmentItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,28 +24,21 @@ export function useInventory(): UseInventoryReturn {
   const [searchQuery, setSearchQuery] = useState('');
 
   const fetchEquipment = useCallback(async () => {
-    if (!profile?.org_id) return;
+    if (!profile?.org_id || !activeTeamId) return;
     setLoading(true);
     setError(null);
 
     try {
-      let query = supabase
+      const { data, error } = await supabase
         .from('equipment_items')
         .select('*')
         .eq('org_id', profile.org_id)
+        .eq('team_id', activeTeamId)   // scoped to active team (always set)
         .order('name', { ascending: true });
 
-      // Scope to active production, or general pool (null)
-      if (activeProductionId) {
-        query = query.eq('production_id', activeProductionId);
-      } else {
-        query = query.is('production_id', null);
-      }
-
-      const { data, error } = await query;
       if (error) throw error;
 
-      // Filter out placeholder rows used by the web app
+      // Filter out any placeholder rows
       const rows = (data ?? []).filter(
         (item) => item.name && item.name !== '__placeholder__'
       ) as EquipmentItem[];
@@ -57,13 +50,13 @@ export function useInventory(): UseInventoryReturn {
     } finally {
       setLoading(false);
     }
-  }, [profile?.org_id, activeProductionId]);
+  }, [profile?.org_id, activeTeamId]);
 
   useEffect(() => {
     fetchEquipment();
   }, [fetchEquipment]);
 
-  // Client-side search filter (name, category, location)
+  // Client-side search: name, category, location
   const filteredEquipment = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return equipment;

@@ -95,6 +95,7 @@ export default function MoveScreen() {
       moveQty: qty,
       toLocation,
       allItems: equipment,
+      userId: profile?.id ?? '',          // UUID for audit log
       updatedBy: profile?.email ?? 'unknown',
     });
     setSubmitting(false);

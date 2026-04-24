@@ -13,8 +13,8 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { InventoryStackParamList, EquipmentItem } from '../../lib/types';
 import { useInventory } from '../../hooks/useInventory';
-import { useProductionContext } from '../../context/ProductionContext';
-import ProductionSwitcher from '../../components/ProductionSwitcher';
+import { useTeamContext } from '../../context/TeamContext';
+import TeamSwitcher from '../../components/TeamSwitcher';
 import { statusColor, getQty, qtyColor } from '../../lib/helpers';
 
 type Props = NativeStackScreenProps<InventoryStackParamList, 'InventoryList'>;
@@ -22,28 +22,37 @@ type Props = NativeStackScreenProps<InventoryStackParamList, 'InventoryList'>;
 export default function InventoryListScreen({ navigation }: Props) {
   const { filteredEquipment, loading, error, searchQuery, setSearchQuery, refresh } =
     useInventory();
-  const { activeProduction } = useProductionContext();
+  const { activeTeam, canSwitch } = useTeamContext();
   const [switcherVisible, setSwitcherVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Add production switcher button to the header
+  // Header: show team name always; add switcher button only for admin/owner
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerRight: () => (
-        <TouchableOpacity
-          onPress={() => setSwitcherVisible(true)}
-          className="flex-row items-center gap-1.5 mr-1"
-          hitSlop={8}
-        >
-          <Ionicons name="film-outline" size={16} color="#4debf9" />
-          <Text className="text-accent text-sm font-medium" numberOfLines={1}>
-            {activeProduction?.name ?? 'General'}
-          </Text>
-          <Ionicons name="chevron-down" size={14} color="#4debf9" />
-        </TouchableOpacity>
-      ),
+      headerRight: () =>
+        canSwitch ? (
+          <TouchableOpacity
+            onPress={() => setSwitcherVisible(true)}
+            className="flex-row items-center gap-1.5 mr-1"
+            hitSlop={8}
+          >
+            <Ionicons name="people-outline" size={16} color="#4debf9" />
+            <Text className="text-accent text-sm font-medium" numberOfLines={1}>
+              {activeTeam?.name ?? 'All Teams'}
+            </Text>
+            <Ionicons name="chevron-down" size={14} color="#4debf9" />
+          </TouchableOpacity>
+        ) : (
+          // Non-admins see their team name as a static label
+          <View className="flex-row items-center gap-1.5 mr-1">
+            <Ionicons name="people-outline" size={16} color="#6b7280" />
+            <Text className="text-text text-sm" numberOfLines={1}>
+              {activeTeam?.name ?? ''}
+            </Text>
+          </View>
+        ),
     });
-  }, [navigation, activeProduction]);
+  }, [navigation, activeTeam, canSwitch]);
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -90,7 +99,6 @@ export default function InventoryListScreen({ navigation }: Props) {
         </View>
       )}
 
-      {/* Loading skeleton */}
       {loading && !refreshing ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color="#4debf9" size="large" />
@@ -112,7 +120,7 @@ export default function InventoryListScreen({ navigation }: Props) {
             <View className="items-center justify-center pt-20">
               <Ionicons name="cube-outline" size={40} color="#374151" />
               <Text className="text-text mt-3 text-sm">
-                {searchQuery ? 'No items match your search' : 'No equipment in this pool'}
+                {searchQuery ? 'No items match your search' : 'No equipment in this team'}
               </Text>
             </View>
           }
@@ -122,23 +130,19 @@ export default function InventoryListScreen({ navigation }: Props) {
         />
       )}
 
-      <ProductionSwitcher
-        visible={switcherVisible}
-        onClose={() => setSwitcherVisible(false)}
-      />
+      {canSwitch && (
+        <TeamSwitcher
+          visible={switcherVisible}
+          onClose={() => setSwitcherVisible(false)}
+        />
+      )}
     </View>
   );
 }
 
 // ─── Equipment card ───────────────────────────────────────────────────────────
 
-function EquipmentCard({
-  item,
-  onPress,
-}: {
-  item: EquipmentItem;
-  onPress: () => void;
-}) {
+function EquipmentCard({ item, onPress }: { item: EquipmentItem; onPress: () => void }) {
   const qty = getQty(item);
   const qtyCol = qtyColor(item);
   const statusCol = statusColor(item.status);
@@ -149,35 +153,25 @@ function EquipmentCard({
       activeOpacity={0.75}
       className="bg-surface border border-white/10 rounded-xl p-4"
     >
-      {/* Name + status dot */}
       <View className="flex-row items-start justify-between gap-2">
-        <Text
-          className="text-accent font-semibold text-base flex-1"
-          numberOfLines={2}
-        >
+        <Text className="text-accent font-semibold text-base flex-1" numberOfLines={2}>
           {item.name}
         </Text>
         <View className="flex-row items-center gap-1.5 mt-0.5">
-          <View
-            style={{ backgroundColor: statusCol }}
-            className="w-2 h-2 rounded-full"
-          />
+          <View style={{ backgroundColor: statusCol }} className="w-2 h-2 rounded-full" />
           <Text style={{ color: statusCol }} className="text-xs font-medium">
             {item.status ?? '—'}
           </Text>
         </View>
       </View>
 
-      {/* Meta row */}
       <View className="flex-row flex-wrap gap-x-4 gap-y-1 mt-2.5">
         <MetaField label="Category" value={item.category} />
         <MetaField label="Location" value={item.location} />
         <MetaField label="Source" value={item.source} />
         <View className="flex-row items-center gap-1">
           <Text className="text-text text-xs">Qty:</Text>
-          <Text style={{ color: qtyCol }} className="text-xs font-semibold">
-            {qty}
-          </Text>
+          <Text style={{ color: qtyCol }} className="text-xs font-semibold">{qty}</Text>
           {item.reserve_min > 0 && (
             <Text className="text-text text-xs">/ {item.reserve_min} min</Text>
           )}

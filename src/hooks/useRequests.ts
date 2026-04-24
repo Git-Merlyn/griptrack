@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../context/AuthContext';
+import { canManageInventory } from '../lib/types';
 
 const TABLE = 'equipment_requests';
 
@@ -30,7 +31,8 @@ interface UseRequestsReturn {
 
 export function useRequests(): UseRequestsReturn {
   const { profile, session } = useAuthContext();
-  const isAdmin = profile?.role === 'owner' || profile?.role === 'admin';
+  // department_head can also approve/deny requests for their team
+  const isAdmin = profile?.role != null && canManageInventory(profile.role);
 
   const [requests, setRequests] = useState<EquipmentRequest[]>([]);
   const [loading, setLoading] = useState(false);
