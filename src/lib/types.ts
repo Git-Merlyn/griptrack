@@ -98,4 +98,5 @@ export type InventoryStackParamList = {
   InventoryList: undefined;
   ItemDetail: { item: EquipmentItem };
   ItemForm: { mode: 'add' } | { mode: 'edit'; item: EquipmentItem };
+  AuditLog: { item: EquipmentItem };
 };

@@ -24,6 +24,7 @@ async function writeAuditLog(params: {
   orgId: string;
   equipmentId: string;
   userId: string;
+  actor: string;   // display name / email — shown in the log UI
   action: string;
   notes?: string;
 }) {
@@ -33,6 +34,7 @@ async function writeAuditLog(params: {
       equipment_id: params.equipmentId,
       action: params.action,
       user_id: params.userId,
+      actor: params.actor,
       meta: params.notes ? { notes: params.notes } : null,
     });
   } catch (e) {
@@ -85,6 +87,7 @@ export function useEquipmentMutations(): UseMutationsReturn {
         orgId: profile.org_id,
         equipmentId: data.id,
         userId,
+        actor: updatedBy,
         action: 'create',
       });
 
@@ -124,6 +127,7 @@ export function useEquipmentMutations(): UseMutationsReturn {
         orgId: profile.org_id,
         equipmentId: id,
         userId,
+        actor: updatedBy,
         action: 'edit',
       });
 
@@ -141,6 +145,7 @@ export function useEquipmentMutations(): UseMutationsReturn {
         orgId: profile.org_id,
         equipmentId: id,
         userId,
+        actor: updatedBy,
         action: 'delete',
       });
 
@@ -171,6 +176,7 @@ export function useEquipmentMutations(): UseMutationsReturn {
         orgId: profile.org_id,
         equipmentId: item.id,
         userId,
+        actor: updatedBy,
         action: 'damage',
         notes: notes.trim() || undefined,
       });

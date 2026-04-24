@@ -4,6 +4,7 @@ import { InventoryStackParamList } from '../lib/types';
 import InventoryListScreen from '../screens/inventory/InventoryListScreen';
 import ItemDetailScreen from '../screens/inventory/ItemDetailScreen';
 import ItemFormScreen from '../screens/inventory/ItemFormScreen';
+import AuditLogScreen from '../screens/inventory/AuditLogScreen';
 
 const Stack = createNativeStackNavigator<InventoryStackParamList>();
 
@@ -30,6 +31,11 @@ export default function InventoryStack() {
         name="ItemForm"
         component={ItemFormScreen}
         options={{ title: 'Add Item' }} // overridden in screen via useLayoutEffect
+      />
+      <Stack.Screen
+        name="AuditLog"
+        component={AuditLogScreen}
+        options={{ title: 'Item History' }}
       />
     </Stack.Navigator>
   );

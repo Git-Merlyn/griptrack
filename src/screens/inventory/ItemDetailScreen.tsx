@@ -127,6 +127,16 @@ export default function ItemDetailScreen({ route, navigation }: Props) {
         {/* Action buttons — dept_head and above */}
         {canManage && (
           <View className="gap-3">
+            {/* View History */}
+            <TouchableOpacity
+              className="bg-surface border border-white/10 rounded-xl p-4 flex-row items-center gap-3"
+              onPress={() => navigation.navigate('AuditLog', { item })}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="time-outline" size={20} color="#4debf9" />
+              <Text className="text-accent font-medium">View history</Text>
+            </TouchableOpacity>
+
             {/* Report damage — only show if not already damaged */}
             {!isDamaged && (
               <TouchableOpacity

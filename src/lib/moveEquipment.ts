@@ -42,7 +42,8 @@ function findMergeDestination(
 async function writeAuditLog(params: {
   orgId: string;
   equipmentId: string;
-  userId: string;      // UUID — not a display name
+  userId: string;      // UUID — for programmatic use
+  actor: string;       // display name / email — shown in log UI
   fromLocation: string;
   toLocation: string;
   deltaQty: number;
@@ -55,6 +56,7 @@ async function writeAuditLog(params: {
       equipment_id: params.equipmentId,
       action: params.action,
       user_id: params.userId,
+      actor: params.actor,
       from_location: params.fromLocation,
       to_location: params.toLocation,
       delta_qty: params.deltaQty,
@@ -72,7 +74,7 @@ interface MoveParams {
   toLocation: string;
   allItems: EquipmentItem[];
   userId: string;      // UUID of the acting user
-  updatedBy: string;   // display name kept on equipment_items.updated_by
+  updatedBy: string;   // display name / email — stored on equipment_items and audit log
 }
 
 interface MoveResult {
@@ -120,6 +122,7 @@ export async function moveEquipment({
           orgId: sourceItem.org_id,
           equipmentId: dest.id,
           userId,
+          actor: updatedBy,
           fromLocation: sourceItem.location,
           toLocation,
           deltaQty: qty,
@@ -138,6 +141,7 @@ export async function moveEquipment({
           orgId: sourceItem.org_id,
           equipmentId: sourceItem.id,
           userId,
+          actor: updatedBy,
           fromLocation: sourceItem.location,
           toLocation,
           deltaQty: qty,
@@ -164,6 +168,7 @@ export async function moveEquipment({
           orgId: sourceItem.org_id,
           equipmentId: dest.id,
           userId,
+          actor: updatedBy,
           fromLocation: sourceItem.location,
           toLocation,
           deltaQty: qty,
@@ -195,6 +200,7 @@ export async function moveEquipment({
           orgId: sourceItem.org_id,
           equipmentId: sourceItem.id,
           userId,
+          actor: updatedBy,
           fromLocation: sourceItem.location,
           toLocation,
           deltaQty: qty,
