@@ -25,9 +25,9 @@ const PricingPage     = lazy(() => import("./pages/PricingPage"));
 const BillingPage     = lazy(() => import("./pages/BillingPage"));
 const LocationsPage   = lazy(() => import("./pages/LocationsPage"));
 const RequestsPage    = lazy(() => import("./pages/requests/RequestsPage"));
-const ProductionsPage = lazy(() => import("./pages/ProductionsPage"));
+const TeamsPage = lazy(() => import("./pages/TeamsPage"));
 
-import { ProductionProvider } from "./context/ProductionProvider";
+import { TeamProvider } from "./context/TeamProvider";
 import useUser from "./context/useUser";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
@@ -158,7 +158,7 @@ const App = () => {
         </div>
       ) : (
         // Authenticated
-        <ProductionProvider>
+        <TeamProvider>
         <>
           {effectiveNeedsOrgSetup &&
           location.pathname !== "/org-setup" &&
@@ -211,14 +211,14 @@ const App = () => {
                 <Route path="billing" element={<BillingPage />} />
                 <Route path="locations" element={<LocationsPage />} />
                 <Route path="requests" element={<RequestsPage />} />
-                <Route path="productions" element={<ProductionsPage />} />
+                <Route path="teams" element={<TeamsPage />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
         </>
-        </ProductionProvider>
+        </TeamProvider>
       )}
     </>
   );

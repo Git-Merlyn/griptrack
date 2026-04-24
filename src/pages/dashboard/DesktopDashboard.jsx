@@ -23,6 +23,7 @@ const DesktopDashboard = ({
   onOpenDetails,
   onOpenEdit,
   onOpenMove,
+  canEdit = true,
 }) => {
   return (
     <div className="min-w-[700px]">
@@ -183,16 +184,18 @@ const DesktopDashboard = ({
 
               <td className="p-2 whitespace-nowrap">
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => onOpenEdit(item)}
-                    disabled={editingId !== null}
-                    className={
-                      editingId !== null ? "btn-disabled-sm" : "btn-edit-sm"
-                    }
-                  >
-                    Edit
-                  </button>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenEdit(item)}
+                      disabled={editingId !== null}
+                      className={
+                        editingId !== null ? "btn-disabled-sm" : "btn-edit-sm"
+                      }
+                    >
+                      Edit
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => onOpenMove(item)}

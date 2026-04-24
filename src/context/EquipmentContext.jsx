@@ -8,7 +8,7 @@ import {
 import { supabase } from "../lib/supabaseClient";
 import { findMergeDestination } from "./equipmentMoveUtils";
 import UserContext from "./UserContext";
-import ProductionContext from "./ProductionContext";
+import TeamContext from "./TeamContext";
 
 // Allow dev/prod separation via env var
 const EQUIPMENT_TABLE =
@@ -20,10 +20,23 @@ const AUDIT_TABLE =
 const EquipmentContext = createContext();
 
 export const EquipmentProvider = ({ children }) => {
-  const { orgId, loadingOrg } = useContext(UserContext) || {};
+  const { orgId, loadingOrg, role, teamId: assignedTeamId } = useContext(UserContext) || {};
 
-  // Read active production so we can scope equipment queries
-  const { activeProductionId } = useContext(ProductionContext) || {};
+  // Read active team for scoping equipment queries
+  const { activeTeamId } = useContext(TeamContext) || {};
+
+  // Role-based permission flags (mirrors database RLS)
+  const isCoordinator = role === "admin" || role === "owner";
+  const isDepartmentHead = role === "department_head";
+  const canAdd    = isDepartmentHead || isCoordinator;  // crew cannot add items
+  const canDelete = isCoordinator;                       // admin/owner only
+  const canMove   = true;                                // all roles can move items
+  const canEdit   = isDepartmentHead || isCoordinator;  // crew cannot edit metadata
+
+  // The effective team scope for queries:
+  // - crew/dept_head: locked to their assigned team (from organization_members)
+  // - admin/owner: use the actively selected team, or null (meaning see all)
+  const effectiveTeamId = isCoordinator ? activeTeamId : (assignedTeamId ?? null);
 
   const [equipmentData, setEquipmentData] = useState([]);
 
@@ -112,15 +125,15 @@ export const EquipmentProvider = ({ children }) => {
     // item_id is optional; keep duplicates allowed
     const itemId = item?.item_id ?? item?.itemId ?? item?.id ?? null;
 
-    // production_id: prefer explicit override on the item, fall back to active production
-    const productionId =
-      item?.production_id !== undefined
-        ? item.production_id
-        : (activeProductionId ?? null);
+    // team_id: prefer explicit override on the item, fall back to active team
+    const teamId =
+      item?.team_id !== undefined
+        ? item.team_id
+        : (activeTeamId ?? null);
 
     return {
       org_id: orgId ?? null,
-      production_id: productionId,
+      team_id: teamId,
       item_id: itemId ? String(itemId) : null,
       name: String(item?.name ?? "").trim() || "(Unnamed)",
       category: String(item?.category ?? "").trim() || null,
@@ -152,7 +165,7 @@ export const EquipmentProvider = ({ children }) => {
     id: row.id,
 
     // Production scoping
-    production_id: row.production_id ?? null,
+    team_id: row.team_id ?? null,
 
     // Legacy fields expected by the current Dashboard.jsx
     itemId: row.item_id ?? "",
@@ -183,18 +196,19 @@ export const EquipmentProvider = ({ children }) => {
       .select("*")
       .order("created_at", { ascending: false });
 
-    // Scope to the active production, or to the General pool (production_id IS NULL)
-    if (activeProductionId) {
-      query = query.eq("production_id", activeProductionId);
-    } else {
-      query = query.is("production_id", null);
+    // Scope by team:
+    // - crew/dept_head: always their assigned team (effectiveTeamId is their assignedTeamId)
+    // - admin/owner: filter to selected team if one is chosen, otherwise no filter (see all)
+    if (effectiveTeamId) {
+      query = query.eq("team_id", effectiveTeamId);
     }
+    // No else — admin/owner with no team selected see the full org inventory
 
     const { data, error } = await query;
     if (error) throw error;
     return (data ?? []).map(normalizeRowFromDb);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProductionId]);
+  }, [effectiveTeamId]);
 
   // Load equipment from Supabase on app start (Supabase is the single source of truth)
   useEffect(() => {
@@ -268,11 +282,11 @@ export const EquipmentProvider = ({ children }) => {
         (payload) => {
           const row = normalizeRowFromDb(payload.new);
 
-          // Only apply if this row belongs to our current production scope
-          const rowProdId = payload.new?.production_id ?? null;
-          const inScope = activeProductionId
-            ? rowProdId === activeProductionId
-            : rowProdId === null;
+          // Only apply if this row belongs to our current team scope
+          const rowTeamId = payload.new?.team_id ?? null;
+          const inScope = effectiveTeamId
+            ? rowTeamId === effectiveTeamId
+            : true; // admin/owner with no filter see everything
           if (!inScope) return;
 
           setEquipmentData((prev) => {
@@ -336,8 +350,8 @@ export const EquipmentProvider = ({ children }) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  // activeProductionId included so INSERT scoping stays current when switching productions
-  }, [orgId, loadLocations, activeProductionId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // effectiveTeamId included so INSERT scoping stays current when the active team changes
+  }, [orgId, loadLocations, effectiveTeamId]); // eslint-disable-line react-hooks/exhaustive-deps
   // normalizeRowFromDb is a stable pure fn defined in this scope; omitting from deps is intentional.
 
   // Insert many items (used by PDF import). Duplicates are allowed.
@@ -587,6 +601,12 @@ export const EquipmentProvider = ({ children }) => {
         updateEquipment,
         moveEquipment,
         clearImportSummary,
+        // Permission flags — mirror the database RLS
+        // Use these to show/hide UI controls; the DB will enforce them regardless
+        canAdd,
+        canDelete,
+        canMove,
+        canEdit,
         locations,       // full location objects [{ id, name, description, is_active }]
         allLocations,    // just active names, for dropdowns
         registerLocation,

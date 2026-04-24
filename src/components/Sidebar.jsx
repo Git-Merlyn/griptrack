@@ -3,7 +3,7 @@ import { NavLink } from "react-router-dom";
 import FeedbackModal from "./feedback/FeedbackModal";
 import useUser from "@/context/useUser";
 import useTrial from "@/hooks/useTrial";
-import useProduction from "@/context/useProduction";
+import useTeam from "@/context/useTeam";
 
 const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
   const { role, logout } = useUser();
@@ -11,7 +11,7 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
   const isAdmin = role === "owner" || role === "admin";
 
   const { isTrialActive, isTrialExpired, daysLeft } = useTrial();
-  const { activeProduction, activeProductionId } = useProduction();
+  const { activeTeam, activeTeamId, canSwitchTeams } = useTeam();
 
   // Mobile drawer
   const [isMobile, setIsMobile] = useState(false);
@@ -52,12 +52,12 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
         {navCollapsed ? "D" : "Dashboard"}
       </NavLink>
 
-      {/* Active production indicator — sits just below Dashboard */}
-      {!navCollapsed && activeProductionId && activeProduction && (
+      {/* Active team indicator — sits just below Dashboard */}
+      {!navCollapsed && activeTeamId && activeTeam && (
         <NavLink
-          to="/productions"
+          to="/teams"
           onClick={() => onDone?.()}
-          title={`Production: ${activeProduction.name}`}
+          title={`Team: ${activeTeam.name}`}
           className={({ isActive }) =>
             `w-full px-4 py-1.5 text-left transition-colors ${
               isActive ? "bg-accent/20 text-accent font-semibold" : "text-text/60 hover:text-accent"
@@ -66,7 +66,7 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
         >
           <span className="flex items-center gap-1.5 text-xs">
             <span className="w-1.5 h-1.5 rounded-full bg-accent flex-shrink-0" />
-            <span className="truncate">{activeProduction.name}</span>
+            <span className="truncate">{activeTeam.name}</span>
           </span>
         </NavLink>
       )}
@@ -93,14 +93,16 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
         </NavLink>
       )}
 
-      <NavLink
-        to="/productions"
-        onClick={() => onDone?.()}
-        title="Productions"
-        className={({ isActive }) => navLinkClass(isActive, navCollapsed)}
-      >
-        {navCollapsed ? "P" : "Productions"}
-      </NavLink>
+      {(isAdmin || !canSwitchTeams) && (
+        <NavLink
+          to="/teams"
+          onClick={() => onDone?.()}
+          title="Teams"
+          className={({ isActive }) => navLinkClass(isActive, navCollapsed)}
+        >
+          {navCollapsed ? "T" : "Teams"}
+        </NavLink>
+      )}
 
       <NavLink
         to="/requests"

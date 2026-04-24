@@ -16,6 +16,7 @@ const MobileDashboard = ({
   onOpenDetails,
   onOpenEdit,
   onOpenMove,
+  canEdit = true,
 }) => {
   return (
     <div className="flex flex-col gap-3 -mx-1">
@@ -101,16 +102,18 @@ const MobileDashboard = ({
               </div>
 
               <div className="flex flex-col gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => onOpenEdit(item)}
-                  disabled={editingId !== null}
-                  className={
-                    editingId !== null ? "btn-disabled-sm" : "btn-edit-sm"
-                  }
-                >
-                  Edit
-                </button>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenEdit(item)}
+                    disabled={editingId !== null}
+                    className={
+                      editingId !== null ? "btn-disabled-sm" : "btn-edit-sm"
+                    }
+                  >
+                    Edit
+                  </button>
+                )}
 
                 <button
                   type="button"

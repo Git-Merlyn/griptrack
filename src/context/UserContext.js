@@ -7,12 +7,20 @@ const UserContext = createContext({
 
   // Org
   orgId: null,
-  role: null,
+  role: null,          // 'crew' | 'department_head' | 'admin' | 'owner'
   orgName: "",
   needsOrgSetup: false,
   profile: null,
   needsProfileSetup: false,
   loadingOrg: true,
+
+  // Team (the user's assigned department team)
+  teamId: null,        // from organization_members.team_id
+
+  // Role helpers — derived from role
+  isDepartmentHead: false,   // role === 'department_head'
+  isCoordinator: false,      // role === 'admin' || role === 'owner'
+  canSwitchTeams: false,     // admin/owner can view any team; others are locked
 
   // Subscription
   subscription: null,   // { plan, status, current_period_end, cancel_at_period_end }

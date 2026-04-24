@@ -40,6 +40,7 @@ const DashboardHeader = ({
   onExport,
   onSummary,
   hideActions = false,
+  canAdd = true,
 }) => {
   return (
     <div className="flex items-center justify-between gap-3">
@@ -47,20 +48,24 @@ const DashboardHeader = ({
 
       {!hideActions && (
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <button type="button" onClick={onAddItem} className="btn-accent">
-            <span className="whitespace-nowrap">Add Item</span>
-          </button>
+          {canAdd && (
+            <button type="button" onClick={onAddItem} className="btn-accent">
+              <span className="whitespace-nowrap">Add Item</span>
+            </button>
+          )}
 
-          <button
-            type="button"
-            onClick={onImport}
-            disabled={importInProgress}
-            className={importInProgress ? "btn-disabled" : "btn-secondary"}
-          >
-            <span className="whitespace-nowrap">
-              {importInProgress ? "Importing..." : "Import"}
-            </span>
-          </button>
+          {canAdd && (
+            <button
+              type="button"
+              onClick={onImport}
+              disabled={importInProgress}
+              className={importInProgress ? "btn-disabled" : "btn-secondary"}
+            >
+              <span className="whitespace-nowrap">
+                {importInProgress ? "Importing..." : "Import"}
+              </span>
+            </button>
+          )}
 
           <button type="button" onClick={onExport} className="btn-secondary">
             <span className="whitespace-nowrap">Export</span>
@@ -157,6 +162,7 @@ const BulkToolbar = ({
 
   onApplyBulkLocation,
   onBulkDelete,
+  canDelete = true,
 }) => {
   const hasActiveFilters = filterLocation || filterStatus || filterCategory || showBelowReserve;
 
@@ -295,16 +301,18 @@ const BulkToolbar = ({
             Apply
           </button>
 
-          <button
-            type="button"
-            onClick={onBulkDelete}
-            disabled={selectedCount === 0}
-            className={
-              selectedCount === 0 ? "btn-disabled-sm" : "btn-danger-sm"
-            }
-          >
-            Delete
-          </button>
+          {canDelete && (
+            <button
+              type="button"
+              onClick={onBulkDelete}
+              disabled={selectedCount === 0}
+              className={
+                selectedCount === 0 ? "btn-disabled-sm" : "btn-danger-sm"
+              }
+            >
+              Delete
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -487,7 +495,7 @@ const WelcomeBanner = ({ onAddItem, onImport, onDismiss }) => (
 );
 
 // Shown inside the inventory card when no rows are visible.
-const EmptyState = ({ hasActiveFilters, onClearFilters, onAddItem, onImport }) => {
+const EmptyState = ({ hasActiveFilters, onClearFilters, onAddItem, onImport, canAdd = true }) => {
   if (hasActiveFilters) {
     return (
       <div className="flex flex-col items-center gap-3 py-16 text-center">
@@ -531,14 +539,16 @@ const EmptyState = ({ hasActiveFilters, onClearFilters, onAddItem, onImport }) =
           started.
         </p>
       </div>
-      <div className="flex gap-2 mt-1">
-        <button type="button" onClick={onAddItem} className="btn-accent">
-          Add Item
-        </button>
-        <button type="button" onClick={onImport} className="btn-secondary">
-          Import
-        </button>
-      </div>
+      {canAdd && (
+        <div className="flex gap-2 mt-1">
+          <button type="button" onClick={onAddItem} className="btn-accent">
+            Add Item
+          </button>
+          <button type="button" onClick={onImport} className="btn-secondary">
+            Import
+          </button>
+        </div>
+      )}
     </div>
   );
 };
@@ -555,6 +565,10 @@ const DashboardPage = () => {
     // provides them they will be used to show an import toast after PDF imports.
     importSummaryMessage,
     clearImportSummary,
+    // Role-based permission flags (mirrors DB RLS)
+    canAdd    = true,
+    canDelete = true,
+    canEdit   = true,
   } = useContext(EquipmentContext);
   const { user, orgId } = useUser();
 
@@ -1007,6 +1021,7 @@ const DashboardPage = () => {
         onExport={() => setShowExportModal(true)}
         onSummary={() => setShowSummaryModal(true)}
         hideActions={isMobile}
+        canAdd={canAdd}
       />
 
       {/* Welcome banner — visible only when org has no equipment and not dismissed */}
@@ -1032,23 +1047,27 @@ const DashboardPage = () => {
 
       {isMobile && (
         <div className="flex items-center justify-start gap-2 -mb-2">
-          <button type="button" onClick={openAdd} className="btn-accent">
-            <span className="whitespace-nowrap">Add Item</span>
-          </button>
+          {canAdd && (
+            <button type="button" onClick={openAdd} className="btn-accent">
+              <span className="whitespace-nowrap">Add Item</span>
+            </button>
+          )}
 
-          <button
-            type="button"
-            onClick={() => {
-              setPdfModalMode("import");
-              setShowUploadModal(true);
-            }}
-            disabled={importInProgress}
-            className={importInProgress ? "btn-disabled" : "btn-secondary"}
-          >
-            <span className="whitespace-nowrap">
-              {importInProgress ? "Importing..." : "Import"}
-            </span>
-          </button>
+          {canAdd && (
+            <button
+              type="button"
+              onClick={() => {
+                setPdfModalMode("import");
+                setShowUploadModal(true);
+              }}
+              disabled={importInProgress}
+              className={importInProgress ? "btn-disabled" : "btn-secondary"}
+            >
+              <span className="whitespace-nowrap">
+                {importInProgress ? "Importing..." : "Import"}
+              </span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -1090,6 +1109,7 @@ const DashboardPage = () => {
           }}
           onApplyBulkLocation={handleBulkSetLocation}
           onBulkDelete={handleBulkDelete}
+          canDelete={canDelete}
         />
 
         <FilterPresets
@@ -1118,6 +1138,7 @@ const DashboardPage = () => {
               setPdfModalMode("import");
               setShowUploadModal(true);
             }}
+            canAdd={canAdd}
           />
         )}
 
@@ -1133,6 +1154,7 @@ const DashboardPage = () => {
               selectAllVisible={selectAllVisible}
               clearSelection={clearSelection}
               editingId={editingId}
+              canEdit={canEdit}
               onOpenDetails={(item) => {
                 setMobileDetailsItem(item);
                 setShowMobileDetailsModal(true);
@@ -1157,6 +1179,7 @@ const DashboardPage = () => {
               toggleSort={toggleSort}
               sortArrow={sortArrow}
               editingId={editingId}
+              canEdit={canEdit}
               onOpenDetails={(item) => {
                 setMobileDetailsItem(item);
                 setShowMobileDetailsModal(true);
@@ -1198,12 +1221,12 @@ const DashboardPage = () => {
           handleAddOrUpdate();
           closeEdit();
         }}
-        onDelete={() => {
+        onDelete={canDelete ? () => {
           const id = editingId;
           const name = newItem?.name;
           if (!id) return;
           confirmAndDelete(id, name);
-        }}
+        } : undefined}
       />
 
       <EditModal
@@ -1226,12 +1249,12 @@ const DashboardPage = () => {
           handleAddOrUpdate();
           closeEdit();
         }}
-        onDelete={() => {
+        onDelete={canDelete ? () => {
           const id = editingId;
           const name = newItem?.name;
           if (!id) return;
           confirmAndDelete(id, name);
-        }}
+        } : undefined}
       />
 
       {/* Details Modal */}

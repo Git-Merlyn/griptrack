@@ -15,6 +15,9 @@ const UserProvider = ({ children }) => {
   const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
   const [loadingOrg, setLoadingOrg] = useState(true);
 
+  // Team assignment (from organization_members.team_id)
+  const [teamId, setTeamId] = useState(null);
+
   // Subscription context
   const [subscription, setSubscription] = useState(null);
   const [loadingSubscription, setLoadingSubscription] = useState(false);
@@ -36,6 +39,7 @@ const UserProvider = ({ children }) => {
     setProfile(null);
     setNeedsProfileSetup(false);
     setLoadingOrg(false);
+    setTeamId(null);
     setSubscription(null);
     setTrialEndsAt(null);
 
@@ -88,6 +92,7 @@ const UserProvider = ({ children }) => {
         setProfile(null);
         setNeedsProfileSetup(false);
         setLoadingOrg(false);
+        setTeamId(null);
         setSubscription(null);
         setTrialEndsAt(null);
         return;
@@ -114,13 +119,15 @@ const UserProvider = ({ children }) => {
         setProfile(null);
         setNeedsProfileSetup(false);
         setLoadingOrg(false);
+        setTeamId(null);
         return;
       }
 
       const row = Array.isArray(data) ? data[0] : data;
       const nextOrgId = row?.org_id ?? null;
+      const nextRole = row?.role ?? null;
       setOrgId(nextOrgId);
-      setRole(row?.role ?? null);
+      setRole(nextRole);
 
       // Load org name
       if (nextOrgId) {
@@ -144,9 +151,21 @@ const UserProvider = ({ children }) => {
 
         // Load subscription for org
         await loadSubscription(nextOrgId);
+
+        // Load the user's assigned team (crew/dept_head are locked to one team)
+        const { data: memberRow } = await supabase
+          .from("organization_members")
+          .select("team_id")
+          .eq("org_id", nextOrgId)
+          .eq("user_id", session.user.id)
+          .single();
+
+        if (cancelled) return;
+        setTeamId(memberRow?.team_id ?? null);
       } else {
         setOrgName("");
         setNeedsOrgSetup(true);
+        setTeamId(null);
       }
 
       // Load user profile
@@ -206,6 +225,12 @@ const UserProvider = ({ children }) => {
     };
   }, []);
 
+  // Role helpers — derived from role string
+  const isDepartmentHead = role === "department_head";
+  const isCoordinator = role === "admin" || role === "owner";
+  // admin/owner can browse any team; crew/dept_head are locked to their assigned team
+  const canSwitchTeams = isCoordinator;
+
   // Derive the active plan — treat any non-active subscription as free
   const plan = useMemo(() => {
     if (!subscription) return "free";
@@ -226,6 +251,12 @@ const UserProvider = ({ children }) => {
       profile,
       needsProfileSetup,
       loadingOrg,
+      // Team
+      teamId,
+      isDepartmentHead,
+      isCoordinator,
+      canSwitchTeams,
+      // Subscription
       subscription,
       plan,
       loadingSubscription,
@@ -241,6 +272,10 @@ const UserProvider = ({ children }) => {
       profile,
       needsProfileSetup,
       loadingOrg,
+      teamId,
+      isDepartmentHead,
+      isCoordinator,
+      canSwitchTeams,
       subscription,
       plan,
       loadingSubscription,
