@@ -1,25 +1,26 @@
--- Teams — replaces Productions
+-- Teams migration (fresh — productions table was never applied to production DB)
 -- Departments (Grip, Electric, Camera, etc.) within an org.
--- Each equipment item belongs to a team. Users are assigned to a team.
+-- Each equipment item optionally belongs to a team. Users are assigned to a team.
 
--- ─── 1. Rename productions → teams ───────────────────────────────────────────
-alter table productions rename to teams;
+-- ─── 1. Create teams table ────────────────────────────────────────────────────
+create table if not exists teams (
+  id         uuid        primary key default gen_random_uuid(),
+  org_id     uuid        not null references organizations(id) on delete cascade,
+  name       text        not null,
+  status     text        not null default 'active' check (status in ('active', 'archived')),
+  max_seats  integer     not null default 10,
+  created_at timestamptz not null default now()
+);
 
--- Rename columns to match new domain language
-alter table teams rename column production_id to id; -- id was already 'id', skip
--- (productions.id is already named id — no rename needed)
+create index if not exists teams_org_id_idx on teams (org_id);
 
--- Add max_seats so department heads know their invite limit
-alter table teams add column if not exists max_seats integer not null default 10;
+-- Enable RLS
+alter table teams enable row level security;
 
--- Drop the start_date/end_date columns (not relevant for teams)
--- Keep them for now in case data exists; can drop in a later migration.
+-- ─── 2. Add team_id to equipment_items ───────────────────────────────────────
+alter table equipment_items
+  add column if not exists team_id uuid references teams(id) on delete set null;
 
--- ─── 2. Rename production_id → team_id on equipment_items ────────────────────
-alter table equipment_items rename column production_id to team_id;
-
--- Drop old index and recreate with new name
-drop index if exists equipment_items_production_id_idx;
 create index if not exists equipment_items_team_id_idx on equipment_items (team_id);
 
 -- ─── 3. Add team_id to organization_members ──────────────────────────────────
@@ -30,20 +31,24 @@ alter table organization_members
 create index if not exists org_members_team_id_idx on organization_members (team_id);
 
 -- ─── 4. Add department_head to allowed roles ─────────────────────────────────
--- Drop the existing check constraint and recreate with the new role.
--- (constraint name may vary — find it first if this errors and adjust the name)
+-- Drop the old constraint first — it doesn't include 'crew', so the remap below
+-- would be blocked if the constraint were still in place.
 alter table organization_members
   drop constraint if exists organization_members_role_check;
 
+-- Remap legacy 'staff' → 'crew'. Department heads are assigned manually later.
+update organization_members set role = 'crew' where role = 'staff';
+
+-- Recreate constraint with the full role set.
 alter table organization_members
   add constraint organization_members_role_check
   check (role in ('owner', 'admin', 'department_head', 'crew'));
 
--- ─── 5. Update RLS policies on teams ────────────────────────────────────────
-drop policy if exists "org members can read productions" on teams;
-drop policy if exists "admins can manage productions" on teams;
+-- ─── 5. RLS policies on teams ────────────────────────────────────────────────
+drop policy if exists "org members can read teams" on teams;
+drop policy if exists "admins can manage teams" on teams;
 
--- All org members can read teams (crew needs to know team names for the switcher)
+-- All org members can read teams
 create policy "org members can read teams"
   on teams for select
   using (
@@ -62,14 +67,14 @@ create policy "admins can manage teams"
     )
   );
 
--- ─── 6. Update RLS on equipment_items ────────────────────────────────────────
--- crew and department_head: only see their own team's items
--- admin and owner: see all items in the org
-
--- Drop existing equipment_items policies (recreate below)
+-- ─── 6. RLS policies on equipment_items ──────────────────────────────────────
 drop policy if exists "org members can read equipment" on equipment_items;
 drop policy if exists "admins can manage equipment" on equipment_items;
 drop policy if exists "crew can read equipment" on equipment_items;
+drop policy if exists "equipment read by role" on equipment_items;
+drop policy if exists "equipment insert by role" on equipment_items;
+drop policy if exists "equipment update by role" on equipment_items;
+drop policy if exists "equipment delete by role" on equipment_items;
 
 -- Read: crew/dept_head see only their team; admin/owner see all
 create policy "equipment read by role"
@@ -79,27 +84,29 @@ create policy "equipment read by role"
       select om.org_id from organization_members om
       where om.user_id = auth.uid()
       and (
-        -- admin/owner see everything in their org
         om.role in ('owner', 'admin')
         or
-        -- crew/dept_head see only their team
         (om.role in ('crew', 'department_head') and om.team_id = equipment_items.team_id)
       )
     )
   );
 
--- Insert: department_head and above can add items
+-- Insert: department_head can only insert into their own team; admin/owner unrestricted
 create policy "equipment insert by role"
   on equipment_items for insert
   with check (
     org_id in (
       select om.org_id from organization_members om
       where om.user_id = auth.uid()
-      and om.role in ('owner', 'admin', 'department_head')
+      and (
+        om.role in ('owner', 'admin')
+        or
+        (om.role = 'department_head' and om.team_id = equipment_items.team_id)
+      )
     )
   );
 
--- Update: crew can update (for moves); dept_head/admin/owner can update anything
+-- Update: crew can update (for moves); dept_head/admin/owner can update anything in their scope
 create policy "equipment update by role"
   on equipment_items for update
   using (
@@ -131,6 +138,14 @@ alter table equipment_audit
 
 create index if not exists equipment_audit_user_id_idx on equipment_audit (user_id);
 
--- ─── 8. Enable realtime for equipment_requests ───────────────────────────────
--- Allows mobile clients to get live updates on request status changes.
-alter publication supabase_realtime add table equipment_requests;
+-- ─── 8. Enable realtime for equipment_requests (if not already) ──────────────
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and tablename = 'equipment_requests'
+  ) then
+    alter publication supabase_realtime add table equipment_requests;
+  end if;
+end $$;
