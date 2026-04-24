@@ -729,6 +729,7 @@ const DashboardPage = () => {
     canDelete = true,
     canEdit   = true,
     hasTeamSelected = true,
+    loadingEquipment = false,
   } = useContext(EquipmentContext);
   const { user, orgId } = useUser();
   const { loadingTeams } = useTeam();
@@ -1190,8 +1191,8 @@ const DashboardPage = () => {
           Wait for loadingTeams to settle so we don't flash this on initial hydration. */}
       {!hasTeamSelected && !loadingTeams && <OrgOverview />}
 
-      {/* Welcome banner — visible only when org has no equipment and not dismissed */}
-      {hasTeamSelected && visibleEquipment.length === 0 && !welcomeDismissed && (
+      {/* Welcome banner — visible only when team is loaded, org has no equipment, and not dismissed */}
+      {hasTeamSelected && !loadingEquipment && visibleEquipment.length === 0 && !welcomeDismissed && (
         <WelcomeBanner
           onAddItem={openAdd}
           onImport={() => {
@@ -1286,8 +1287,9 @@ const DashboardPage = () => {
           onDelete={deletePreset}
         />
 
-        {/* Empty state — no results after filters, or genuinely empty inventory */}
-        {sortedEquipment.length === 0 && (
+        {/* Empty state — no results after filters, or genuinely empty inventory.
+            Suppressed while loading so we don't flash "No inventory" during fetch. */}
+        {sortedEquipment.length === 0 && !loadingEquipment && (
           <EmptyState
             hasActiveFilters={
               !!(filterLocation || filterStatus || filterCategory || searchQuery.trim() || showBelowReserve)

@@ -39,6 +39,10 @@ export const EquipmentProvider = ({ children }) => {
   const effectiveTeamId = isCoordinator ? activeTeamId : (assignedTeamId ?? null);
 
   const [equipmentData, setEquipmentData] = useState([]);
+  // True while the initial equipment fetch is in-flight (or when the active team
+  // changes and a new fetch starts). Used by the Dashboard to suppress the
+  // WelcomeBanner / EmptyState flash that would otherwise appear before data arrives.
+  const [loadingEquipment, setLoadingEquipment] = useState(true);
 
   // Locations loaded from the DB locations table (source of truth)
   const [locations, setLocations] = useState([]);
@@ -211,12 +215,19 @@ export const EquipmentProvider = ({ children }) => {
     let cancelled = false;
 
     const boot = async () => {
+      setLoadingEquipment(true);
       try {
         const rows = await loadEquipmentFromSupabase();
-        if (!cancelled) setEquipmentData(rows);
+        if (!cancelled) {
+          setEquipmentData(rows);
+          setLoadingEquipment(false);
+        }
       } catch (err) {
         console.error("Failed to load equipment from Supabase", err);
-        if (!cancelled) setEquipmentData([]);
+        if (!cancelled) {
+          setEquipmentData([]);
+          setLoadingEquipment(false);
+        }
         window.toast?.error?.(
           err?.message || "Failed to load inventory from Supabase",
         );
@@ -605,6 +616,8 @@ export const EquipmentProvider = ({ children }) => {
         canEdit,
         // False when no team is selected — Dashboard shows a "pick a team" prompt instead of inventory
         hasTeamSelected: !!effectiveTeamId,
+        // True while the equipment fetch is in-flight — suppresses empty-state flash
+        loadingEquipment,
         locations,       // full location objects [{ id, name, description, is_active }]
         allLocations,    // just active names, for dropdowns
         registerLocation,
