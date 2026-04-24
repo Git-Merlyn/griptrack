@@ -27,7 +27,6 @@ const LocationsPage   = lazy(() => import("./pages/LocationsPage"));
 const RequestsPage    = lazy(() => import("./pages/requests/RequestsPage"));
 const TeamsPage = lazy(() => import("./pages/TeamsPage"));
 
-import { TeamProvider } from "./context/TeamProvider";
 import useUser from "./context/useUser";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
@@ -158,7 +157,6 @@ const App = () => {
         </div>
       ) : (
         // Authenticated
-        <TeamProvider>
         <>
           {effectiveNeedsOrgSetup &&
           location.pathname !== "/org-setup" &&
@@ -218,7 +216,6 @@ const App = () => {
             </Routes>
           </Suspense>
         </>
-        </TeamProvider>
       )}
     </>
   );

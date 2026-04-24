@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 import ImportFileModal from "@/components/ImportFileModal";
 import EquipmentContext from "@/context/EquipmentContext";
 import useUser from "@/context/useUser";
+import useTeam from "@/context/useTeam";
 import { supabase } from "@/lib/supabaseClient";
 import DesktopDashboard from "./DesktopDashboard";
 import MobileDashboard from "./MobileDashboard";
@@ -554,6 +555,163 @@ const EmptyState = ({ hasActiveFilters, onClearFilters, onAddItem, onImport, can
   );
 };
 
+// ── OrgOverview ───────────────────────────────────────────────────────────────
+// Shown to admin/owner when no team is active. Displays all teams as cards
+// so they can jump straight into one without going via the Teams page.
+const OrgOverview = () => {
+  const { teams, loadingTeams, setActiveTeamId } = useTeam();
+  const { orgName } = useUser();
+
+  // Per-team item counts — fetched once on mount
+  const [counts, setCounts] = useState({});
+
+  useEffect(() => {
+    const fetchCounts = async () => {
+      if (!teams.length) return;
+      const ids = teams.map((t) => t.id);
+      const { data, error } = await supabase
+        .from("equipment_items")
+        .select("team_id")
+        .in("team_id", ids);
+
+      if (error || !data) return;
+
+      const c = {};
+      for (const row of data) {
+        c[row.team_id] = (c[row.team_id] || 0) + 1;
+      }
+      setCounts(c);
+    };
+
+    fetchCounts();
+  }, [teams]);
+
+  const activeTeams   = teams.filter((t) => t.status !== "archived");
+  const archivedTeams = teams.filter((t) => t.status === "archived");
+
+  if (loadingTeams) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-20 text-gray-500">
+        <span className="animate-pulse text-sm">Loading teams…</span>
+      </div>
+    );
+  }
+
+  if (teams.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-4 py-20 text-center">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" strokeWidth="1.5"
+             strokeLinecap="round" strokeLinejoin="round" className="text-gray-600">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+        <div>
+          <p className="text-gray-200 font-medium mb-1">No teams yet</p>
+          <p className="text-gray-500 text-sm max-w-xs">
+            Create your first team to start tracking equipment by department.
+          </p>
+        </div>
+        <NavLink to="/teams" className="btn-accent">
+          Create a Team
+        </NavLink>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Header */}
+      <div>
+        <h3 className="text-lg font-semibold text-text">
+          {orgName || "Your Organization"}
+        </h3>
+        <p className="text-sm text-gray-400 mt-0.5">
+          Select a team to view and manage its inventory.
+        </p>
+      </div>
+
+      {/* Active teams grid */}
+      {activeTeams.length > 0 && (
+        <div>
+          <p className="text-xs uppercase tracking-widest text-gray-500 mb-3">Teams</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {activeTeams.map((team) => {
+              const itemCount = counts[team.id] ?? null;
+              return (
+                <button
+                  key={team.id}
+                  type="button"
+                  onClick={() => setActiveTeamId(team.id)}
+                  className="text-left bg-surface border border-gray-700 hover:border-accent/60 hover:bg-accent/5 rounded-xl p-5 transition-colors group"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-text group-hover:text-accent truncate transition-colors">
+                        {team.name}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {itemCount === null
+                          ? "—"
+                          : `${itemCount} item${itemCount !== 1 ? "s" : ""}`}
+                      </p>
+                    </div>
+                    <span className="text-accent opacity-0 group-hover:opacity-100 transition-opacity text-xl leading-none">
+                      →
+                    </span>
+                  </div>
+                  <div className="mt-3 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
+                    <span className="text-xs text-gray-500">Active</span>
+                    <span className="text-xs text-gray-600 ml-auto">
+                      {team.max_seats} seat{team.max_seats !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Archived teams — collapsed section */}
+      {archivedTeams.length > 0 && (
+        <div>
+          <p className="text-xs uppercase tracking-widest text-gray-500 mb-3">Archived</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {archivedTeams.map((team) => {
+              const itemCount = counts[team.id] ?? null;
+              return (
+                <div
+                  key={team.id}
+                  className="bg-surface border border-gray-800 rounded-xl p-5 opacity-60"
+                >
+                  <p className="font-semibold text-gray-400 truncate">{team.name}</p>
+                  <p className="text-xs text-gray-600 mt-0.5">
+                    {itemCount === null ? "—" : `${itemCount} item${itemCount !== 1 ? "s" : ""}`}
+                  </p>
+                  <div className="mt-3 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-gray-600 flex-shrink-0" />
+                    <span className="text-xs text-gray-600">Archived</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="pt-2">
+        <NavLink to="/teams" className="text-sm text-accent hover:underline">
+          Manage teams →
+        </NavLink>
+      </div>
+    </div>
+  );
+};
+
 const DashboardPage = () => {
   const {
     equipment,
@@ -573,6 +731,7 @@ const DashboardPage = () => {
     hasTeamSelected = true,
   } = useContext(EquipmentContext);
   const { user, orgId } = useUser();
+  const { loadingTeams } = useTeam();
 
   const { allLocations, addCustomLocation } = useLocation({
     contextLocations,
@@ -1027,28 +1186,9 @@ const DashboardPage = () => {
         canAdd={canAdd}
       />
 
-      {/* No team selected — admin/owner must pick a team before viewing inventory */}
-      {!hasTeamSelected && (
-        <div className="flex flex-col items-center gap-4 py-20 text-center">
-          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24"
-               fill="none" stroke="currentColor" strokeWidth="1.5"
-               strokeLinecap="round" strokeLinejoin="round" className="text-gray-600">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-            <circle cx="9" cy="7" r="4"/>
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-          </svg>
-          <div>
-            <p className="text-gray-200 font-medium mb-1">No team selected</p>
-            <p className="text-gray-500 text-sm max-w-xs">
-              Select a team from the sidebar to view its inventory.
-            </p>
-          </div>
-          <NavLink to="/teams" className="btn-accent">
-            Go to Teams
-          </NavLink>
-        </div>
-      )}
+      {/* No team selected — admin/owner sees org overview with team cards.
+          Wait for loadingTeams to settle so we don't flash this on initial hydration. */}
+      {!hasTeamSelected && !loadingTeams && <OrgOverview />}
 
       {/* Welcome banner — visible only when org has no equipment and not dismissed */}
       {hasTeamSelected && visibleEquipment.length === 0 && !welcomeDismissed && (
