@@ -66,7 +66,7 @@ export interface UserProfile {
   email: string;
   full_name: string | null;
   org_id: string;
-  team_id: string;           // the team this user belongs to
+  team_id: string | null;    // null until schema migration adds team_id to organization_members
   role: Role;
 }
 

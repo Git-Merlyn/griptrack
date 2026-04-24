@@ -40,27 +40,46 @@ export function useAuth(): UseAuthReturn {
   async function loadProfile(userId: string) {
     setLoading(true);
     try {
-      // Load org membership — now includes team_id and the expanded role
+      // First fetch without team_id in case the schema migration hasn't run yet
       const { data: member, error: memberError } = await supabase
         .from('organization_members')
-        .select('org_id, team_id, role')
+        .select('org_id, role, team_id')
         .eq('user_id', userId)
         .single();
 
       if (memberError || !member) {
-        console.error('Failed to load org membership:', memberError?.message);
-        setProfile(null);
+        // If team_id column doesn't exist yet, fall back to org_id + role only
+        const { data: fallback, error: fallbackError } = await supabase
+          .from('organization_members')
+          .select('org_id, role')
+          .eq('user_id', userId)
+          .single();
+
+        if (fallbackError || !fallback) {
+          console.error('Failed to load org membership:', fallbackError?.message);
+          setProfile(null);
+          return;
+        }
+
+        const { data: { user } } = await supabase.auth.getUser();
+        setProfile({
+          id: userId,
+          email: user?.email ?? '',
+          full_name: user?.user_metadata?.full_name ?? null,
+          org_id: fallback.org_id,
+          team_id: null, // schema not migrated yet
+          role: fallback.role as Role,
+        });
         return;
       }
 
       const { data: { user } } = await supabase.auth.getUser();
-
       setProfile({
         id: userId,
         email: user?.email ?? '',
         full_name: user?.user_metadata?.full_name ?? null,
         org_id: member.org_id,
-        team_id: member.team_id,
+        team_id: member.team_id ?? null,
         role: member.role as Role,
       });
     } finally {
