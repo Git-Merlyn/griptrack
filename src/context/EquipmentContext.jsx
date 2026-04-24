@@ -191,20 +191,16 @@ export const EquipmentProvider = ({ children }) => {
   });
 
   const loadEquipmentFromSupabase = useCallback(async () => {
-    let query = supabase
+    // No team selected — return empty immediately, don't query.
+    // A team must always be selected before inventory is shown.
+    if (!effectiveTeamId) return [];
+
+    const { data, error } = await supabase
       .from(EQUIPMENT_TABLE)
       .select("*")
+      .eq("team_id", effectiveTeamId)
       .order("created_at", { ascending: false });
 
-    // Scope by team:
-    // - crew/dept_head: always their assigned team (effectiveTeamId is their assignedTeamId)
-    // - admin/owner: filter to selected team if one is chosen, otherwise no filter (see all)
-    if (effectiveTeamId) {
-      query = query.eq("team_id", effectiveTeamId);
-    }
-    // No else — admin/owner with no team selected see the full org inventory
-
-    const { data, error } = await query;
     if (error) throw error;
     return (data ?? []).map(normalizeRowFromDb);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -607,6 +603,8 @@ export const EquipmentProvider = ({ children }) => {
         canDelete,
         canMove,
         canEdit,
+        // False when no team is selected — Dashboard shows a "pick a team" prompt instead of inventory
+        hasTeamSelected: !!effectiveTeamId,
         locations,       // full location objects [{ id, name, description, is_active }]
         allLocations,    // just active names, for dropdowns
         registerLocation,

@@ -569,6 +569,7 @@ const DashboardPage = () => {
     canAdd    = true,
     canDelete = true,
     canEdit   = true,
+    hasTeamSelected = true,
   } = useContext(EquipmentContext);
   const { user, orgId } = useUser();
 
@@ -1024,8 +1025,31 @@ const DashboardPage = () => {
         canAdd={canAdd}
       />
 
+      {/* No team selected — admin/owner must pick a team before viewing inventory */}
+      {!hasTeamSelected && (
+        <div className="flex flex-col items-center gap-4 py-20 text-center">
+          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24"
+               fill="none" stroke="currentColor" strokeWidth="1.5"
+               strokeLinecap="round" strokeLinejoin="round" className="text-gray-600">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          <div>
+            <p className="text-gray-200 font-medium mb-1">No team selected</p>
+            <p className="text-gray-500 text-sm max-w-xs">
+              Select a team from the sidebar to view its inventory.
+            </p>
+          </div>
+          <NavLink to="/teams" className="btn-accent">
+            Go to Teams
+          </NavLink>
+        </div>
+      )}
+
       {/* Welcome banner — visible only when org has no equipment and not dismissed */}
-      {visibleEquipment.length === 0 && !welcomeDismissed && (
+      {hasTeamSelected && visibleEquipment.length === 0 && !welcomeDismissed && (
         <WelcomeBanner
           onAddItem={openAdd}
           onImport={() => {
@@ -1036,16 +1060,16 @@ const DashboardPage = () => {
         />
       )}
 
-      <ImportToast
+      {hasTeamSelected && <ImportToast
         show={showToast}
         message={importSummaryMessage}
         onDismiss={() => {
           setShowToast(false);
           if (typeof clearImportSummary === "function") clearImportSummary();
         }}
-      />
+      />}
 
-      {isMobile && (
+      {hasTeamSelected && isMobile && (
         <div className="flex items-center justify-start gap-2 -mb-2">
           {canAdd && (
             <button type="button" onClick={openAdd} className="btn-accent">
@@ -1079,7 +1103,7 @@ const DashboardPage = () => {
         </div>
       )}
 
-      <InventoryCard>
+      {hasTeamSelected && <InventoryCard>
         <BulkToolbar
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
@@ -1194,7 +1218,7 @@ const DashboardPage = () => {
             />
           )
         )}
-      </InventoryCard>
+      </InventoryCard>}
 
       {/* Desktop inline Add/Edit form removed */}
 
