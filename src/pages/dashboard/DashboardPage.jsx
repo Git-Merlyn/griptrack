@@ -22,6 +22,7 @@ import useLocation from "./hooks/useLocation";
 import useExport from "./hooks/useExport";
 import { matchFileItemsToEquipment } from "./utils/pdfSelect";
 import useFilterPresets from "./hooks/useFilterPresets";
+import { PAGE_SIZE_OPTIONS } from "./hooks/useInventoryView";
 
 // --- Presentational components (extracted from DashboardPage for readability) ---
 
@@ -697,7 +698,9 @@ const DashboardPage = () => {
         quantity: qtyNum,
         reserveMin: Number(newItem.reserveMin) || 0,
         updatedBy: user?.username || "admin",
-      });
+      }).then((result) => {
+        if (result?.id) pinItem(result.id);
+      }).catch(() => {});
     }
 
     setNewItem({
@@ -904,20 +907,19 @@ const DashboardPage = () => {
   };
 
   const {
-    searchQuery,
-    setSearchQuery,
-    filterLocation,
-    setFilterLocation,
-    filterStatus,
-    setFilterStatus,
-    filterCategory,
-    setFilterCategory,
-    showBelowReserve,
-    setShowBelowReserve,
-    toggleSort,
-    sortArrow,
+    searchQuery,      setSearchQuery,
+    filterLocation,   setFilterLocation,
+    filterStatus,     setFilterStatus,
+    filterCategory,   setFilterCategory,
+    showBelowReserve, setShowBelowReserve,
+    toggleSort, sortArrow,
     visibleEquipment,
-    sortedEquipment,
+    sortedEquipment,      // full list — used for exports
+    paginatedEquipment,   // current page slice — used for rendering
+    page, setPage,
+    pageSize, setPageSize,
+    totalCount, totalPages,
+    pinItem,
   } = useInventoryView({ equipment });
 
   const { presets, savePreset, deletePreset } = useFilterPresets({ orgId });
@@ -1003,7 +1005,7 @@ const DashboardPage = () => {
     selectAllVisible,
     clearSelection,
   } = useBulkSelection({
-    visibleRows: sortedEquipment,
+    visibleRows: paginatedEquipment,
     onExitBulkMode: () => {
       setShowMobileDetailsModal(false);
       setMobileDetailsItem(null);
@@ -1170,7 +1172,7 @@ const DashboardPage = () => {
         {sortedEquipment.length > 0 && (
           isMobile ? (
             <MobileDashboard
-              sortedEquipment={sortedEquipment}
+              sortedEquipment={paginatedEquipment}
               bulkMode={bulkMode}
               selectedIds={selectedIds}
               isSelected={isSelected}
@@ -1193,7 +1195,7 @@ const DashboardPage = () => {
             />
           ) : (
             <DesktopDashboard
-              sortedEquipment={sortedEquipment}
+              sortedEquipment={paginatedEquipment}
               bulkMode={bulkMode}
               selectedIds={selectedIds}
               isSelected={isSelected}
@@ -1217,6 +1219,61 @@ const DashboardPage = () => {
               }}
             />
           )
+        )}
+
+        {/* Pagination controls */}
+        {sortedEquipment.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 mt-4 pt-4 border-t border-gray-700 text-sm text-gray-400">
+            {/* Count + page size selector */}
+            <div className="flex items-center gap-3">
+              <span>
+                {pageSize === 0
+                  ? `${totalCount} item${totalCount !== 1 ? "s" : ""}`
+                  : `${Math.min((page - 1) * pageSize + 1, totalCount)}–${Math.min(page * pageSize, totalCount)} of ${totalCount}`}
+              </span>
+              <div className="flex items-center gap-1">
+                {PAGE_SIZE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setPageSize(opt.value)}
+                    className={`px-2 py-0.5 rounded text-xs transition ${
+                      pageSize === opt.value
+                        ? "bg-accent/20 text-accent font-semibold"
+                        : "hover:text-gray-200"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Prev / Next */}
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className={page === 1 ? "btn-disabled-sm" : "btn-secondary-sm"}
+                >
+                  ← Prev
+                </button>
+                <span className="text-xs">
+                  {page} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className={page === totalPages ? "btn-disabled-sm" : "btn-secondary-sm"}
+                >
+                  Next →
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </InventoryCard>}
 
