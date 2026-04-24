@@ -17,14 +17,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { useInventory } from '../../hooks/useInventory';
 import { useLocations } from '../../hooks/useLocations';
 import { useAuthContext } from '../../context/AuthContext';
+import { useSyncContext } from '../../context/SyncContext';
 import { moveEquipment } from '../../lib/moveEquipment';
 import { EquipmentItem } from '../../lib/types';
 import { getQty, statusColor } from '../../lib/helpers';
 
 export default function MoveScreen() {
-  const { equipment, refresh } = useInventory();
+  const { equipment } = useInventory();
   const { locationNames } = useLocations();
   const { profile } = useAuthContext();
+  const { isOnline, bumpLocalVersion } = useSyncContext();
 
   // Step 1: item selection
   const [itemSearch, setItemSearch] = useState('');
@@ -95,15 +97,17 @@ export default function MoveScreen() {
       moveQty: qty,
       toLocation,
       allItems: equipment,
-      userId: profile?.id ?? '',          // UUID for audit log
+      userId: profile?.id ?? '',
       updatedBy: profile?.email ?? 'unknown',
+      isOnline,
     });
     setSubmitting(false);
 
     if (result.success) {
-      await refresh();
+      bumpLocalVersion(); // re-read SQLite in all hooks
       clearSelection();
-      Alert.alert('Done', `Moved ${qty}× ${selectedItem.name} to ${toLocation}.`);
+      const suffix = isOnline ? '' : ' (offline — will sync when reconnected)';
+      Alert.alert('Done', `Moved ${qty}× ${selectedItem.name} to ${toLocation}.${suffix}`);
     } else {
       Alert.alert('Move failed', result.error ?? 'Something went wrong.');
     }

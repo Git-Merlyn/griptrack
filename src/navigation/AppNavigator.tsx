@@ -1,4 +1,5 @@
 import React from 'react';
+import { View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -7,6 +8,7 @@ import InventoryStack from './InventoryStack';
 import MoveScreen from '../screens/move/MoveScreen';
 import RequestsScreen from '../screens/requests/RequestsScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
+import SyncStatusBar from '../components/SyncStatusBar';
 
 const Tab = createBottomTabNavigator<AppTabParamList>();
 
@@ -17,7 +19,9 @@ const BORDER = '#0f1117';
 
 export default function AppNavigator() {
   return (
-    <Tab.Navigator
+    <View style={{ flex: 1 }}>
+      <SyncStatusBar />
+      <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarStyle: {
@@ -44,5 +48,6 @@ export default function AppNavigator() {
       <Tab.Screen name="Requests" component={RequestsScreen} options={{ headerShown: true, headerStyle: { backgroundColor: BG }, headerTintColor: ACCENT, headerTitleStyle: { color: '#f1f5f9' }, title: 'Requests' }} />
       <Tab.Screen name="Profile" component={ProfileScreen} options={{ headerShown: true, headerStyle: { backgroundColor: BG }, headerTintColor: ACCENT, headerTitleStyle: { color: '#f1f5f9' }, title: 'Profile' }} />
     </Tab.Navigator>
+    </View>
   );
 }

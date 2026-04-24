@@ -3,6 +3,14 @@ import { supabase } from '../lib/supabase';
 import { EquipmentItem } from '../lib/types';
 import { useAuthContext } from '../context/AuthContext';
 import { useTeamContext } from '../context/TeamContext';
+import { useSyncContext } from '../context/SyncContext';
+import {
+  upsertEquipmentItem,
+  deleteEquipmentItemLocal,
+  enqueueOp,
+  generateId,
+  getEquipmentByTeam,
+} from '../lib/db';
 
 const EQUIPMENT_TABLE = 'equipment_items';
 const AUDIT_TABLE = process.env.EXPO_PUBLIC_EQUIPMENT_AUDIT_TABLE ?? 'equipment_audit';
@@ -20,27 +28,40 @@ export interface ItemFields {
   end_date: string | null;
 }
 
-async function writeAuditLog(params: {
+// ─── Audit log helper ─────────────────────────────────────────────────────────
+
+interface AuditParams {
   orgId: string;
   equipmentId: string;
   userId: string;
-  actor: string;   // display name / email — shown in the log UI
+  actor: string;
   action: string;
   notes?: string;
-}) {
-  try {
-    await supabase.from(AUDIT_TABLE).insert({
-      org_id: params.orgId,
-      equipment_id: params.equipmentId,
-      action: params.action,
-      user_id: params.userId,
-      actor: params.actor,
-      meta: params.notes ? { notes: params.notes } : null,
-    });
-  } catch (e) {
-    console.warn('Failed to write audit event', e);
+  isOnline: boolean;
+}
+
+async function writeAuditLog(params: AuditParams): Promise<void> {
+  const payload = {
+    org_id: params.orgId,
+    equipment_id: params.equipmentId,
+    action: params.action,
+    user_id: params.userId,
+    actor: params.actor,
+    meta: params.notes ? { notes: params.notes } : null,
+  };
+
+  if (params.isOnline) {
+    try {
+      await supabase.from(AUDIT_TABLE).insert(payload);
+    } catch (e) {
+      console.warn('Failed to write audit event', e);
+    }
+  } else {
+    enqueueOp({ table_name: 'audit', operation: 'insert', payload: JSON.stringify(payload) });
   }
 }
+
+// ─── Hook ─────────────────────────────────────────────────────────────────────
 
 interface UseMutationsReturn {
   addItem: (fields: ItemFields) => Promise<EquipmentItem>;
@@ -52,9 +73,12 @@ interface UseMutationsReturn {
 export function useEquipmentMutations(): UseMutationsReturn {
   const { profile, session } = useAuthContext();
   const { activeTeamId } = useTeamContext();
+  const { isOnline, bumpLocalVersion } = useSyncContext();
 
   const userId = session?.user.id ?? '';
   const updatedBy = profile?.email ?? 'unknown';
+
+  // ─── addItem ──────────────────────────────────────────────────────────────
 
   const addItem = useCallback(
     async (fields: ItemFields): Promise<EquipmentItem> => {
@@ -62,48 +86,62 @@ export function useEquipmentMutations(): UseMutationsReturn {
         throw new Error('No org or team selected');
       }
 
-      const { data, error } = await supabase
-        .from(EQUIPMENT_TABLE)
-        .insert({
-          org_id: profile.org_id,
-          team_id: activeTeamId,
-          name: fields.name.trim(),
-          category: fields.category.trim() || null,
-          source: fields.source.trim() || null,
-          location: fields.location.trim(),
-          quantity: fields.quantity,
-          reserve_min: fields.reserve_min,
-          status: fields.status,
-          start_date: fields.start_date || null,
-          end_date: fields.end_date || null,
-          updated_by: updatedBy,
-        })
-        .select('*')
-        .single();
+      const now = new Date().toISOString();
+      const newId = generateId();
 
-      if (error) throw error;
+      // Build the full record locally so we can write to SQLite immediately
+      const localItem: EquipmentItem = {
+        id: newId,
+        org_id: profile.org_id,
+        team_id: activeTeamId,
+        item_id: null,
+        name: fields.name.trim(),
+        category: fields.category.trim() || null,
+        source: fields.source.trim() || null,
+        location: fields.location.trim(),
+        quantity: fields.quantity,
+        reserve_min: fields.reserve_min,
+        status: fields.status,
+        start_date: fields.start_date || null,
+        end_date: fields.end_date || null,
+        updated_by: updatedBy,
+        created_at: now,
+      };
 
-      await writeAuditLog({
-        orgId: profile.org_id,
-        equipmentId: data.id,
-        userId,
-        actor: updatedBy,
-        action: 'create',
-      });
+      upsertEquipmentItem(localItem);
 
-      return data as EquipmentItem;
+      if (isOnline) {
+        const { data, error } = await supabase
+          .from(EQUIPMENT_TABLE)
+          .insert(localItem)
+          .select('*')
+          .single();
+
+        if (error) throw error;
+
+        // Overwrite local record with server's confirmed copy
+        upsertEquipmentItem(data as EquipmentItem);
+        await writeAuditLog({ orgId: profile.org_id, equipmentId: data.id, userId, actor: updatedBy, action: 'create', isOnline: true });
+        bumpLocalVersion();
+        return data as EquipmentItem;
+      } else {
+        enqueueOp({ table_name: EQUIPMENT_TABLE, operation: 'insert', payload: JSON.stringify(localItem) });
+        await writeAuditLog({ orgId: profile.org_id, equipmentId: newId, userId, actor: updatedBy, action: 'create', isOnline: false });
+        bumpLocalVersion();
+        return localItem;
+      }
     },
-    [profile, activeTeamId, userId, updatedBy]
+    [profile, activeTeamId, userId, updatedBy, isOnline, bumpLocalVersion]
   );
+
+  // ─── updateItem ───────────────────────────────────────────────────────────
 
   const updateItem = useCallback(
     async (id: string, fields: Partial<ItemFields>): Promise<EquipmentItem> => {
       if (!profile?.org_id) throw new Error('Not authenticated');
 
-      // Build patch — omit keys not present in fields so we don't
-      // accidentally wipe columns not shown on the form
+      // Build patch — only include provided fields
       const patch: Record<string, unknown> = { updated_by: updatedBy };
-
       if (fields.name !== undefined) patch.name = fields.name.trim();
       if (fields.category !== undefined) patch.category = fields.category.trim() || null;
       if (fields.source !== undefined) patch.source = fields.source.trim() || null;
@@ -114,76 +152,94 @@ export function useEquipmentMutations(): UseMutationsReturn {
       if (fields.start_date !== undefined) patch.start_date = fields.start_date || null;
       if (fields.end_date !== undefined) patch.end_date = fields.end_date || null;
 
-      const { data, error } = await supabase
-        .from(EQUIPMENT_TABLE)
-        .update(patch)
-        .eq('id', id)
-        .select('*')
-        .single();
+      if (isOnline) {
+        const { data, error } = await supabase
+          .from(EQUIPMENT_TABLE)
+          .update(patch)
+          .eq('id', id)
+          .select('*')
+          .single();
 
-      if (error) throw error;
+        if (error) throw error;
 
-      await writeAuditLog({
-        orgId: profile.org_id,
-        equipmentId: id,
-        userId,
-        actor: updatedBy,
-        action: 'edit',
-      });
+        upsertEquipmentItem(data as EquipmentItem);
+        await writeAuditLog({ orgId: profile.org_id, equipmentId: id, userId, actor: updatedBy, action: 'edit', isOnline: true });
+        bumpLocalVersion();
+        return data as EquipmentItem;
+      } else {
+        // Apply patch to local SQLite record
+        const existing = getEquipmentByTeam(profile.org_id, activeTeamId ?? '').find(
+          (i) => i.id === id
+        );
+        if (existing) {
+          upsertEquipmentItem({ ...existing, ...(patch as Partial<EquipmentItem>) });
+        }
 
-      return data as EquipmentItem;
+        enqueueOp({ table_name: EQUIPMENT_TABLE, operation: 'update', payload: JSON.stringify({ id, patch }) });
+        await writeAuditLog({ orgId: profile.org_id, equipmentId: id, userId, actor: updatedBy, action: 'edit', isOnline: false });
+        bumpLocalVersion();
+        return { ...(existing ?? {}), ...(patch as Partial<EquipmentItem>), id } as EquipmentItem;
+      }
     },
-    [profile, userId, updatedBy]
+    [profile, activeTeamId, userId, updatedBy, isOnline, bumpLocalVersion]
   );
+
+  // ─── deleteItem ───────────────────────────────────────────────────────────
 
   const deleteItem = useCallback(
     async (id: string): Promise<void> => {
       if (!profile?.org_id) throw new Error('Not authenticated');
 
-      // Write audit before delete so the equipment_id still exists
-      await writeAuditLog({
-        orgId: profile.org_id,
-        equipmentId: id,
-        userId,
-        actor: updatedBy,
-        action: 'delete',
-      });
+      // Audit before delete so the equipment_id still exists server-side
+      await writeAuditLog({ orgId: profile.org_id, equipmentId: id, userId, actor: updatedBy, action: 'delete', isOnline });
 
-      const { error } = await supabase
-        .from(EQUIPMENT_TABLE)
-        .delete()
-        .eq('id', id);
+      deleteEquipmentItemLocal(id);
 
-      if (error) throw error;
+      if (isOnline) {
+        const { error } = await supabase.from(EQUIPMENT_TABLE).delete().eq('id', id);
+        if (error) throw error;
+      } else {
+        enqueueOp({ table_name: EQUIPMENT_TABLE, operation: 'delete', payload: JSON.stringify({ id }) });
+      }
+
+      bumpLocalVersion();
     },
-    [profile, userId]
+    [profile, userId, updatedBy, isOnline, bumpLocalVersion]
   );
+
+  // ─── reportDamage ─────────────────────────────────────────────────────────
 
   const reportDamage = useCallback(
     async (item: EquipmentItem, notes: string): Promise<EquipmentItem> => {
       if (!profile?.org_id) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
-        .from(EQUIPMENT_TABLE)
-        .update({ status: 'Damaged', updated_by: updatedBy })
-        .eq('id', item.id)
-        .select('*')
-        .single();
+      const patch = { status: 'Damaged', updated_by: updatedBy };
+      const updated: EquipmentItem = { ...item, ...patch };
 
-      if (error) throw error;
+      upsertEquipmentItem(updated);
 
-      await writeAuditLog({
-        orgId: profile.org_id,
-        equipmentId: item.id,
-        userId,
-        actor: updatedBy,
-        action: 'damage',
-        notes: notes.trim() || undefined,
-      });
+      if (isOnline) {
+        const { data, error } = await supabase
+          .from(EQUIPMENT_TABLE)
+          .update(patch)
+          .eq('id', item.id)
+          .select('*')
+          .single();
 
-      return data as EquipmentItem;
+        if (error) throw error;
+
+        upsertEquipmentItem(data as EquipmentItem);
+        await writeAuditLog({ orgId: profile.org_id, equipmentId: item.id, userId, actor: updatedBy, action: 'damage', notes: notes.trim() || undefined, isOnline: true });
+        bumpLocalVersion();
+        return data as EquipmentItem;
+      } else {
+        enqueueOp({ table_name: EQUIPMENT_TABLE, operation: 'update', payload: JSON.stringify({ id: item.id, patch }) });
+        await writeAuditLog({ orgId: profile.org_id, equipmentId: item.id, userId, actor: updatedBy, action: 'damage', notes: notes.trim() || undefined, isOnline: false });
+        bumpLocalVersion();
+        return updated;
+      }
     },
-    [profile, userId, updatedBy]
+    [profile, userId, updatedBy, isOnline, bumpLocalVersion]
   );
 
   return { addItem, updateItem, deleteItem, reportDamage };

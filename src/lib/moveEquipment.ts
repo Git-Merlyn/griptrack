@@ -1,8 +1,9 @@
 /**
  * Move logic — mirrors the web app's moveEquipment + equipmentMoveUtils.
  *
- * Audit log entries now store user_id (UUID) rather than a name string,
- * so department heads can see exactly who moved what and when.
+ * Offline support: all SQLite writes happen immediately. When isOnline is
+ * true, Supabase writes happen in the same call. When offline, the equivalent
+ * operations are added to the sync_queue for replay on reconnect.
  *
  * Rules:
  * - Moving ALL qty + matching row at destination → merge + delete source
@@ -12,10 +13,18 @@
 
 import { supabase } from './supabase';
 import { EquipmentItem } from './types';
+import {
+  upsertEquipmentItem,
+  deleteEquipmentItemLocal,
+  enqueueOp,
+  generateId,
+} from './db';
 
+const EQUIPMENT_TABLE = 'equipment_items';
 const AUDIT_TABLE = process.env.EXPO_PUBLIC_EQUIPMENT_AUDIT_TABLE ?? 'equipment_audit';
 
-// Two rows are mergeable if they represent the same physical item type
+// ─── Merge detection ──────────────────────────────────────────────────────────
+
 function isMergeable(a: EquipmentItem, b: EquipmentItem): boolean {
   return (
     String(a.item_id ?? '') === String(b.item_id ?? '') &&
@@ -39,45 +48,57 @@ function findMergeDestination(
   );
 }
 
+// ─── Audit log helper ─────────────────────────────────────────────────────────
+
 async function writeAuditLog(params: {
   orgId: string;
   equipmentId: string;
-  userId: string;      // UUID — for programmatic use
-  actor: string;       // display name / email — shown in log UI
+  userId: string;
+  actor: string;
   fromLocation: string;
   toLocation: string;
   deltaQty: number;
   action: 'move' | 'merge';
   mergedFromId?: string;
-}) {
-  try {
-    await supabase.from(AUDIT_TABLE).insert({
-      org_id: params.orgId,
-      equipment_id: params.equipmentId,
-      action: params.action,
-      user_id: params.userId,
-      actor: params.actor,
-      from_location: params.fromLocation,
-      to_location: params.toLocation,
-      delta_qty: params.deltaQty,
-      meta: params.mergedFromId ? { merged_from_id: params.mergedFromId } : null,
-    });
-  } catch (e) {
-    // Audit must never block a move
-    console.warn('Failed to write audit event', e);
+  isOnline: boolean;
+}): Promise<void> {
+  const payload = {
+    org_id: params.orgId,
+    equipment_id: params.equipmentId,
+    action: params.action,
+    user_id: params.userId,
+    actor: params.actor,
+    from_location: params.fromLocation,
+    to_location: params.toLocation,
+    delta_qty: params.deltaQty,
+    meta: params.mergedFromId ? { merged_from_id: params.mergedFromId } : null,
+  };
+
+  if (params.isOnline) {
+    try {
+      await supabase.from(AUDIT_TABLE).insert(payload);
+    } catch (e) {
+      // Audit must never block a move
+      console.warn('Failed to write audit event', e);
+    }
+  } else {
+    enqueueOp({ table_name: 'audit', operation: 'insert', payload: JSON.stringify(payload) });
   }
 }
 
-interface MoveParams {
+// ─── Public interface ─────────────────────────────────────────────────────────
+
+export interface MoveParams {
   sourceItem: EquipmentItem;
   moveQty: number;
   toLocation: string;
   allItems: EquipmentItem[];
-  userId: string;      // UUID of the acting user
-  updatedBy: string;   // display name / email — stored on equipment_items and audit log
+  userId: string;       // UUID of the acting user
+  updatedBy: string;    // display name / email — stored on equipment_items + audit log
+  isOnline: boolean;
 }
 
-interface MoveResult {
+export interface MoveResult {
   success: boolean;
   error?: string;
 }
@@ -89,6 +110,7 @@ export async function moveEquipment({
   allItems,
   userId,
   updatedBy,
+  isOnline,
 }: MoveParams): Promise<MoveResult> {
   const currentQty = Number(sourceItem.quantity) || 0;
   const qty = Math.min(moveQty, currentQty);
@@ -103,110 +125,149 @@ export async function moveEquipment({
   const movingAll = qty === currentQty;
 
   try {
-    if (movingAll) {
-      if (dest) {
-        // Merge: add to destination, delete source
+    if (movingAll && dest) {
+      // ── Full move with merge: add to destination, delete source ──────────
+      const newDestQty = (Number(dest.quantity) || 0) + qty;
+
+      upsertEquipmentItem({ ...dest, quantity: newDestQty, updated_by: updatedBy });
+      deleteEquipmentItemLocal(sourceItem.id);
+
+      if (isOnline) {
         const { error: updateErr } = await supabase
-          .from('equipment_items')
-          .update({ quantity: (Number(dest.quantity) || 0) + qty, updated_by: updatedBy })
+          .from(EQUIPMENT_TABLE)
+          .update({ quantity: newDestQty, updated_by: updatedBy })
           .eq('id', dest.id);
         if (updateErr) throw updateErr;
 
         const { error: deleteErr } = await supabase
-          .from('equipment_items')
+          .from(EQUIPMENT_TABLE)
           .delete()
           .eq('id', sourceItem.id);
         if (deleteErr) throw deleteErr;
-
-        await writeAuditLog({
-          orgId: sourceItem.org_id,
-          equipmentId: dest.id,
-          userId,
-          actor: updatedBy,
-          fromLocation: sourceItem.location,
-          toLocation,
-          deltaQty: qty,
-          action: 'merge',
-          mergedFromId: sourceItem.id,
-        });
       } else {
-        // Just update location
+        enqueueOp({ table_name: EQUIPMENT_TABLE, operation: 'update', payload: JSON.stringify({ id: dest.id, patch: { quantity: newDestQty, updated_by: updatedBy } }) });
+        enqueueOp({ table_name: EQUIPMENT_TABLE, operation: 'delete', payload: JSON.stringify({ id: sourceItem.id }) });
+      }
+
+      await writeAuditLog({
+        orgId: sourceItem.org_id,
+        equipmentId: dest.id,
+        userId,
+        actor: updatedBy,
+        fromLocation: sourceItem.location,
+        toLocation,
+        deltaQty: qty,
+        action: 'merge',
+        mergedFromId: sourceItem.id,
+        isOnline,
+      });
+
+    } else if (movingAll && !dest) {
+      // ── Full move, no merge: just update location ─────────────────────────
+      upsertEquipmentItem({ ...sourceItem, location: toLocation, updated_by: updatedBy });
+
+      if (isOnline) {
         const { error } = await supabase
-          .from('equipment_items')
+          .from(EQUIPMENT_TABLE)
           .update({ location: toLocation, updated_by: updatedBy })
           .eq('id', sourceItem.id);
         if (error) throw error;
-
-        await writeAuditLog({
-          orgId: sourceItem.org_id,
-          equipmentId: sourceItem.id,
-          userId,
-          actor: updatedBy,
-          fromLocation: sourceItem.location,
-          toLocation,
-          deltaQty: qty,
-          action: 'move',
-        });
+      } else {
+        enqueueOp({ table_name: EQUIPMENT_TABLE, operation: 'update', payload: JSON.stringify({ id: sourceItem.id, patch: { location: toLocation, updated_by: updatedBy } }) });
       }
-    } else {
-      // Partial move — decrement source
-      const { error: srcErr } = await supabase
-        .from('equipment_items')
-        .update({ quantity: currentQty - qty, updated_by: updatedBy })
-        .eq('id', sourceItem.id);
-      if (srcErr) throw srcErr;
 
-      if (dest) {
-        // Merge partial into existing destination row
+      await writeAuditLog({
+        orgId: sourceItem.org_id,
+        equipmentId: sourceItem.id,
+        userId,
+        actor: updatedBy,
+        fromLocation: sourceItem.location,
+        toLocation,
+        deltaQty: qty,
+        action: 'move',
+        isOnline,
+      });
+
+    } else if (dest) {
+      // ── Partial move with merge ───────────────────────────────────────────
+      const newSourceQty = currentQty - qty;
+      const newDestQty = (Number(dest.quantity) || 0) + qty;
+
+      upsertEquipmentItem({ ...sourceItem, quantity: newSourceQty, updated_by: updatedBy });
+      upsertEquipmentItem({ ...dest, quantity: newDestQty, updated_by: updatedBy });
+
+      if (isOnline) {
+        const { error: srcErr } = await supabase
+          .from(EQUIPMENT_TABLE)
+          .update({ quantity: newSourceQty, updated_by: updatedBy })
+          .eq('id', sourceItem.id);
+        if (srcErr) throw srcErr;
+
         const { error: destErr } = await supabase
-          .from('equipment_items')
-          .update({ quantity: (Number(dest.quantity) || 0) + qty, updated_by: updatedBy })
+          .from(EQUIPMENT_TABLE)
+          .update({ quantity: newDestQty, updated_by: updatedBy })
           .eq('id', dest.id);
         if (destErr) throw destErr;
-
-        await writeAuditLog({
-          orgId: sourceItem.org_id,
-          equipmentId: dest.id,
-          userId,
-          actor: updatedBy,
-          fromLocation: sourceItem.location,
-          toLocation,
-          deltaQty: qty,
-          action: 'merge',
-          mergedFromId: sourceItem.id,
-        });
       } else {
-        // Insert new row at destination
-        const { error: insertErr } = await supabase
-          .from('equipment_items')
-          .insert({
-            org_id: sourceItem.org_id,
-            team_id: sourceItem.team_id,
-            item_id: sourceItem.item_id,
-            name: sourceItem.name,
-            category: sourceItem.category,
-            source: sourceItem.source,
-            quantity: qty,
-            reserve_min: sourceItem.reserve_min,
-            location: toLocation,
-            status: sourceItem.status,
-            start_date: sourceItem.start_date,
-            end_date: sourceItem.end_date,
-            updated_by: updatedBy,
-          });
-        if (insertErr) throw insertErr;
-
-        await writeAuditLog({
-          orgId: sourceItem.org_id,
-          equipmentId: sourceItem.id,
-          userId,
-          actor: updatedBy,
-          fromLocation: sourceItem.location,
-          toLocation,
-          deltaQty: qty,
-          action: 'move',
-        });
+        enqueueOp({ table_name: EQUIPMENT_TABLE, operation: 'update', payload: JSON.stringify({ id: sourceItem.id, patch: { quantity: newSourceQty, updated_by: updatedBy } }) });
+        enqueueOp({ table_name: EQUIPMENT_TABLE, operation: 'update', payload: JSON.stringify({ id: dest.id, patch: { quantity: newDestQty, updated_by: updatedBy } }) });
       }
+
+      await writeAuditLog({
+        orgId: sourceItem.org_id,
+        equipmentId: dest.id,
+        userId,
+        actor: updatedBy,
+        fromLocation: sourceItem.location,
+        toLocation,
+        deltaQty: qty,
+        action: 'merge',
+        mergedFromId: sourceItem.id,
+        isOnline,
+      });
+
+    } else {
+      // ── Partial move, no merge: decrement source + insert at destination ──
+      const newSourceQty = currentQty - qty;
+      const newItem: EquipmentItem = {
+        ...sourceItem,
+        id: generateId(),
+        location: toLocation,
+        quantity: qty,
+        updated_by: updatedBy,
+        created_at: new Date().toISOString(),
+      };
+
+      upsertEquipmentItem({ ...sourceItem, quantity: newSourceQty, updated_by: updatedBy });
+      upsertEquipmentItem(newItem);
+
+      if (isOnline) {
+        const { error: srcErr } = await supabase
+          .from(EQUIPMENT_TABLE)
+          .update({ quantity: newSourceQty, updated_by: updatedBy })
+          .eq('id', sourceItem.id);
+        if (srcErr) throw srcErr;
+
+        const { error: insertErr } = await supabase
+          .from(EQUIPMENT_TABLE)
+          .insert(newItem);
+        if (insertErr) throw insertErr;
+      } else {
+        enqueueOp({ table_name: EQUIPMENT_TABLE, operation: 'update', payload: JSON.stringify({ id: sourceItem.id, patch: { quantity: newSourceQty, updated_by: updatedBy } }) });
+        enqueueOp({ table_name: EQUIPMENT_TABLE, operation: 'insert', payload: JSON.stringify(newItem) });
+      }
+
+      await writeAuditLog({
+        orgId: sourceItem.org_id,
+        equipmentId: sourceItem.id,
+        userId,
+        actor: updatedBy,
+        fromLocation: sourceItem.location,
+        toLocation,
+        deltaQty: qty,
+        action: 'move',
+        isOnline,
+      });
     }
 
     return { success: true };

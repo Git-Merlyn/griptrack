@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { supabase } from '../lib/supabase';
 import { EquipmentItem } from '../lib/types';
+import { getEquipmentByTeam } from '../lib/db';
 import { useAuthContext } from '../context/AuthContext';
 import { useTeamContext } from '../context/TeamContext';
+import { useSyncContext } from '../context/SyncContext';
 
 interface UseInventoryReturn {
   equipment: EquipmentItem[];
@@ -17,44 +18,43 @@ interface UseInventoryReturn {
 export function useInventory(): UseInventoryReturn {
   const { profile } = useAuthContext();
   const { activeTeamId } = useTeamContext();
+  const { localVersion, triggerSync, isSyncing } = useSyncContext();
 
   const [equipment, setEquipment] = useState<EquipmentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const fetchEquipment = useCallback(async () => {
-    if (!profile?.org_id || !activeTeamId) return;
-    setLoading(true);
-    setError(null);
-
+  // Read from SQLite — fast and works offline
+  const loadFromDB = useCallback(() => {
+    if (!profile?.org_id || !activeTeamId) {
+      setEquipment([]);
+      setLoading(false);
+      return;
+    }
     try {
-      const { data, error } = await supabase
-        .from('equipment_items')
-        .select('*')
-        .eq('org_id', profile.org_id)
-        .eq('team_id', activeTeamId)   // scoped to active team (always set)
-        .order('name', { ascending: true });
-
-      if (error) throw error;
-
-      // Filter out any placeholder rows
-      const rows = (data ?? []).filter(
-        (item) => item.name && item.name !== '__placeholder__'
-      ) as EquipmentItem[];
-
-      setEquipment(rows);
-    } catch (err: any) {
-      console.error('Failed to load equipment', err);
-      setError(err?.message ?? 'Failed to load inventory');
+      const items = getEquipmentByTeam(profile.org_id, activeTeamId);
+      setEquipment(items);
+      setError(null);
+    } catch (e: any) {
+      console.error('[useInventory] SQLite read failed', e);
+      setError(e?.message ?? 'Failed to load inventory');
     } finally {
       setLoading(false);
     }
   }, [profile?.org_id, activeTeamId]);
 
+  // Re-read whenever the local DB changes (mutation or sync completed)
   useEffect(() => {
-    fetchEquipment();
-  }, [fetchEquipment]);
+    loadFromDB();
+  }, [loadFromDB, localVersion]);
+
+  // Show loading state while initial sync is in progress and DB is empty
+  useEffect(() => {
+    if (isSyncing && equipment.length === 0) {
+      setLoading(true);
+    }
+  }, [isSyncing, equipment.length]);
 
   // Client-side search: name, category, location
   const filteredEquipment = useMemo(() => {
@@ -68,6 +68,11 @@ export function useInventory(): UseInventoryReturn {
     );
   }, [equipment, searchQuery]);
 
+  // Manual refresh triggers a full Supabase sync
+  const refresh = useCallback(async () => {
+    await triggerSync();
+  }, [triggerSync]);
+
   return {
     equipment,
     filteredEquipment,
@@ -75,6 +80,6 @@ export function useInventory(): UseInventoryReturn {
     error,
     searchQuery,
     setSearchQuery,
-    refresh: fetchEquipment,
+    refresh,
   };
 }

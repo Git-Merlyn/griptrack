@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
 import { Location } from '../lib/types';
+import { getLocationsByOrg } from '../lib/db';
 import { useAuthContext } from '../context/AuthContext';
+import { useSyncContext } from '../context/SyncContext';
 
 interface UseLocationsReturn {
   locations: Location[];
@@ -11,32 +12,25 @@ interface UseLocationsReturn {
 
 export function useLocations(): UseLocationsReturn {
   const { profile } = useAuthContext();
+  const { localVersion } = useSyncContext();
   const [locations, setLocations] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchLocations = useCallback(async () => {
+  const loadFromDB = useCallback(() => {
     if (!profile?.org_id) return;
-    setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('locations')
-        .select('id, org_id, name, is_active')
-        .eq('org_id', profile.org_id)
-        .eq('is_active', true)
-        .order('name', { ascending: true });
-
-      if (error) throw error;
-      setLocations((data ?? []) as Location[]);
-    } catch (err) {
-      console.error('Failed to load locations', err);
+      const locs = getLocationsByOrg(profile.org_id);
+      setLocations(locs);
+    } catch (e) {
+      console.error('[useLocations] SQLite read failed', e);
     } finally {
       setLoading(false);
     }
   }, [profile?.org_id]);
 
   useEffect(() => {
-    fetchLocations();
-  }, [fetchLocations]);
+    loadFromDB();
+  }, [loadFromDB, localVersion]);
 
   const locationNames = locations.map((l) => l.name);
 
