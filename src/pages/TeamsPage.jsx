@@ -89,14 +89,31 @@ function TeamMemberList({ teamId }) {
     if (!teamId) return;
     setLoading(true);
 
-    supabase
-      .from("organization_members")
-      .select("user_id, role, profiles(full_name, email)")
-      .eq("team_id", teamId)
-      .then(({ data, error }) => {
-        if (!error) setMembers(data ?? []);
+    const load = async () => {
+      const { data: rows, error } = await supabase
+        .from("organization_members")
+        .select("user_id, role")
+        .eq("team_id", teamId);
+
+      if (error || !rows?.length) {
+        setMembers([]);
         setLoading(false);
-      });
+        return;
+      }
+
+      // Fetch profiles separately — PostgREST can't auto-join through auth.users
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, email")
+        .in("id", rows.map((r) => r.user_id));
+
+      const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
+
+      setMembers(rows.map((r) => ({ ...r, profile: profileMap.get(r.user_id) ?? null })));
+      setLoading(false);
+    };
+
+    load();
   }, [teamId]);
 
   if (loading) return <p className="text-xs text-gray-500 mt-2">Loading members…</p>;
@@ -105,7 +122,7 @@ function TeamMemberList({ teamId }) {
   return (
     <div className="mt-2 flex flex-col gap-1">
       {members.map((m) => {
-        const name = m.profiles?.full_name || m.profiles?.email || m.user_id;
+        const name = m.profile?.full_name || m.profile?.email || m.user_id;
         const roleBadge =
           m.role === "department_head"
             ? "Dept Head"
