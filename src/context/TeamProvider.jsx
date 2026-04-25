@@ -6,7 +6,7 @@ import { supabase } from "../lib/supabaseClient";
 const lsKey = (orgId) => `gt_active_team_${orgId}`;
 
 export const TeamProvider = ({ children }) => {
-  const { orgId, teamId: assignedTeamId, canSwitchTeams } = useContext(UserContext) || {};
+  const { orgId, teamId: assignedTeamId, canSwitchTeams, devRoleOverride } = useContext(UserContext) || {};
 
   const [teams, setTeams] = useState([]);
   const [loadingTeams, setLoadingTeams] = useState(true);
@@ -15,16 +15,19 @@ export const TeamProvider = ({ children }) => {
   // Hydrate active team from localStorage once orgId is known.
   // Coordinators (admin/owner) remember their last-used team across sessions.
   // Crew and department heads are always locked to their assigned team.
+  // Exception: in dev mode with a role override active, always use localStorage
+  // so the tester account (which has no assigned team) can still see inventory.
   useEffect(() => {
     if (!orgId) return;
-    if (!canSwitchTeams) {
+    const isDevOverride = import.meta.env.DEV && !!devRoleOverride;
+    if (!canSwitchTeams && !isDevOverride) {
       // Lock non-admin users to their assigned team — ignore any stored preference
       setActiveTeamIdState(assignedTeamId ?? null);
       return;
     }
     const stored = localStorage.getItem(lsKey(orgId));
     setActiveTeamIdState(stored || null);
-  }, [orgId, canSwitchTeams, assignedTeamId]);
+  }, [orgId, canSwitchTeams, assignedTeamId, devRoleOverride]);
 
   const setActiveTeamId = (id) => {
     // Crew/dept_head cannot switch teams — silently ignore

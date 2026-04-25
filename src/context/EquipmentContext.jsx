@@ -20,7 +20,7 @@ const AUDIT_TABLE =
 const EquipmentContext = createContext();
 
 export const EquipmentProvider = ({ children }) => {
-  const { orgId, loadingOrg, role, teamId: assignedTeamId } = useContext(UserContext) || {};
+  const { orgId, loadingOrg, role, teamId: assignedTeamId, devRoleOverride } = useContext(UserContext) || {};
 
   // Read active team for scoping equipment queries
   const { activeTeamId } = useContext(TeamContext) || {};
@@ -36,7 +36,11 @@ export const EquipmentProvider = ({ children }) => {
   // The effective team scope for queries:
   // - crew/dept_head: locked to their assigned team (from organization_members)
   // - admin/owner: use the actively selected team, or null (meaning see all)
-  const effectiveTeamId = isCoordinator ? activeTeamId : (assignedTeamId ?? null);
+  // Dev override: when testing as crew/dept_head from an admin account that has
+  // no assignedTeamId, fall back to activeTeamId so inventory still loads.
+  const effectiveTeamId = isCoordinator
+    ? activeTeamId
+    : (assignedTeamId ?? (import.meta.env.DEV && devRoleOverride ? activeTeamId : null));
 
   const [equipmentData, setEquipmentData] = useState([]);
   // True while the initial equipment fetch is in-flight (or when the active team
