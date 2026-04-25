@@ -10,6 +10,7 @@ interface UseAuthReturn {
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   sendPasswordReset: (email: string) => Promise<{ error: string | null }>;
+  updateFullName: (name: string) => Promise<{ error: string | null }>;
 }
 
 export function useAuth(): UseAuthReturn {
@@ -40,15 +41,30 @@ export function useAuth(): UseAuthReturn {
   async function loadProfile(userId: string) {
     setLoading(true);
     try {
-      // First fetch without team_id in case the schema migration hasn't run yet
+      // Fetch org membership (try with team_id first, fall back if column missing)
       const { data: member, error: memberError } = await supabase
         .from('organization_members')
         .select('org_id, role, team_id')
         .eq('user_id', userId)
         .single();
 
+      const { data: { user } } = await supabase.auth.getUser();
+
+      // Fetch display name from the profiles table (same source the web app uses).
+      // Fall back to user_metadata if the profiles table query fails.
+      const { data: profileRow } = await supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('id', userId)
+        .maybeSingle();
+
+      const fullName =
+        profileRow?.full_name?.trim() ||
+        user?.user_metadata?.full_name?.trim() ||
+        null;
+
       if (memberError || !member) {
-        // If team_id column doesn't exist yet, fall back to org_id + role only
+        // Fallback: org_id + role without team_id (schema migration not yet run)
         const { data: fallback, error: fallbackError } = await supabase
           .from('organization_members')
           .select('org_id, role')
@@ -61,23 +77,21 @@ export function useAuth(): UseAuthReturn {
           return;
         }
 
-        const { data: { user } } = await supabase.auth.getUser();
         setProfile({
           id: userId,
           email: user?.email ?? '',
-          full_name: user?.user_metadata?.full_name ?? null,
+          full_name: fullName,
           org_id: fallback.org_id,
-          team_id: null, // schema not migrated yet
+          team_id: null,
           role: fallback.role as Role,
         });
         return;
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
       setProfile({
         id: userId,
         email: user?.email ?? '',
-        full_name: user?.user_metadata?.full_name ?? null,
+        full_name: fullName,
         org_id: member.org_id,
         team_id: member.team_id ?? null,
         role: member.role as Role,
@@ -85,6 +99,26 @@ export function useAuth(): UseAuthReturn {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function updateFullName(name: string): Promise<{ error: string | null }> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'Not authenticated' };
+
+    const trimmed = name.trim();
+    if (!trimmed) return { error: 'Name cannot be empty' };
+
+    const { error } = await supabase.from('profiles').upsert({
+      id: user.id,
+      email: user.email ?? '',
+      full_name: trimmed,
+    });
+
+    if (error) return { error: error.message };
+
+    // Update local profile state immediately
+    setProfile((prev) => prev ? { ...prev, full_name: trimmed } : prev);
+    return { error: null };
   }
 
   async function signIn(email: string, password: string) {
@@ -101,5 +135,5 @@ export function useAuth(): UseAuthReturn {
     return { error: error?.message ?? null };
   }
 
-  return { session, profile, loading, signIn, signOut, sendPasswordReset };
+  return { session, profile, loading, signIn, signOut, sendPasswordReset, updateFullName };
 }

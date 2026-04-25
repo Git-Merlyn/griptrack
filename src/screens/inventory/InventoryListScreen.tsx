@@ -58,6 +58,8 @@ export default function InventoryListScreen({ navigation }: Props) {
 
   useLayoutEffect(() => {
     navigation.setOptions({
+      // Only admin/owner get an interactive team switcher in the header.
+      // Crew and dept_head are always locked to their team — no header clutter.
       headerRight: () =>
         canSwitch ? (
           <TouchableOpacity
@@ -71,14 +73,7 @@ export default function InventoryListScreen({ navigation }: Props) {
             </Text>
             <Ionicons name="chevron-down" size={14} color="#4debf9" />
           </TouchableOpacity>
-        ) : (
-          <View className="flex-row items-center gap-1.5 mr-1">
-            <Ionicons name="people-outline" size={16} color="#6b7280" />
-            <Text className="text-text text-sm" numberOfLines={1}>
-              {activeTeam?.name ?? ''}
-            </Text>
-          </View>
-        ),
+        ) : undefined,
     });
   }, [navigation, activeTeam, canSwitch]);
 
