@@ -29,6 +29,11 @@ const UserContext = createContext({
 
   // Trial
   trialEndsAt: null,    // ISO string from organizations.trial_ends_at
+
+  // Dev-only: override the real role for testing permission levels.
+  // Always null in production (the setter is a no-op outside of DEV mode).
+  devRoleOverride: null,
+  setDevRoleOverride: () => {},
 });
 
 export default UserContext;

@@ -18,6 +18,13 @@ const UserProvider = ({ children }) => {
   // Team assignment (from organization_members.team_id)
   const [teamId, setTeamId] = useState(null);
 
+  // Dev-only role override — lets the DevPanel simulate any permission level.
+  // The setter is a no-op in production so this never affects real users.
+  const [devRoleOverride, setDevRoleOverrideState] = useState(null);
+  const setDevRoleOverride = import.meta.env.DEV
+    ? (r) => setDevRoleOverrideState(r || null)
+    : () => {};
+
   // Subscription context
   const [subscription, setSubscription] = useState(null);
   const [loadingSubscription, setLoadingSubscription] = useState(false);
@@ -225,9 +232,11 @@ const UserProvider = ({ children }) => {
     };
   }, []);
 
-  // Role helpers — derived from role string
-  const isDepartmentHead = role === "department_head";
-  const isCoordinator = role === "admin" || role === "owner";
+  // Role helpers — derived from role string.
+  // In dev mode, devRoleOverride takes precedence so the DevPanel can simulate any role.
+  const effectiveRole = (import.meta.env.DEV && devRoleOverride) ? devRoleOverride : role;
+  const isDepartmentHead = effectiveRole === "department_head";
+  const isCoordinator = effectiveRole === "admin" || effectiveRole === "owner";
   // admin/owner can browse any team; crew/dept_head are locked to their assigned team
   const canSwitchTeams = isCoordinator;
 
@@ -245,7 +254,7 @@ const UserProvider = ({ children }) => {
       authUser,
       logout,
       orgId,
-      role,
+      role: effectiveRole,   // components always see the effective role (real or dev override)
       orgName,
       needsOrgSetup,
       profile,
@@ -262,11 +271,14 @@ const UserProvider = ({ children }) => {
       loadingSubscription,
       trialEndsAt,
       refreshSubscription: () => loadSubscription(orgId),
+      // Dev only
+      devRoleOverride,
+      setDevRoleOverride,
     }),
     [
       authUser,
       orgId,
-      role,
+      effectiveRole,
       orgName,
       needsOrgSetup,
       profile,
@@ -280,6 +292,7 @@ const UserProvider = ({ children }) => {
       plan,
       loadingSubscription,
       trialEndsAt,
+      devRoleOverride,
     ],
   );
 

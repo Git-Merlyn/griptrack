@@ -8,6 +8,11 @@ import { EquipmentProvider } from "./context/EquipmentContext";
 import App from "./App";
 import "./index.css";
 
+// Dev-only: permission testing panel.
+// import.meta.env.DEV is replaced with `false` at build time so Vite's
+// tree-shaker removes this import and the component entirely from production.
+import DevPanel from "./components/DevPanel.jsx";
+
 // Provider order matters:
 //   UserProvider     — auth, org, role, assigned teamId
 //   TeamProvider     — active team selection (reads UserContext)
@@ -19,6 +24,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <TeamProvider>
           <EquipmentProvider>
             <App />
+            {import.meta.env.DEV && <DevPanel />}
           </EquipmentProvider>
         </TeamProvider>
       </UserProvider>
