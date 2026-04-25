@@ -2,7 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Theme tokens — comma-separated RGB channels so rgba() opacity modifiers work */
+/*
+ * Theme tokens — comma-separated RGB channels so rgba() opacity modifiers work.
+ * e.g. bg-accent/20 → rgba(var(--color-accent), 0.2)
+ *
+ * Dark mode is the default. Light mode is activated by adding the `.light`
+ * class to <html> (see useTheme hook + flash-prevention script in index.html).
+ */
 :root {
   --color-background: 15, 17, 23;
   --color-surface:    26, 29, 35;
