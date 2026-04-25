@@ -7,7 +7,7 @@ import { InventoryStackParamList, EquipmentItem, canManageInventory, isOrgAdmin 
 import { useAuthContext } from '../../context/AuthContext';
 import { useEquipmentMutations } from '../../hooks/useEquipmentMutations';
 import DamageReportModal from '../../components/DamageReportModal';
-import { statusColor, getQty, qtyColor, formatDate } from '../../lib/helpers';
+import { statusColor, getQty, qtyColor, formatDate, formatDateTime } from '../../lib/helpers';
 
 type Props = NativeStackScreenProps<InventoryStackParamList, 'ItemDetail'>;
 
@@ -120,8 +120,8 @@ export default function ItemDetailScreen({ route, navigation }: Props) {
           <Text className="text-slate-400 text-xs font-semibold uppercase tracking-widest mb-3">
             Record Info
           </Text>
-          <DetailRow label="Updated by" value={item.updated_by} />
-          <DetailRow label="Created" value={formatDate(item.created_at)} />
+          <DetailRow label="Last edited" value={item.updated_by} />
+          <DetailRow label="Added" value={formatDateTime(item.created_at)} />
         </View>
 
         {/* Action buttons — dept_head and above */}

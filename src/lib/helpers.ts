@@ -29,10 +29,19 @@ export function qtyColor(item: EquipmentItem): string {
   return '#f1f5f9'; // slate-100
 }
 
-// Format date string to readable "MMM D, YYYY"
+// Format a plain date string "YYYY-MM-DD" → "Jan 29, 2026"
 export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '—';
+  // Append time so Date doesn't interpret as UTC midnight and shift the day
   const d = new Date(`${dateStr}T00:00:00`);
   if (isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// Format a full ISO timestamp → "Jan 29, 2026"  (drops the time)
+export function formatDateTime(isoStr: string | null | undefined): string {
+  if (!isoStr) return '—';
+  const d = new Date(isoStr);
+  if (isNaN(d.getTime())) return isoStr;
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
