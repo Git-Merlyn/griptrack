@@ -11,18 +11,30 @@ import { supabase } from "@/lib/supabaseClient";
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 // Inline SVGs so we don't need an icon library.
+// `d` accepts: a string (single path), an array of strings, or an array that
+// mixes strings with { cx, cy, r } objects for circle elements.
 const Icon = ({ d, size = 18 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
        stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
     {Array.isArray(d)
-      ? d.map((path, i) => <path key={i} d={path} />)
+      ? d.map((item, i) =>
+          typeof item === "string"
+            ? <path key={i} d={item} />
+            : <circle key={i} cx={item.cx} cy={item.cy} r={item.r} />
+        )
       : <path d={d} />}
   </svg>
 );
 
 const Icons = {
   Dashboard: () => <Icon d={["M3 3h7v7H3z", "M14 3h7v7h-7z", "M14 14h7v7h-7z", "M3 14h7v7H3z"]} />,
-  Staff:     () => <Icon d={["M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2", "M23 21v-2a4 4 0 0 0-3-3.87", "M16 3.13a4 4 0 0 1 0 7.75"]} />,
+  // The "users" icon needs a <circle> for the foreground person's head
+  Staff:     () => <Icon d={[
+    "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2",
+    { cx: 9, cy: 7, r: 4 },
+    "M23 21v-2a4 4 0 0 0-3-3.87",
+    "M16 3.13a4 4 0 0 1 0 7.75",
+  ]} />,
   Locations: () => <Icon d={["M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z", "M12 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"]} />,
   Teams:     () => <Icon d={["M12 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10z", "M12 14c-7 0-9 3-9 5v1h18v-1c0-2-2-5-9-5z"]} />,
   Requests:  () => <Icon d={["M9 11l3 3L22 4", "M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"]} />,
@@ -43,7 +55,7 @@ function SettingsPanel({ collapsed, onClose }) {
   const isOwner = role === "owner";
 
   const [view, setView] = useState("menu"); // "menu" | "password"
-  const [pwState, setPwState] = useState({ current: "", next: "", confirm: "", busy: false, err: "", ok: false });
+  const [pwState, setPwState] = useState({ next: "", confirm: "", busy: false, err: "", ok: false });
 
   const handlePasswordSave = async (e) => {
     e.preventDefault();
@@ -60,51 +72,47 @@ function SettingsPanel({ collapsed, onClose }) {
     if (error) {
       setPwState((s) => ({ ...s, busy: false, err: error.message }));
     } else {
-      setPwState((s) => ({ ...s, busy: false, ok: true, current: "", next: "", confirm: "" }));
+      setPwState((s) => ({ ...s, busy: false, ok: true, next: "", confirm: "" }));
     }
   };
 
-  // Panel positioning: above the settings button, left-aligned
-  const panelClass = collapsed
-    ? "left-16 bottom-2"
-    : "left-2 bottom-14";
+  // Panel positioning: above the settings button, left-aligned with the sidebar
+  const panelClass = collapsed ? "left-16 bottom-2" : "left-2 bottom-14";
+
+  // Shared hover style that works in both dark and light mode
+  const menuItemClass = "flex items-center gap-2.5 px-4 py-2.5 hover:bg-text/10 transition text-text text-sm";
 
   return (
-    <div className={`fixed ${panelClass} z-50 w-72 bg-surface border border-gray-700 rounded-xl shadow-2xl`}>
+    <div className={`fixed ${panelClass} z-50 w-72 bg-surface border border-text/15 rounded-xl shadow-2xl`}>
       {view === "menu" ? (
         <div className="flex flex-col">
           {/* Profile header */}
-          <div className="px-4 py-3 border-b border-gray-700">
+          <div className="px-4 py-3 border-b border-text/10">
             <p className="text-text font-medium text-sm truncate">
               {profile?.full_name || "Your account"}
             </p>
-            <p className="text-gray-500 text-xs truncate">{profile?.email || ""}</p>
+            <p className="text-text/50 text-xs truncate">{profile?.email || ""}</p>
           </div>
 
-          {/* Menu items */}
           <div className="flex flex-col py-1">
             {/* Theme toggle */}
             <button
               type="button"
               onClick={toggleTheme}
-              className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-white/5 transition text-left"
+              className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-text/10 transition text-left"
             >
               <div className="flex items-center gap-2.5 text-text text-sm">
                 {isDark ? <Icons.Moon /> : <Icons.Sun />}
                 <span>{isDark ? "Dark mode" : "Light mode"}</span>
               </div>
-              {/* Toggle pill */}
-              <div className={`relative w-9 h-5 rounded-full transition-colors ${isDark ? "bg-accent/30" : "bg-gray-600"}`}>
-                <span className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${isDark ? "left-4 bg-accent" : "left-0.5 bg-gray-300"}`} />
+              {/* Toggle pill — accent when on, muted when off */}
+              <div className={`relative w-9 h-5 rounded-full transition-colors ${isDark ? "bg-accent/40" : "bg-text/20"}`}>
+                <span className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${isDark ? "left-4 bg-accent" : "left-0.5 bg-text/50"}`} />
               </div>
             </button>
 
             {/* Change password */}
-            <button
-              type="button"
-              onClick={() => setView("password")}
-              className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-white/5 transition text-text text-sm"
-            >
+            <button type="button" onClick={() => setView("password")} className={menuItemClass}>
               <Icons.Password />
               <span>Change password</span>
             </button>
@@ -114,14 +122,14 @@ function SettingsPanel({ collapsed, onClose }) {
               <button
                 type="button"
                 onClick={() => { navigate("/billing"); onClose(); }}
-                className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-white/5 transition text-text text-sm"
+                className={menuItemClass}
               >
                 <Icons.Billing />
                 <span>Billing &amp; plan</span>
               </button>
             )}
 
-            <div className="border-t border-gray-700 my-1" />
+            <div className="border-t border-text/10 my-1" />
 
             {/* Logout */}
             <button
@@ -137,8 +145,8 @@ function SettingsPanel({ collapsed, onClose }) {
       ) : (
         /* Change password form */
         <div className="flex flex-col">
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-700">
-            <button type="button" onClick={() => setView("menu")} className="text-gray-400 hover:text-text">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-text/10">
+            <button type="button" onClick={() => setView("menu")} className="text-text/50 hover:text-text transition">
               ←
             </button>
             <p className="text-text font-medium text-sm">Change password</p>
@@ -149,7 +157,7 @@ function SettingsPanel({ collapsed, onClose }) {
               placeholder="New password"
               value={pwState.next}
               onChange={(e) => setPwState((s) => ({ ...s, next: e.target.value, err: "", ok: false }))}
-              className="w-full px-3 py-2 rounded bg-white text-black text-sm"
+              className="w-full px-3 py-2 rounded bg-background text-text border border-text/15 text-sm placeholder:text-text/40 focus:outline-none focus:ring-2 focus:ring-accent/40"
               required
               minLength={8}
             />
@@ -158,16 +166,12 @@ function SettingsPanel({ collapsed, onClose }) {
               placeholder="Confirm new password"
               value={pwState.confirm}
               onChange={(e) => setPwState((s) => ({ ...s, confirm: e.target.value, err: "", ok: false }))}
-              className="w-full px-3 py-2 rounded bg-white text-black text-sm"
+              className="w-full px-3 py-2 rounded bg-background text-text border border-text/15 text-sm placeholder:text-text/40 focus:outline-none focus:ring-2 focus:ring-accent/40"
               required
             />
             {pwState.err && <p className="text-danger text-xs">{pwState.err}</p>}
             {pwState.ok  && <p className="text-success text-xs">Password updated!</p>}
-            <button
-              type="submit"
-              disabled={pwState.busy}
-              className={pwState.busy ? "btn-disabled" : "btn-accent"}
-            >
+            <button type="submit" disabled={pwState.busy} className={pwState.busy ? "btn-disabled" : "btn-accent"}>
               {pwState.busy ? "Saving…" : "Save password"}
             </button>
           </form>
@@ -218,11 +222,13 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
 
   const closeDrawer = () => setDrawerOpen(false);
 
+  // hover:bg-text/10 works in both modes: subtle dark tint in light, subtle
+  // light tint in dark — unlike hover:bg-white/5 which vanishes on light bg.
   const navLinkClass = (isActive, navCollapsed) =>
     `w-full flex items-center gap-3 ${navCollapsed ? "px-0 justify-center" : "px-4"} py-2.5 rounded-lg transition-colors ${
       isActive
         ? "bg-accent/15 text-accent font-semibold"
-        : "text-text/60 hover:text-text hover:bg-white/5"
+        : "text-text/60 hover:text-text hover:bg-text/10"
     }`;
 
   const NavItems = ({ onDone, navCollapsed = false }) => (
@@ -277,7 +283,7 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
 
       <button type="button" title="Beta Feedback"
         onClick={() => { onDone?.(); setFeedbackOpen(true); }}
-        className={`w-full flex items-center gap-3 ${navCollapsed ? "px-0 justify-center" : "px-4"} py-2.5 rounded-lg transition-colors text-text/60 hover:text-text hover:bg-white/5`}>
+        className={`w-full flex items-center gap-3 ${navCollapsed ? "px-0 justify-center" : "px-4"} py-2.5 rounded-lg transition-colors text-text/60 hover:text-text hover:bg-text/10`}>
         <Icons.Feedback />
         {!navCollapsed && <span>Beta Feedback</span>}
       </button>
@@ -312,7 +318,7 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
         title="Settings"
         onClick={() => setSettingsOpen((o) => !o)}
         className={`w-full flex items-center gap-3 ${navCollapsed ? "px-0 justify-center" : "px-4"} py-2.5 rounded-lg transition-colors ${
-          settingsOpen ? "bg-accent/15 text-accent" : "text-text/60 hover:text-text hover:bg-white/5"
+          settingsOpen ? "bg-accent/15 text-accent" : "text-text/60 hover:text-text hover:bg-text/10"
         }`}
       >
         <Icons.Settings />
@@ -320,17 +326,14 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
       </button>
 
       {settingsOpen && (
-        <SettingsPanel
-          collapsed={navCollapsed}
-          onClose={() => setSettingsOpen(false)}
-        />
+        <SettingsPanel collapsed={navCollapsed} onClose={() => setSettingsOpen(false)} />
       )}
     </div>
   );
 
   // ── Desktop sidebar ─────────────────────────────────────────────────────────
   const DesktopSidebar = () => (
-    <div className={`hidden md:flex ${collapsed ? "w-16" : "w-64"} bg-surface border-r border-gray-700 h-full pt-4 pb-4 flex-col shadow-md transition-all duration-200`}>
+    <div className={`hidden md:flex ${collapsed ? "w-16" : "w-64"} bg-surface border-r border-text/10 h-full pt-4 pb-4 flex-col shadow-md transition-all duration-200`}>
       {/* Header */}
       <div className={`flex items-center ${collapsed ? "justify-center px-2" : "justify-between px-4"} mb-4`}>
         {!collapsed && <h2 className="text-xl font-bold text-accent">GripTrack</h2>}
@@ -350,7 +353,7 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
       </div>
 
       {/* Settings at bottom */}
-      <div className="pt-2 border-t border-gray-700 mt-2">
+      <div className="pt-2 border-t border-text/10 mt-2">
         <SettingsButton navCollapsed={collapsed} />
       </div>
     </div>
@@ -359,7 +362,7 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
   // ── Mobile top bar + drawer ────────────────────────────────────────────────
   const MobileShell = () => (
     <>
-      <div className="md:hidden sticky top-0 z-40 bg-surface border-b border-gray-700">
+      <div className="md:hidden sticky top-0 z-40 bg-surface border-b border-text/10">
         <div className="flex items-center justify-between px-4 py-3">
           <button type="button" className="btn-secondary-sm p-2"
             onClick={() => setDrawerOpen(true)} aria-label="Open menu">☰</button>
@@ -371,21 +374,21 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
       {drawerOpen && (
         <div className="md:hidden fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/60" onClick={closeDrawer} />
-          <div className="absolute left-0 top-0 h-full w-72 bg-surface border-r border-gray-700 flex flex-col">
-            <div className="flex items-center justify-between px-4 py-4 border-b border-gray-700">
+          <div className="absolute left-0 top-0 h-full w-72 bg-surface border-r border-text/10 flex flex-col">
+            <div className="flex items-center justify-between px-4 py-4 border-b border-text/10">
               <div className="font-bold text-accent text-lg">GripTrack</div>
               <button type="button" className="btn-secondary-sm p-2" onClick={closeDrawer}>✕</button>
             </div>
             <div className="flex-1 overflow-y-auto pt-3">
               <NavItems onDone={closeDrawer} navCollapsed={false} />
             </div>
-            <div className="border-t border-gray-700 pt-2 pb-4">
+            <div className="border-t border-text/10 pt-2 pb-4">
               <div className="px-2">
                 <button
                   type="button"
                   onClick={() => setSettingsOpen((o) => !o)}
                   className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${
-                    settingsOpen ? "bg-accent/15 text-accent" : "text-text/60 hover:text-text hover:bg-white/5"
+                    settingsOpen ? "bg-accent/15 text-accent" : "text-text/60 hover:text-text hover:bg-text/10"
                   }`}
                 >
                   <Icons.Settings />

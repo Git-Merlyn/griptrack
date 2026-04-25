@@ -47,15 +47,15 @@ body {
   }
 
   .btn-secondary {
-    @apply px-4 py-2 bg-transparent text-slate-100 font-medium rounded-md
-      border border-white/15
-      hover:bg-white/5 transition
+    @apply px-4 py-2 bg-transparent text-text font-medium rounded-md
+      border border-text/20
+      hover:bg-text/10 transition
       focus:outline-none focus:ring-2 focus:ring-accent/30;
   }
   .btn-secondary-sm {
-    @apply px-3 py-2 bg-transparent text-slate-100 font-medium rounded-md
-      border border-white/15
-      hover:bg-white/5 transition
+    @apply px-3 py-2 bg-transparent text-text font-medium rounded-md
+      border border-text/20
+      hover:bg-text/10 transition
       focus:outline-none focus:ring-2 focus:ring-accent/30;
   }
 
@@ -112,7 +112,7 @@ body {
   /* Date status badges (start/end date warnings) */
   .date-badge {
     @apply inline-flex items-center justify-center px-2 py-1 rounded-md text-xs font-medium
-      border border-white/10 bg-white/5 text-slate-200;
+      border border-text/15 bg-text/10 text-text;
   }
 
   .date-badge-warn {
