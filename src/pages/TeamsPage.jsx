@@ -36,13 +36,13 @@ function CreateTeamForm({ onCreated, onCancel }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3 bg-surface border border-gray-700 rounded-xl p-5">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3 bg-surface border border-text/10 rounded-xl p-5">
       <h3 className="text-base font-semibold text-text">New Team</h3>
 
       <div>
-        <label className="text-sm text-gray-400">Team name *</label>
+        <label className="text-sm text-text/70">Team name *</label>
         <input
-          className="w-full mt-1 px-3 py-2 rounded bg-white text-black"
+          className="w-full mt-1 px-3 py-2 rounded bg-background text-text border border-text/20 focus:outline-none focus:ring-2 focus:ring-accent/40"
           value={name}
           onChange={(e) => { setErr(""); setName(e.target.value); }}
           placeholder="e.g. Grip, Electric"
@@ -52,16 +52,16 @@ function CreateTeamForm({ onCreated, onCancel }) {
       </div>
 
       <div>
-        <label className="text-sm text-gray-400">Max seats</label>
+        <label className="text-sm text-text/70">Max seats</label>
         <input
           type="number"
           min={1}
           max={500}
-          className="w-full mt-1 px-3 py-2 rounded bg-white text-black"
+          className="w-full mt-1 px-3 py-2 rounded bg-background text-text border border-text/20 focus:outline-none focus:ring-2 focus:ring-accent/40"
           value={maxSeats}
           onChange={(e) => setMaxSeats(e.target.value)}
         />
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-text/50 mt-1">
           Maximum number of crew members the department head can invite.
         </p>
       </div>
@@ -116,8 +116,8 @@ function TeamMemberList({ teamId }) {
     load();
   }, [teamId]);
 
-  if (loading) return <p className="text-xs text-gray-500 mt-2">Loading members…</p>;
-  if (members.length === 0) return <p className="text-xs text-gray-500 mt-2">No members assigned yet.</p>;
+  if (loading) return <p className="text-xs text-text/50 mt-2">Loading members…</p>;
+  if (members.length === 0) return <p className="text-xs text-text/50 mt-2">No members assigned yet.</p>;
 
   return (
     <div className="mt-2 flex flex-col gap-1">
@@ -132,7 +132,7 @@ function TeamMemberList({ teamId }) {
         return (
           <div key={m.user_id} className="flex items-center gap-2 text-sm">
             <span className="text-text truncate">{name}</span>
-            <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-700 text-gray-300 flex-shrink-0">
+            <span className="text-xs px-1.5 py-0.5 rounded-full bg-text/10 text-text/70 flex-shrink-0">
               {roleBadge}
             </span>
           </div>
@@ -167,7 +167,7 @@ function TeamCard({ team, isActive, onSwitch, onArchive, onDelete, canManage, ca
   return (
     <div
       className={`flex flex-col rounded-xl border transition-colors ${
-        isActive ? "border-accent bg-accent/10" : "border-gray-700 bg-surface"
+        isActive ? "border-accent bg-accent/10" : "border-text/10 bg-surface"
       }`}
     >
       {/* Card header row */}
@@ -194,12 +194,12 @@ function TeamCard({ team, isActive, onSwitch, onArchive, onDelete, canManage, ca
               </span>
             )}
             {isArchived && (
-              <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-700 text-gray-400">
+              <span className="text-xs px-1.5 py-0.5 rounded-full bg-text/10 text-text/60">
                 Archived
               </span>
             )}
           </div>
-          <p className="text-xs text-gray-400 mt-0.5">
+          <p className="text-xs text-text/50 mt-0.5">
             Max {team.max_seats} seat{team.max_seats === 1 ? "" : "s"}
           </p>
         </div>
@@ -243,8 +243,8 @@ function TeamCard({ team, isActive, onSwitch, onArchive, onDelete, canManage, ca
 
       {/* Expanded: member list */}
       {expanded && (
-        <div className="border-t border-gray-700 px-4 py-3">
-          <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">Members</p>
+        <div className="border-t border-text/10 px-4 py-3">
+          <p className="text-xs uppercase tracking-widest text-text/40 mb-1">Members</p>
           <TeamMemberList teamId={team.id} />
         </div>
       )}
@@ -264,13 +264,24 @@ export default function TeamsPage() {
     canSwitchTeams,
   } = useTeam();
 
-  const { role, teamId: assignedTeamId } = useUser();
+  const { role, teamId: assignedTeamId, devRoleOverride } = useUser();
 
   const isCoordinator = role === "admin" || role === "owner";
   const isDeptHead = role === "department_head";
 
+  // In dev mode with a role override, the tester's account has no real
+  // assignedTeamId (owners don't have one), so fall back to activeTeamId
+  // to simulate a crew member assigned to the currently selected team.
+  const effectiveAssignedTeamId =
+    import.meta.env.DEV && devRoleOverride && !assignedTeamId
+      ? activeTeamId
+      : assignedTeamId;
+
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [expandedTeamId, setExpandedTeamId] = useState(null);
+  // Auto-expand for crew/dept_head so the member list is immediately visible
+  const [expandedTeamId, setExpandedTeamId] = useState(
+    !isCoordinator ? effectiveAssignedTeamId : null
+  );
 
   const handleCreated = (team) => {
     setShowCreateForm(false);
@@ -307,19 +318,19 @@ export default function TeamsPage() {
 
   // Crew / dept_head: only show their assigned team
   if (!isCoordinator) {
-    const myTeam = teams.find((t) => t.id === assignedTeamId);
+    const myTeam = teams.find((t) => t.id === effectiveAssignedTeamId);
 
     return (
       <div className="max-w-2xl mx-auto px-4 py-6 flex flex-col gap-6">
         <div>
           <h1 className="text-2xl font-bold text-accent">My Team</h1>
-          <p className="text-sm text-gray-400 mt-0.5">
+          <p className="text-sm text-text/60 mt-0.5">
             Your assigned department for this production.
           </p>
         </div>
 
         {loadingTeams ? (
-          <p className="text-gray-400 text-sm">Loading…</p>
+          <p className="text-text/50 text-sm">Loading…</p>
         ) : myTeam ? (
           <TeamCard
             team={myTeam}
@@ -327,14 +338,14 @@ export default function TeamsPage() {
             onSwitch={() => {}}
             onArchive={() => {}}
             onDelete={() => {}}
-            canManage={false}
+            canManage={isDeptHead}
             canSwitch={false}
             expanded={expandedTeamId === myTeam.id}
             onToggleExpand={() => toggleExpand(myTeam.id)}
           />
         ) : (
-          <div className="text-center py-12 text-gray-500">
-            <p className="text-lg mb-1">No team assigned</p>
+          <div className="text-center py-12 text-text/50">
+            <p className="text-lg mb-1 text-text">No team assigned</p>
             <p className="text-sm">Ask your coordinator to assign you to a team.</p>
           </div>
         )}
@@ -349,7 +360,7 @@ export default function TeamsPage() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-accent">Teams</h1>
-          <p className="text-sm text-gray-400 mt-0.5">
+          <p className="text-sm text-text/60 mt-0.5">
             Departments (e.g. Grip, Electric) with their own equipment and crew.
           </p>
         </div>
@@ -375,12 +386,12 @@ export default function TeamsPage() {
 
       {/* Team list */}
       {loadingTeams ? (
-        <p className="text-gray-400 text-sm">Loading…</p>
+        <p className="text-text/50 text-sm">Loading…</p>
       ) : (
         <>
           {activeTeams.length > 0 && (
             <div>
-              <h2 className="text-xs uppercase tracking-widest text-gray-500 mb-2">Active</h2>
+              <h2 className="text-xs uppercase tracking-widest text-text/40 mb-2">Active</h2>
               <div className="flex flex-col gap-2">
                 {activeTeams.map((t) => (
                   <TeamCard
@@ -402,7 +413,7 @@ export default function TeamsPage() {
 
           {archivedTeams.length > 0 && (
             <div>
-              <h2 className="text-xs uppercase tracking-widest text-gray-500 mb-2">Archived</h2>
+              <h2 className="text-xs uppercase tracking-widest text-text/40 mb-2">Archived</h2>
               <div className="flex flex-col gap-2">
                 {archivedTeams.map((t) => (
                   <TeamCard
@@ -423,7 +434,7 @@ export default function TeamsPage() {
           )}
 
           {teams.length === 0 && (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 text-text/50">
               <p className="text-lg mb-1">No teams yet</p>
               <p className="text-sm">
                 Create your first team to start separating equipment by department.
