@@ -35,6 +35,9 @@ yarn-error.*
 .env.local
 .env*.local
 
+# Google Play service account key — store this outside the repo or in EAS secrets
+google-play-key.json
+
 # typescript
 *.tsbuildinfo
 
