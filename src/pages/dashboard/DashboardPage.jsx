@@ -87,15 +87,15 @@ const ImportToast = ({ show, message, onDismiss }) => {
 
   return (
     <div className="fixed right-6 top-6 z-50">
-      <div className="bg-surface border border-gray-700 text-text px-4 py-3 rounded shadow-md flex items-start gap-3 max-w-sm">
+      <div className="bg-surface border border-text/15 text-text px-4 py-3 rounded shadow-md flex items-start gap-3 max-w-sm">
         <div className="flex-1">
           <div className="font-semibold text-accent">Import Complete</div>
-          <div className="text-sm text-gray-300">{message}</div>
+          <div className="text-sm text-text">{message}</div>
         </div>
 
         <button
           onClick={onDismiss}
-          className="text-gray-400 hover:text-gray-200 ml-2"
+          className="text-text/50 hover:text-text ml-2 transition"
           aria-label="dismiss"
         >
           ✕
@@ -113,7 +113,7 @@ const FilterSelect = ({ value, onChange, placeholder, options }) => (
       className={`px-3 py-2 rounded-lg border shadow-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition appearance-none pr-8 ${
         value
           ? "bg-accent/10 border-accent text-accent font-medium"
-          : "bg-white/90 border-gray-300 text-gray-500"
+          : "bg-surface border-text/20 text-text/60"
       }`}
     >
       <option value="">{placeholder}</option>
@@ -178,7 +178,7 @@ const BulkToolbar = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search by Name"
-            className="w-full max-w-md px-3 py-2 rounded-lg bg-white/90 text-text border border-gray-300 placeholder:text-gray-500 shadow-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition"
+            className="w-full max-w-md px-3 py-2 rounded-lg bg-surface text-text border border-text/20 placeholder:text-text/40 shadow-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition"
           />
           {searchQuery.trim() ? (
             <button
@@ -212,7 +212,7 @@ const BulkToolbar = ({
             )}
 
             {bulkMode && (
-              <span className="text-sm text-gray-300">
+              <span className="text-sm text-text/70">
                 Selected: <span className="font-semibold">{selectedCount}</span>
               </span>
             )}
@@ -225,7 +225,7 @@ const BulkToolbar = ({
             className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition ${
               showBelowReserve
                 ? "bg-danger/10 border-danger text-danger"
-                : "bg-white/90 border-gray-300 text-gray-500 hover:border-gray-400"
+                : "bg-surface border-text/20 text-text/60 hover:border-text/40"
             }`}
           >
             Below Reserve
@@ -263,7 +263,7 @@ const BulkToolbar = ({
               setFilterCategory("");
               setShowBelowReserve(false);
             }}
-            className="text-xs text-gray-400 hover:text-gray-200 underline underline-offset-2 transition"
+            className="text-xs text-text/50 hover:text-text underline underline-offset-2 transition"
           >
             Clear all filters
           </button>
@@ -354,12 +354,12 @@ const FilterPresets = ({ presets, activeFilters, onApply, onSave, onDelete }) =>
       {presets.map((p) => (
         <div
           key={p.id}
-          className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-full pl-3 pr-1 py-1"
+          className="flex items-center gap-1 bg-text/5 border border-text/10 rounded-full pl-3 pr-1 py-1"
         >
           <button
             type="button"
             onClick={() => onApply(p.filters)}
-            className="text-xs text-gray-300 hover:text-accent transition"
+            className="text-xs text-text/70 hover:text-accent transition"
           >
             {p.name}
           </button>
@@ -367,7 +367,7 @@ const FilterPresets = ({ presets, activeFilters, onApply, onSave, onDelete }) =>
             type="button"
             onClick={() => onDelete(p.id)}
             aria-label={`Delete preset "${p.name}"`}
-            className="text-gray-600 hover:text-danger transition text-xs px-1"
+            className="text-text/40 hover:text-danger transition text-xs px-1"
           >
             ✕
           </button>
@@ -379,7 +379,7 @@ const FilterPresets = ({ presets, activeFilters, onApply, onSave, onDelete }) =>
         <button
           type="button"
           onClick={() => setSaving(true)}
-          className="text-xs text-gray-500 hover:text-accent underline underline-offset-2 transition"
+          className="text-xs text-text/50 hover:text-accent underline underline-offset-2 transition"
         >
           + Save as preset
         </button>
@@ -397,7 +397,7 @@ const FilterPresets = ({ presets, activeFilters, onApply, onSave, onDelete }) =>
               if (e.key === "Escape") { setSaving(false); setName(""); }
             }}
             placeholder="Preset name…"
-            className="text-xs px-2 py-1 rounded bg-white/10 border border-white/20 text-gray-200 placeholder:text-gray-500 focus:outline-none focus:border-accent w-36"
+            className="text-xs px-2 py-1 rounded bg-surface border border-text/20 text-text placeholder:text-text/40 focus:outline-none focus:border-accent w-36"
           />
           <button
             type="button"
@@ -410,7 +410,7 @@ const FilterPresets = ({ presets, activeFilters, onApply, onSave, onDelete }) =>
           <button
             type="button"
             onClick={() => { setSaving(false); setName(""); }}
-            className="text-xs text-gray-500 hover:text-gray-300 transition"
+            className="text-xs text-text/50 hover:text-text transition"
           >
             Cancel
           </button>
@@ -430,14 +430,14 @@ const WelcomeBanner = ({ onAddItem, onImport, onDismiss }) => (
         <h3 className="text-lg font-bold text-accent mb-1">
           Welcome to GripTrack
         </h3>
-        <p className="text-sm text-gray-300">
+        <p className="text-sm text-text">
           Get your inventory set up in three steps.
         </p>
       </div>
       <button
         type="button"
         onClick={onDismiss}
-        className="text-gray-500 hover:text-gray-300 text-xs shrink-0 mt-1 transition"
+        className="text-text/60 hover:text-text text-xs shrink-0 mt-1 transition"
         aria-label="Dismiss welcome banner"
       >
         Dismiss
@@ -449,7 +449,7 @@ const WelcomeBanner = ({ onAddItem, onImport, onDismiss }) => (
         <span className="shrink-0 w-6 h-6 rounded-full bg-accent/20 text-accent text-xs font-bold flex items-center justify-center">
           1
         </span>
-        <span className="text-gray-300">
+        <span className="text-text">
           <NavLink to="/locations" className="text-accent underline underline-offset-2">
             Add your locations
           </NavLink>{" "}
@@ -461,7 +461,7 @@ const WelcomeBanner = ({ onAddItem, onImport, onDismiss }) => (
         <span className="shrink-0 w-6 h-6 rounded-full bg-accent/20 text-accent text-xs font-bold flex items-center justify-center">
           2
         </span>
-        <span className="text-gray-300">
+        <span className="text-text">
           <button
             type="button"
             onClick={onImport}
@@ -485,7 +485,7 @@ const WelcomeBanner = ({ onAddItem, onImport, onDismiss }) => (
         <span className="shrink-0 w-6 h-6 rounded-full bg-accent/20 text-accent text-xs font-bold flex items-center justify-center">
           3
         </span>
-        <span className="text-gray-300">
+        <span className="text-text">
           <NavLink to="/staff" className="text-accent underline underline-offset-2">
             Invite your crew
           </NavLink>{" "}
@@ -501,7 +501,7 @@ const EmptyState = ({ hasActiveFilters, onClearFilters, onAddItem, onImport, can
   if (hasActiveFilters) {
     return (
       <div className="flex flex-col items-center gap-3 py-16 text-center">
-        <p className="text-gray-400 text-sm">
+        <p className="text-text/70 text-sm">
           No items match your current filters.
         </p>
         <button
@@ -528,15 +528,15 @@ const EmptyState = ({ hasActiveFilters, onClearFilters, onAddItem, onImport, can
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
-        className="text-gray-600"
+        className="text-text/30"
       >
         <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
         <path d="m3.3 7 8.7 5 8.7-5" />
         <path d="M12 22V12" />
       </svg>
       <div>
-        <p className="text-gray-200 font-medium mb-1">No inventory yet</p>
-        <p className="text-gray-500 text-sm max-w-xs">
+        <p className="text-text font-medium mb-1">No inventory yet</p>
+        <p className="text-text/60 text-sm max-w-xs">
           Add your first item manually or import a rental PDF or CSV to get
           started.
         </p>
@@ -591,7 +591,7 @@ const OrgOverview = () => {
 
   if (loadingTeams) {
     return (
-      <div className="flex flex-col items-center gap-2 py-20 text-gray-500">
+      <div className="flex flex-col items-center gap-2 py-20 text-text/50">
         <span className="animate-pulse text-sm">Loading teams…</span>
       </div>
     );
@@ -602,15 +602,15 @@ const OrgOverview = () => {
       <div className="flex flex-col items-center gap-4 py-20 text-center">
         <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24"
              fill="none" stroke="currentColor" strokeWidth="1.5"
-             strokeLinecap="round" strokeLinejoin="round" className="text-gray-600">
+             strokeLinecap="round" strokeLinejoin="round" className="text-text/30">
           <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
           <circle cx="9" cy="7" r="4"/>
           <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
           <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
         </svg>
         <div>
-          <p className="text-gray-200 font-medium mb-1">No teams yet</p>
-          <p className="text-gray-500 text-sm max-w-xs">
+          <p className="text-text font-medium mb-1">No teams yet</p>
+          <p className="text-text/60 text-sm max-w-xs">
             Create your first team to start tracking equipment by department.
           </p>
         </div>
@@ -628,7 +628,7 @@ const OrgOverview = () => {
         <h3 className="text-lg font-semibold text-text">
           {orgName || "Your Organization"}
         </h3>
-        <p className="text-sm text-gray-400 mt-0.5">
+        <p className="text-sm text-text/60 mt-0.5">
           Select a team to view and manage its inventory.
         </p>
       </div>
@@ -636,7 +636,7 @@ const OrgOverview = () => {
       {/* Active teams grid */}
       {activeTeams.length > 0 && (
         <div>
-          <p className="text-xs uppercase tracking-widest text-gray-500 mb-3">Teams</p>
+          <p className="text-xs uppercase tracking-widest text-text/40 mb-3">Teams</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {activeTeams.map((team) => {
               const itemCount = counts[team.id] ?? null;
@@ -645,14 +645,14 @@ const OrgOverview = () => {
                   key={team.id}
                   type="button"
                   onClick={() => setActiveTeamId(team.id)}
-                  className="text-left bg-surface border border-gray-700 hover:border-accent/60 hover:bg-accent/5 rounded-xl p-5 transition-colors group"
+                  className="text-left bg-surface border border-text/10 hover:border-accent/60 hover:bg-accent/5 rounded-xl p-5 transition-colors group"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-text group-hover:text-accent truncate transition-colors">
                         {team.name}
                       </p>
-                      <p className="text-xs text-gray-500 mt-0.5">
+                      <p className="text-xs text-text/50 mt-0.5">
                         {itemCount === null
                           ? "—"
                           : `${itemCount} item${itemCount !== 1 ? "s" : ""}`}
@@ -664,8 +664,8 @@ const OrgOverview = () => {
                   </div>
                   <div className="mt-3 flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
-                    <span className="text-xs text-gray-500">Active</span>
-                    <span className="text-xs text-gray-600 ml-auto">
+                    <span className="text-xs text-text/50">Active</span>
+                    <span className="text-xs text-text/40 ml-auto">
                       {team.max_seats} seat{team.max_seats !== 1 ? "s" : ""}
                     </span>
                   </div>
@@ -679,22 +679,22 @@ const OrgOverview = () => {
       {/* Archived teams — collapsed section */}
       {archivedTeams.length > 0 && (
         <div>
-          <p className="text-xs uppercase tracking-widest text-gray-500 mb-3">Archived</p>
+          <p className="text-xs uppercase tracking-widest text-text/40 mb-3">Archived</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {archivedTeams.map((team) => {
               const itemCount = counts[team.id] ?? null;
               return (
                 <div
                   key={team.id}
-                  className="bg-surface border border-gray-800 rounded-xl p-5 opacity-60"
+                  className="bg-surface border border-text/10 rounded-xl p-5 opacity-60"
                 >
-                  <p className="font-semibold text-gray-400 truncate">{team.name}</p>
-                  <p className="text-xs text-gray-600 mt-0.5">
+                  <p className="font-semibold text-text/70 truncate">{team.name}</p>
+                  <p className="text-xs text-text/50 mt-0.5">
                     {itemCount === null ? "—" : `${itemCount} item${itemCount !== 1 ? "s" : ""}`}
                   </p>
                   <div className="mt-3 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-gray-600 flex-shrink-0" />
-                    <span className="text-xs text-gray-600">Archived</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-text/30 flex-shrink-0" />
+                    <span className="text-xs text-text/50">Archived</span>
                   </div>
                 </div>
               );
@@ -1365,7 +1365,7 @@ const DashboardPage = () => {
 
         {/* Pagination controls */}
         {sortedEquipment.length > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-3 mt-4 pt-4 border-t border-gray-700 text-sm text-gray-400">
+          <div className="flex flex-wrap items-center justify-between gap-3 mt-4 pt-4 border-t border-text/10 text-sm text-text/60">
             {/* Count + page size selector */}
             <div className="flex items-center gap-3">
               <span>
@@ -1382,7 +1382,7 @@ const DashboardPage = () => {
                     className={`px-2 py-0.5 rounded text-xs transition ${
                       pageSize === opt.value
                         ? "bg-accent/20 text-accent font-semibold"
-                        : "hover:text-gray-200"
+                        : "hover:text-text"
                     }`}
                   >
                     {opt.label}
