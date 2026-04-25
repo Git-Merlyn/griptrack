@@ -16,6 +16,7 @@ import { useInventory } from '../../hooks/useInventory';
 import { useTeamContext } from '../../context/TeamContext';
 import { useAuthContext } from '../../context/AuthContext';
 import TeamSwitcher from '../../components/TeamSwitcher';
+import OrgOverview from '../../components/OrgOverview';
 import { statusColor, getQty, qtyColor } from '../../lib/helpers';
 
 type Props = NativeStackScreenProps<InventoryStackParamList, 'InventoryList'>;
@@ -23,7 +24,7 @@ type Props = NativeStackScreenProps<InventoryStackParamList, 'InventoryList'>;
 export default function InventoryListScreen({ navigation }: Props) {
   const { filteredEquipment, equipment, loading, error, searchQuery, setSearchQuery, refresh } =
     useInventory();
-  const { activeTeam, canSwitch } = useTeamContext();
+  const { activeTeam, activeTeamId, canSwitch, loadingTeams } = useTeamContext();
   const { profile } = useAuthContext();
 
   const [switcherVisible, setSwitcherVisible] = useState(false);
@@ -51,6 +52,9 @@ export default function InventoryListScreen({ navigation }: Props) {
     }).length,
     [equipment]
   );
+
+  // Admin/owner with no active team — show org overview instead of the list
+  const showOrgOverview = canSwitch && !activeTeamId && !loadingTeams;
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -82,6 +86,17 @@ export default function InventoryListScreen({ navigation }: Props) {
     setRefreshing(true);
     await refresh();
     setRefreshing(false);
+  }
+
+  if (showOrgOverview) {
+    return (
+      <View className="flex-1 bg-background">
+        <OrgOverview />
+        {canSwitch && (
+          <TeamSwitcher visible={switcherVisible} onClose={() => setSwitcherVisible(false)} />
+        )}
+      </View>
+    );
   }
 
   return (
