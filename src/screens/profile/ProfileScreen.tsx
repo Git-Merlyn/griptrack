@@ -11,44 +11,82 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '../../lib/supabase';
 import { useAuthContext } from '../../context/AuthContext';
 
 export default function ProfileScreen() {
-  const { profile, signOut, updateFullName } = useAuthContext();
+  const { profile, signOut, session } = useAuthContext();
 
-  const [editingName, setEditingName] = useState(false);
-  const [nameInput, setNameInput] = useState('');
-  const [savingName, setSavingName] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const initials =
     profile?.full_name
       ? profile.full_name.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase()
       : (profile?.email?.[0]?.toUpperCase() ?? '?');
 
-  function startEditing() {
-    setNameInput(profile?.full_name ?? '');
-    setEditingName(true);
+  const roleLabel = profile?.role
+    ? profile.role.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+    : '—';
+
+  function cancelPasswordChange() {
+    setChangingPassword(false);
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setShowCurrent(false);
+    setShowNew(false);
+    setShowConfirm(false);
   }
 
-  function cancelEditing() {
-    setEditingName(false);
-    setNameInput('');
-  }
-
-  async function saveName() {
-    const trimmed = nameInput.trim();
-    if (!trimmed) {
-      Alert.alert('Name required', 'Please enter a display name.');
+  async function handleChangePassword() {
+    if (!currentPassword) {
+      Alert.alert('Required', 'Please enter your current password.');
       return;
     }
-    setSavingName(true);
-    const { error } = await updateFullName(trimmed);
-    setSavingName(false);
+    if (newPassword.length < 6) {
+      Alert.alert('Too short', 'New password must be at least 6 characters.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Mismatch', 'New passwords do not match.');
+      return;
+    }
 
-    if (error) {
-      Alert.alert('Error', error);
-    } else {
-      setEditingName(false);
+    setSaving(true);
+    try {
+      // Re-authenticate with current password to verify identity
+      const email = session?.user.email ?? profile?.email ?? '';
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password: currentPassword,
+      });
+
+      if (signInError) {
+        Alert.alert('Incorrect password', 'Your current password is wrong. Please try again.');
+        return;
+      }
+
+      // Current password verified — update to new password
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (updateError) {
+        Alert.alert('Error', updateError.message);
+        return;
+      }
+
+      Alert.alert('Done', 'Your password has been updated.');
+      cancelPasswordChange();
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -58,10 +96,6 @@ export default function ProfileScreen() {
       { text: 'Sign out', style: 'destructive', onPress: signOut },
     ]);
   }
-
-  const roleLabel = profile?.role
-    ? profile.role.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-    : '—';
 
   return (
     <KeyboardAvoidingView
@@ -74,67 +108,84 @@ export default function ProfileScreen() {
       >
         {/* ── Profile card ── */}
         <View className="bg-surface rounded-2xl p-5 border border-white/10 mb-4">
-          {/* Avatar */}
           <View className="w-14 h-14 rounded-full bg-accent/20 items-center justify-center mb-4">
             <Text className="text-accent text-2xl font-bold">{initials}</Text>
           </View>
 
-          {/* Name row */}
-          {editingName ? (
-            <View className="mb-3">
-              <Text className="text-text text-xs mb-1.5">Display name</Text>
-              <View className="flex-row items-center gap-2">
-                <TextInput
-                  className="flex-1 bg-background border border-white/15 rounded-xl px-3 py-2.5 text-slate-100 text-base"
-                  value={nameInput}
-                  onChangeText={setNameInput}
-                  placeholder="Your name"
-                  placeholderTextColor="#4b5563"
-                  autoFocus
-                  autoCorrect={false}
-                  returnKeyType="done"
-                  onSubmitEditing={saveName}
-                />
-                <TouchableOpacity
-                  onPress={saveName}
-                  disabled={savingName}
-                  className="bg-accent rounded-xl px-4 py-2.5 items-center justify-center"
-                  activeOpacity={0.8}
-                >
-                  {savingName ? (
-                    <ActivityIndicator size="small" color="#0f1117" />
-                  ) : (
-                    <Text className="text-slate-900 text-sm font-semibold">Save</Text>
-                  )}
-                </TouchableOpacity>
-                <TouchableOpacity onPress={cancelEditing} hitSlop={8}>
-                  <Ionicons name="close" size={20} color="#6b7280" />
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : (
-            <TouchableOpacity
-              className="flex-row items-center gap-2 mb-1"
-              onPress={startEditing}
-              activeOpacity={0.7}
-            >
-              <Text className="text-slate-100 text-lg font-semibold">
-                {profile?.full_name ?? 'Tap to set your name'}
-              </Text>
-              <Ionicons name="pencil-outline" size={15} color="#6b7280" />
-            </TouchableOpacity>
-          )}
+          <Text className="text-slate-100 text-lg font-semibold">
+            {profile?.full_name ?? 'No name set'}
+          </Text>
+          <Text className="text-text text-sm mt-0.5">{profile?.email}</Text>
 
-          {/* Email */}
-          <Text className="text-text text-sm">{profile?.email}</Text>
-
-          {/* Role badge */}
-          <View className="mt-3 flex-row items-center gap-2">
-            <View className="bg-accent/15 border border-accent/25 rounded-full px-3 py-0.5">
+          <View className="mt-3">
+            <View className="bg-accent/15 border border-accent/25 rounded-full px-3 py-0.5 self-start">
               <Text className="text-accent text-xs font-medium">{roleLabel}</Text>
             </View>
           </View>
         </View>
+
+        {/* ── Change password ── */}
+        {changingPassword ? (
+          <View className="bg-surface border border-white/10 rounded-2xl p-5 mb-4">
+            <View className="flex-row items-center justify-between mb-4">
+              <Text className="text-slate-100 text-base font-semibold">Change password</Text>
+              <TouchableOpacity onPress={cancelPasswordChange} hitSlop={8}>
+                <Ionicons name="close" size={20} color="#6b7280" />
+              </TouchableOpacity>
+            </View>
+
+            <PasswordField
+              label="Current password"
+              value={currentPassword}
+              onChangeText={setCurrentPassword}
+              show={showCurrent}
+              onToggleShow={() => setShowCurrent((v) => !v)}
+              returnKeyType="next"
+            />
+            <View className="h-3" />
+            <PasswordField
+              label="New password"
+              value={newPassword}
+              onChangeText={setNewPassword}
+              show={showNew}
+              onToggleShow={() => setShowNew((v) => !v)}
+              returnKeyType="next"
+            />
+            <View className="h-3" />
+            <PasswordField
+              label="Confirm new password"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              show={showConfirm}
+              onToggleShow={() => setShowConfirm((v) => !v)}
+              returnKeyType="done"
+              onSubmit={handleChangePassword}
+            />
+
+            <TouchableOpacity
+              className={`mt-5 rounded-xl py-3.5 items-center ${saving ? 'bg-accent/40' : 'bg-accent'}`}
+              onPress={handleChangePassword}
+              disabled={saving}
+              activeOpacity={0.85}
+            >
+              {saving ? (
+                <ActivityIndicator color="#0f1117" />
+              ) : (
+                <Text className="text-slate-900 font-semibold">Update password</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity
+            className="bg-surface border border-white/10 rounded-xl p-4 flex-row items-center gap-3 mb-4"
+            onPress={() => setChangingPassword(true)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="lock-closed-outline" size={20} color="#4debf9" />
+            <Text className="text-slate-100 font-medium">Change password</Text>
+            <Ionicons name="chevron-forward" size={16} color="#6b7280" style={{ marginLeft: 'auto' }} />
+          </TouchableOpacity>
+        )}
 
         {/* ── Sign out ── */}
         <TouchableOpacity
@@ -146,5 +197,52 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
+  );
+}
+
+// ─── Password field ───────────────────────────────────────────────────────────
+
+interface PasswordFieldProps {
+  label: string;
+  value: string;
+  onChangeText: (v: string) => void;
+  show: boolean;
+  onToggleShow: () => void;
+  returnKeyType?: 'next' | 'done';
+  onSubmit?: () => void;
+}
+
+function PasswordField({
+  label,
+  value,
+  onChangeText,
+  show,
+  onToggleShow,
+  returnKeyType = 'next',
+  onSubmit,
+}: PasswordFieldProps) {
+  return (
+    <View>
+      <Text className="text-text text-xs mb-1.5">{label}</Text>
+      <View className="flex-row items-center bg-background border border-white/15 rounded-xl px-3">
+        <TextInput
+          className="flex-1 py-3 text-slate-100 text-base"
+          value={value}
+          onChangeText={onChangeText}
+          secureTextEntry={!show}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType={returnKeyType}
+          onSubmitEditing={onSubmit}
+        />
+        <TouchableOpacity onPress={onToggleShow} hitSlop={8}>
+          <Ionicons
+            name={show ? 'eye-off-outline' : 'eye-outline'}
+            size={18}
+            color="#6b7280"
+          />
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }

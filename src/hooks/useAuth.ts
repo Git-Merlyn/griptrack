@@ -10,7 +10,6 @@ interface UseAuthReturn {
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   sendPasswordReset: (email: string) => Promise<{ error: string | null }>;
-  updateFullName: (name: string) => Promise<{ error: string | null }>;
 }
 
 export function useAuth(): UseAuthReturn {
@@ -101,27 +100,7 @@ export function useAuth(): UseAuthReturn {
     }
   }
 
-  async function updateFullName(name: string): Promise<{ error: string | null }> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { error: 'Not authenticated' };
-
-    const trimmed = name.trim();
-    if (!trimmed) return { error: 'Name cannot be empty' };
-
-    const { error } = await supabase.from('profiles').upsert({
-      id: user.id,
-      email: user.email ?? '',
-      full_name: trimmed,
-    });
-
-    if (error) return { error: error.message };
-
-    // Update local profile state immediately
-    setProfile((prev) => prev ? { ...prev, full_name: trimmed } : prev);
-    return { error: null };
-  }
-
-  async function signIn(email: string, password: string) {
+async function signIn(email: string, password: string) {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error: error?.message ?? null };
   }
@@ -135,5 +114,5 @@ export function useAuth(): UseAuthReturn {
     return { error: error?.message ?? null };
   }
 
-  return { session, profile, loading, signIn, signOut, sendPasswordReset, updateFullName };
+  return { session, profile, loading, signIn, signOut, sendPasswordReset };
 }

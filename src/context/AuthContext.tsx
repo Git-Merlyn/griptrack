@@ -10,7 +10,6 @@ interface AuthContextValue {
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   sendPasswordReset: (email: string) => Promise<{ error: string | null }>;
-  updateFullName: (name: string) => Promise<{ error: string | null }>;
   /** Dev-only: the role that overrides profile.role in __DEV__ builds */
   roleOverride: Role | null;
   /** Dev-only: set to override the active role, null to clear */
