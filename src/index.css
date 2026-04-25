@@ -2,26 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Theme tokens (RGB channels for Tailwind opacity modifier support) ─────── */
+/* Theme tokens — comma-separated RGB channels so rgba() opacity modifiers work */
 :root {
-  /* Dark mode — default */
-  --color-background: 15 17 23;       /* #0f1117 */
-  --color-surface:    26 29 35;       /* #1a1d23 */
-  --color-accent:     77 235 249;     /* #4debf9 */
-  --color-text:       156 163 175;    /* #9ca3af */
-  --color-warning:    255 214 0;      /* #ffd600 */
-  --color-danger:     255 77 77;      /* #ff4d4d */
-  --color-success:    46 204 113;     /* #2ecc71 */
+  --color-background: 15, 17, 23;
+  --color-surface:    26, 29, 35;
+  --color-accent:     77, 235, 249;
+  --color-text:       156, 163, 175;
+  --color-warning:    255, 214, 0;
+  --color-danger:     255, 77, 77;
+  --color-success:    46, 204, 113;
 }
 
 :root.light {
-  --color-background: 241 245 249;    /* #f1f5f9 */
-  --color-surface:    255 255 255;    /* #ffffff */
-  --color-accent:     8 145 178;      /* #0891b2 */
-  --color-text:       51 65 85;       /* #334155 */
-  --color-warning:    180 83 9;       /* #b45309 */
-  --color-danger:     220 38 38;      /* #dc2626 */
-  --color-success:    22 163 74;      /* #16a34a */
+  --color-background: 241, 245, 249;
+  --color-surface:    255, 255, 255;
+  --color-accent:     8, 145, 178;
+  --color-text:       51, 65, 85;
+  --color-warning:    180, 83, 9;
+  --color-danger:     220, 38, 38;
+  --color-success:    22, 163, 74;
 }
 
 body {
