@@ -123,10 +123,18 @@ serve(async (req) => {
       success_url: `${appUrl}/billing?success=true`,
       cancel_url: `${appUrl}/billing?canceled=true`,
       allow_promotion_codes: true,
+      // Require card upfront so Stripe can enforce one trial per card.
+      // If the same card has already had a trial, Stripe skips it and charges immediately.
+      payment_method_collection: "always",
       metadata: { org_id: memberRow.org_id },
       subscription_data: {
         metadata: { org_id: memberRow.org_id },
         trial_period_days: 14,
+        trial_settings: {
+          // Cancel the subscription if the card is removed before trial ends
+          // rather than letting it continue without a payment method.
+          end_behavior: { missing_payment_method: "cancel" },
+        },
       },
     });
 
