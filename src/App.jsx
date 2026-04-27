@@ -25,7 +25,8 @@ const PricingPage     = lazy(() => import("./pages/PricingPage"));
 const BillingPage     = lazy(() => import("./pages/BillingPage"));
 const LocationsPage   = lazy(() => import("./pages/LocationsPage"));
 const RequestsPage    = lazy(() => import("./pages/requests/RequestsPage"));
-const TeamsPage = lazy(() => import("./pages/TeamsPage"));
+const TeamsPage       = lazy(() => import("./pages/TeamsPage"));
+const SettingsPage    = lazy(() => import("./pages/SettingsPage"));
 
 import useUser from "./context/useUser";
 import { Analytics } from "@vercel/analytics/react";
@@ -121,6 +122,7 @@ const App = () => {
     orgName,
     needsOrgSetup,
     needsProfileSetup,
+    features,
   } = useUser();
 
   const [orgNameLocal, setOrgNameLocal] = useState(null);
@@ -208,8 +210,24 @@ const App = () => {
                 <Route path="staff" element={<Staff />} />
                 <Route path="billing" element={<BillingPage />} />
                 <Route path="locations" element={<LocationsPage />} />
-                <Route path="requests" element={<RequestsPage />} />
-                <Route path="teams" element={<TeamsPage />} />
+                <Route path="settings" element={<SettingsPage />} />
+                {/* Feature-gated routes — redirect to home if disabled */}
+                <Route
+                  path="requests"
+                  element={
+                    features.requests_enabled
+                      ? <RequestsPage />
+                      : <Navigate to="/" replace />
+                  }
+                />
+                <Route
+                  path="teams"
+                  element={
+                    features.teams_enabled
+                      ? <TeamsPage />
+                      : <Navigate to="/" replace />
+                  }
+                />
               </Route>
 
               <Route path="*" element={<NotFound />} />

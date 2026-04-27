@@ -9,6 +9,7 @@ import useTeam from "@/context/useTeam";
 import useTheme from "@/hooks/useTheme";
 import { supabase } from "@/lib/supabaseClient";
 
+
 // ── Icons ─────────────────────────────────────────────────────────────────────
 // Inline SVGs so we don't need an icon library.
 // `d` accepts: a string (single path), an array of strings, or an array that
@@ -40,6 +41,7 @@ const Icons = {
   Requests:  () => <Icon d={["M9 11l3 3L22 4", "M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"]} />,
   Billing:   () => <Icon d={["M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7z", "M2 11h20"]} />,
   Feedback:  () => <Icon d={["M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"]} />,
+  AppSettings: () => <Icon d={["M12 20h9", "M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"]} />,
   Settings:  () => <Icon d={["M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z", "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"]} />,
   Moon:      () => <Icon d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />,
   Sun:       () => <Icon d={["M12 1v2", "M12 21v2", "M4.22 4.22l1.42 1.42", "M18.36 18.36l1.42 1.42", "M1 12h2", "M21 12h2", "M4.22 19.78l1.42-1.42", "M18.36 5.64l1.42-1.42", "M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z"]} />,
@@ -49,7 +51,7 @@ const Icons = {
 
 // ── SettingsPanel ─────────────────────────────────────────────────────────────
 function SettingsPanel({ collapsed, onClose }) {
-  const { logout, profile, role } = useUser();
+  const { logout, profile, role, features } = useUser();
   const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const isOwner = role === "owner";
@@ -117,6 +119,18 @@ function SettingsPanel({ collapsed, onClose }) {
               <span>Change password</span>
             </button>
 
+            {/* App settings — owners only */}
+            {isOwner && (
+              <button
+                type="button"
+                onClick={() => { navigate("/settings"); onClose(); }}
+                className={menuItemClass}
+              >
+                <Icons.AppSettings />
+                <span>App settings</span>
+              </button>
+            )}
+
             {/* Billing — owners only */}
             {isOwner && (
               <button
@@ -183,7 +197,7 @@ function SettingsPanel({ collapsed, onClose }) {
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
-  const { role } = useUser();
+  const { role, features } = useUser();
   const isOwner = role === "owner";
   const isAdmin = role === "owner" || role === "admin";
 
@@ -267,7 +281,7 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
         </NavLink>
       )}
 
-      {(isAdmin || !canSwitchTeams) && (
+      {features.teams_enabled && (isAdmin || !canSwitchTeams) && (
         <NavLink to="/teams" onClick={() => onDone?.()} title="Teams"
           className={({ isActive }) => navLinkClass(isActive, navCollapsed)}>
           <Icons.Teams />
@@ -275,11 +289,13 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
         </NavLink>
       )}
 
-      <NavLink to="/requests" onClick={() => onDone?.()} title="Requests"
-        className={({ isActive }) => navLinkClass(isActive, navCollapsed)}>
-        <Icons.Requests />
-        {!navCollapsed && <span>Requests</span>}
-      </NavLink>
+      {features.requests_enabled && (
+        <NavLink to="/requests" onClick={() => onDone?.()} title="Requests"
+          className={({ isActive }) => navLinkClass(isActive, navCollapsed)}>
+          <Icons.Requests />
+          {!navCollapsed && <span>Requests</span>}
+        </NavLink>
+      )}
 
       <button type="button" title="Beta Feedback"
         onClick={() => { onDone?.(); setFeedbackOpen(true); }}

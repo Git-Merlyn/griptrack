@@ -32,6 +32,9 @@ const UserProvider = ({ children }) => {
   // Trial
   const [trialEndsAt, setTrialEndsAt] = useState(null);
 
+  // Org feature flags
+  const [features, setFeatures] = useState({ teams_enabled: true, requests_enabled: true });
+
   const isPlaceholderOrgName = (name) => {
     const n = String(name || "").trim().toLowerCase();
     return !n || ["default org", "new company", "organization", "company"].includes(n);
@@ -140,7 +143,7 @@ const UserProvider = ({ children }) => {
       if (nextOrgId) {
         const { data: orgRow, error: orgErr } = await supabase
           .from("organizations")
-          .select("name, trial_ends_at")
+          .select("name, trial_ends_at, features")
           .eq("id", nextOrgId)
           .single();
 
@@ -154,6 +157,11 @@ const UserProvider = ({ children }) => {
           setOrgName(name);
           setNeedsOrgSetup(isPlaceholderOrgName(name));
           setTrialEndsAt(orgRow?.trial_ends_at ?? null);
+          // Fall back to enabled if the column doesn't exist yet
+          setFeatures({
+            teams_enabled:   orgRow?.features?.teams_enabled   ?? true,
+            requests_enabled: orgRow?.features?.requests_enabled ?? true,
+          });
         }
 
         // Load subscription for org
@@ -240,6 +248,18 @@ const UserProvider = ({ children }) => {
   // admin/owner can browse any team; crew/dept_head are locked to their assigned team
   const canSwitchTeams = isCoordinator;
 
+  // Toggle an org-level feature flag. Owner-only in the UI, but no server-side
+  // enforcement here — RLS on the organizations table handles that.
+  const updateFeature = async (key, enabled) => {
+    const newFeatures = { ...features, [key]: enabled };
+    const { error } = await supabase
+      .from("organizations")
+      .update({ features: newFeatures })
+      .eq("id", orgId);
+    if (!error) setFeatures(newFeatures);
+    return { error };
+  };
+
   // Derive the active plan — treat any non-active subscription as free
   const plan = useMemo(() => {
     if (!subscription) return "free";
@@ -271,6 +291,9 @@ const UserProvider = ({ children }) => {
       loadingSubscription,
       trialEndsAt,
       refreshSubscription: () => loadSubscription(orgId),
+      // Features
+      features,
+      updateFeature,
       // Dev only
       devRoleOverride,
       setDevRoleOverride,
@@ -292,6 +315,7 @@ const UserProvider = ({ children }) => {
       plan,
       loadingSubscription,
       trialEndsAt,
+      features,
       devRoleOverride,
     ],
   );

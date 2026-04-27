@@ -30,6 +30,11 @@ const UserContext = createContext({
   // Trial
   trialEndsAt: null,    // ISO string from organizations.trial_ends_at
 
+  // Org feature flags — owner can toggle these in /settings.
+  // Default true so nothing breaks before the DB column is added.
+  features: { teams_enabled: true, requests_enabled: true },
+  updateFeature: async () => ({ error: null }),
+
   // Dev-only: override the real role for testing permission levels.
   // Always null in production (the setter is a no-op outside of DEV mode).
   devRoleOverride: null,
