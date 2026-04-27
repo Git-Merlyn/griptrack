@@ -94,6 +94,11 @@ export type AppTabParamList = {
   Profile: undefined;
 };
 
+export type ProfileStackParamList = {
+  ProfileHome: undefined;
+  Settings: undefined;
+};
+
 export type InventoryStackParamList = {
   InventoryList: undefined;
   ItemDetail: { item: EquipmentItem };

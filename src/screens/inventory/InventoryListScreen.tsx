@@ -66,7 +66,7 @@ export default function InventoryListScreen({ navigation }: Props) {
       // Only admin/owner get an interactive team switcher in the header,
       // and only when the teams feature is enabled for this org.
       headerRight: () =>
-        teamsActive ? (
+        teamsActive && activeTeam ? (
           <TouchableOpacity
             onPress={() => setSwitcherVisible(true)}
             className="flex-row items-center gap-1.5 mr-1"
@@ -74,13 +74,13 @@ export default function InventoryListScreen({ navigation }: Props) {
           >
             <Ionicons name="people-outline" size={16} color="#4debf9" />
             <Text className="text-accent text-sm font-medium" numberOfLines={1}>
-              {activeTeam?.name ?? 'All Teams'}
+              {activeTeam.name}
             </Text>
             <Ionicons name="chevron-down" size={14} color="#4debf9" />
           </TouchableOpacity>
         ) : undefined,
     });
-  }, [navigation, activeTeam, canSwitch]);
+  }, [navigation, activeTeam, teamsActive]);
 
   async function handleRefresh() {
     setRefreshing(true);
