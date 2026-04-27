@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,9 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { useRequests, EquipmentRequest } from '../../hooks/useRequests';
+import { useOrgContext } from '../../context/OrgContext';
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
 
@@ -233,9 +235,18 @@ function NewRequestModal({
 export default function RequestsScreen() {
   const { requests, loading, error, isAdmin, refresh, submitRequest, reviewRequest } =
     useRequests();
+  const { features } = useOrgContext();
+  const navigation = useNavigation();
 
   const [refreshing, setRefreshing] = useState(false);
   const [newRequestVisible, setNewRequestVisible] = useState(false);
+
+  // Safety net: if requests feature is disabled, bounce back to Inventory
+  useEffect(() => {
+    if (!features.requestsEnabled) {
+      navigation.navigate('Inventory' as never);
+    }
+  }, [features.requestsEnabled, navigation]);
 
   async function handleRefresh() {
     setRefreshing(true);

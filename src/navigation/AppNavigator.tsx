@@ -10,6 +10,7 @@ import RequestsScreen from '../screens/requests/RequestsScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import SyncStatusBar from '../components/SyncStatusBar';
 import DevRoleSwitcher from '../components/DevRoleSwitcher';
+import { useOrgContext } from '../context/OrgContext';
 
 const Tab = createBottomTabNavigator<AppTabParamList>();
 
@@ -19,6 +20,8 @@ const BG = '#1a1d23';
 const BORDER = '#0f1117';
 
 export default function AppNavigator() {
+  const { features } = useOrgContext();
+
   return (
     <View style={{ flex: 1 }}>
       <SyncStatusBar />
@@ -46,7 +49,9 @@ export default function AppNavigator() {
     >
       <Tab.Screen name="Inventory" component={InventoryStack} />
       <Tab.Screen name="Move" component={MoveScreen} options={{ headerShown: true, headerStyle: { backgroundColor: BG }, headerTintColor: ACCENT, headerTitleStyle: { color: '#f1f5f9' }, title: 'Move Equipment' }} />
-      <Tab.Screen name="Requests" component={RequestsScreen} options={{ headerShown: true, headerStyle: { backgroundColor: BG }, headerTintColor: ACCENT, headerTitleStyle: { color: '#f1f5f9' }, title: 'Requests' }} />
+      {features.requestsEnabled && (
+        <Tab.Screen name="Requests" component={RequestsScreen} options={{ headerShown: true, headerStyle: { backgroundColor: BG }, headerTintColor: ACCENT, headerTitleStyle: { color: '#f1f5f9' }, title: 'Requests' }} />
+      )}
       <Tab.Screen name="Profile" component={ProfileScreen} options={{ headerShown: true, headerStyle: { backgroundColor: BG }, headerTintColor: ACCENT, headerTitleStyle: { color: '#f1f5f9' }, title: 'Profile' }} />
     </Tab.Navigator>
     {/* Dev-only role switcher — stripped from prod builds by dead code elimination */}

@@ -9,6 +9,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { AuthProvider } from './src/context/AuthContext';
 import { TeamProvider } from './src/context/TeamContext';
 import { SyncProvider } from './src/context/SyncContext';
+import { OrgProvider } from './src/context/OrgContext';
 import RootNavigator from './src/navigation/RootNavigator';
 
 export default function App() {
@@ -18,8 +19,10 @@ export default function App() {
         <AuthProvider>
           <TeamProvider>
             <SyncProvider>
-              <StatusBar style="light" />
-              <RootNavigator />
+              <OrgProvider>
+                <StatusBar style="light" />
+                <RootNavigator />
+              </OrgProvider>
             </SyncProvider>
           </TeamProvider>
         </AuthProvider>

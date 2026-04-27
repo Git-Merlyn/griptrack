@@ -17,6 +17,7 @@ import { useTeamContext } from '../../context/TeamContext';
 import { useAuthContext } from '../../context/AuthContext';
 import TeamSwitcher from '../../components/TeamSwitcher';
 import OrgOverview from '../../components/OrgOverview';
+import { useOrgContext } from '../../context/OrgContext';
 import { statusColor, getQty, qtyColor } from '../../lib/helpers';
 
 type Props = NativeStackScreenProps<InventoryStackParamList, 'InventoryList'>;
@@ -26,6 +27,10 @@ export default function InventoryListScreen({ navigation }: Props) {
     useInventory();
   const { activeTeam, activeTeamId, canSwitch, loadingTeams } = useTeamContext();
   const { profile } = useAuthContext();
+  const { features } = useOrgContext();
+
+  // Teams feature flag: when off, suppress all team-switching UI
+  const teamsActive = canSwitch && features.teamsEnabled;
 
   const [switcherVisible, setSwitcherVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -53,15 +58,15 @@ export default function InventoryListScreen({ navigation }: Props) {
     [equipment]
   );
 
-  // Admin/owner with no active team — show org overview instead of the list
-  const showOrgOverview = canSwitch && !activeTeamId && !loadingTeams;
+  // Admin/owner with no active team and teams feature on — show org overview
+  const showOrgOverview = teamsActive && !activeTeamId && !loadingTeams;
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      // Only admin/owner get an interactive team switcher in the header.
-      // Crew and dept_head are always locked to their team — no header clutter.
+      // Only admin/owner get an interactive team switcher in the header,
+      // and only when the teams feature is enabled for this org.
       headerRight: () =>
-        canSwitch ? (
+        teamsActive ? (
           <TouchableOpacity
             onPress={() => setSwitcherVisible(true)}
             className="flex-row items-center gap-1.5 mr-1"
@@ -87,7 +92,7 @@ export default function InventoryListScreen({ navigation }: Props) {
     return (
       <View className="flex-1 bg-background">
         <OrgOverview />
-        {canSwitch && (
+        {teamsActive && (
           <TeamSwitcher visible={switcherVisible} onClose={() => setSwitcherVisible(false)} />
         )}
       </View>
@@ -198,7 +203,7 @@ export default function InventoryListScreen({ navigation }: Props) {
         </TouchableOpacity>
       )}
 
-      {canSwitch && (
+      {teamsActive && (
         <TeamSwitcher visible={switcherVisible} onClose={() => setSwitcherVisible(false)} />
       )}
     </View>
