@@ -11,7 +11,6 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface BulkActionBarProps {
   selectedCount: number;
@@ -140,7 +139,6 @@ export default function BulkActionBar({
   onMove,
   onDelete,
 }: BulkActionBarProps) {
-  const insets = useSafeAreaInsets();
   const slideAnim = useRef(new Animated.Value(0)).current;
   const [moveSheetVisible, setMoveSheetVisible] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -195,8 +193,9 @@ export default function BulkActionBar({
           position: 'absolute',
           left: 0,
           right: 0,
-          // Sit just above the tab bar (tab bar height ≈ 49 + bottom safe area)
-          bottom: 49 + insets.bottom,
+          // bottom: 0 = flush with the screen content area, which already ends
+          // at the tab bar top inside the tab navigator.
+          bottom: 0,
         }}
       >
         <View
