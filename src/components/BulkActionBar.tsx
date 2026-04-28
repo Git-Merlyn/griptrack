@@ -17,6 +17,8 @@ interface BulkActionBarProps {
   locationNames: string[];
   onMove: (location: string) => Promise<void>;
   onDelete: () => Promise<void>;
+  /** Pass true to hide the Delete button (e.g. on the Move tab) */
+  hideDelete?: boolean;
 }
 
 // ─── Location picker sheet ────────────────────────────────────────────────────
@@ -138,6 +140,7 @@ export default function BulkActionBar({
   locationNames,
   onMove,
   onDelete,
+  hideDelete = false,
 }: BulkActionBarProps) {
   const slideAnim = useRef(new Animated.Value(0)).current;
   const [moveSheetVisible, setMoveSheetVisible] = useState(false);
@@ -213,22 +216,24 @@ export default function BulkActionBar({
             {selectedCount} selected
           </Text>
 
-          {/* Delete */}
-          <TouchableOpacity
-            onPress={confirmDelete}
-            disabled={deleting}
-            className="flex-row items-center gap-1.5 border border-danger/30 rounded-xl px-3 py-2"
-            activeOpacity={0.8}
-          >
-            {deleting ? (
-              <ActivityIndicator size="small" color="#ff4d4d" />
-            ) : (
-              <>
-                <Ionicons name="trash-outline" size={16} color="#ff4d4d" />
-                <Text className="text-danger text-sm font-medium">Delete</Text>
-              </>
-            )}
-          </TouchableOpacity>
+          {/* Delete — hidden on tabs that don't need it */}
+          {!hideDelete && (
+            <TouchableOpacity
+              onPress={confirmDelete}
+              disabled={deleting}
+              className="flex-row items-center gap-1.5 border border-danger/30 rounded-xl px-3 py-2"
+              activeOpacity={0.8}
+            >
+              {deleting ? (
+                <ActivityIndicator size="small" color="#ff4d4d" />
+              ) : (
+                <>
+                  <Ionicons name="trash-outline" size={16} color="#ff4d4d" />
+                  <Text className="text-danger text-sm font-medium">Delete</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
 
           {/* Move */}
           <TouchableOpacity
