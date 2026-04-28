@@ -109,7 +109,7 @@ export default function InventoryListScreen({ navigation }: Props) {
           : 'Select items',
         headerBackVisible: false,
         headerLeft: () => (
-          <TouchableOpacity onPress={exitBulkMode} hitSlop={8}>
+          <TouchableOpacity onPress={exitBulkMode} style={{ paddingHorizontal: 12, paddingVertical: 6 }}>
             <Text style={{ color: '#4debf9', fontSize: 16, fontWeight: '400' }}>Cancel</Text>
           </TouchableOpacity>
         ),
