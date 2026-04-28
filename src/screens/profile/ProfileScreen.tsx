@@ -11,19 +11,11 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { supabase } from '../../lib/supabase';
 import { useAuthContext } from '../../context/AuthContext';
-import { ProfileStackParamList } from '../../lib/types';
-
-type ProfileNav = NativeStackNavigationProp<ProfileStackParamList, 'ProfileHome'>;
 
 export default function ProfileScreen() {
   const { profile, signOut, session } = useAuthContext();
-  const navigation = useNavigation<ProfileNav>();
-
-  const canAccessSettings = profile?.role === 'owner' || profile?.role === 'admin';
 
   const [changingPassword, setChangingPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -191,19 +183,6 @@ export default function ProfileScreen() {
           >
             <Ionicons name="lock-closed-outline" size={20} color="#4debf9" />
             <Text className="text-slate-100 font-medium">Change password</Text>
-            <Ionicons name="chevron-forward" size={16} color="#6b7280" style={{ marginLeft: 'auto' }} />
-          </TouchableOpacity>
-        )}
-
-        {/* ── Settings — owner / admin only ── */}
-        {canAccessSettings && (
-          <TouchableOpacity
-            className="bg-surface border border-white/10 rounded-xl p-4 flex-row items-center gap-3 mb-4"
-            onPress={() => navigation.navigate('Settings')}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="settings-outline" size={20} color="#4debf9" />
-            <Text className="text-slate-100 font-medium">Settings</Text>
             <Ionicons name="chevron-forward" size={16} color="#6b7280" style={{ marginLeft: 'auto' }} />
           </TouchableOpacity>
         )}

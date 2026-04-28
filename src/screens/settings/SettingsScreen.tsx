@@ -3,34 +3,37 @@ import {
   View,
   Text,
   ScrollView,
-  Switch,
+  TouchableOpacity,
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useOrgContext } from '../../context/OrgContext';
 import { useAuthContext } from '../../context/AuthContext';
+import { SettingsStackParamList } from '../../lib/types';
+import ToggleSwitch from '../../components/ToggleSwitch';
 
-const ACCENT = '#4debf9';
+type SettingsNav = NativeStackNavigationProp<SettingsStackParamList, 'SettingsHome'>;
 
 export default function SettingsScreen() {
   const { features, updateFeatures } = useOrgContext();
   const { profile } = useAuthContext();
+  const navigation = useNavigation<SettingsNav>();
 
   const isOwner = profile?.role === 'owner';
   const isAdmin = profile?.role === 'admin';
 
-  // Local saving state so we can disable toggles while a write is in flight,
-  // preventing double-taps from racing.
+  // Prevent double-taps from racing while a write is in-flight
   const [saving, setSaving] = useState(false);
 
   async function handleToggle(key: 'teamsEnabled' | 'requestsEnabled', value: boolean) {
     if (!isOwner || saving) return;
-
     setSaving(true);
     try {
       await updateFeatures({ ...features, [key]: value });
     } catch (err: any) {
-      Alert.alert('Error', err?.message ?? 'Failed to save setting. Please try again.');
+      Alert.alert('Error', err?.message ?? 'Failed to save. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -54,7 +57,7 @@ export default function SettingsScreen() {
       {/* ── Optional Features ── */}
       <SectionHeader title="Optional Features" />
 
-      <View className="bg-surface border border-white/10 rounded-2xl overflow-hidden">
+      <View className="bg-surface border border-white/10 rounded-2xl overflow-hidden mb-6">
         <FeatureRow
           icon="people-outline"
           title="Teams"
@@ -74,6 +77,26 @@ export default function SettingsScreen() {
           disabled={!isOwner || saving}
           onValueChange={(v) => handleToggle('requestsEnabled', v)}
         />
+      </View>
+
+      {/* ── Team Management ── */}
+      <SectionHeader title="Team Management" />
+
+      <View className="bg-surface border border-white/10 rounded-2xl overflow-hidden">
+        <TouchableOpacity
+          className="flex-row items-center gap-3 px-4 py-4"
+          onPress={() => navigation.navigate('ManageMembers')}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="people-outline" size={18} color="#4debf9" />
+          <View className="flex-1">
+            <Text className="text-slate-100 font-medium">Members</Text>
+            <Text className="text-text text-xs mt-0.5">
+              Add, remove, and manage roles
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color="#6b7280" />
+        </TouchableOpacity>
       </View>
     </ScrollView>
   );
@@ -100,19 +123,12 @@ interface FeatureRowProps {
   onValueChange: (v: boolean) => void;
 }
 
-function FeatureRow({
-  icon,
-  title,
-  description,
-  value,
-  disabled,
-  onValueChange,
-}: FeatureRowProps) {
+function FeatureRow({ icon, title, description, value, disabled, onValueChange }: FeatureRowProps) {
   return (
     <View className="px-4 py-4">
       <View className="flex-row items-center justify-between gap-3">
         <View className="flex-row items-center gap-2.5 flex-1">
-          <Ionicons name={icon} size={18} color={disabled ? '#4b5563' : ACCENT} />
+          <Ionicons name={icon} size={18} color={disabled ? '#4b5563' : '#4debf9'} />
           <Text
             className="text-base font-semibold"
             style={{ color: disabled ? '#6b7280' : '#f1f5f9' }}
@@ -120,14 +136,7 @@ function FeatureRow({
             {title}
           </Text>
         </View>
-        <Switch
-          value={value}
-          onValueChange={onValueChange}
-          disabled={disabled}
-          trackColor={{ false: '#374151', true: 'rgba(77,235,249,0.35)' }}
-          thumbColor={value ? ACCENT : '#6b7280'}
-          ios_backgroundColor="#374151"
-        />
+        <ToggleSwitch value={value} onValueChange={onValueChange} disabled={disabled} />
       </View>
       <Text className="text-text text-xs mt-2 leading-relaxed" style={{ paddingLeft: 28 }}>
         {description}

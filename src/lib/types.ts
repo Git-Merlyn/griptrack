@@ -91,12 +91,17 @@ export type AppTabParamList = {
   Inventory: undefined;
   Move: undefined;
   Requests: undefined;
+  Settings: undefined;
   Profile: undefined;
 };
 
 export type ProfileStackParamList = {
   ProfileHome: undefined;
-  Settings: undefined;
+};
+
+export type SettingsStackParamList = {
+  SettingsHome: undefined;
+  ManageMembers: undefined;
 };
 
 export type InventoryStackParamList = {
