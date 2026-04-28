@@ -107,9 +107,10 @@ export default function InventoryListScreen({ navigation }: Props) {
         headerTitle: selectedIds.length > 0
           ? `${selectedIds.length} selected`
           : 'Select items',
+        headerBackVisible: false,
         headerLeft: () => (
-          <TouchableOpacity onPress={exitBulkMode} hitSlop={8} style={{ marginLeft: 4 }}>
-            <Text style={{ color: '#4debf9', fontSize: 16 }}>Cancel</Text>
+          <TouchableOpacity onPress={exitBulkMode} hitSlop={8}>
+            <Text style={{ color: '#4debf9', fontSize: 16, fontWeight: '400' }}>Cancel</Text>
           </TouchableOpacity>
         ),
         headerRight: () => null,
@@ -117,6 +118,7 @@ export default function InventoryListScreen({ navigation }: Props) {
     } else {
       navigation.setOptions({
         headerTitle: 'Inventory',
+        headerBackVisible: true,
         headerLeft: undefined,
         headerRight: () =>
           teamsActive && activeTeam ? (
