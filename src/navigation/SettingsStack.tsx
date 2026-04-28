@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SettingsStackParamList } from '../lib/types';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import ManageMembersScreen from '../screens/settings/ManageMembersScreen';
+import ManageLocationsScreen from '../screens/settings/ManageLocationsScreen';
 
 const Stack = createNativeStackNavigator<SettingsStackParamList>();
 
@@ -24,6 +25,11 @@ export default function SettingsStack() {
         name="ManageMembers"
         component={ManageMembersScreen}
         options={{ title: 'Members' }}
+      />
+      <Stack.Screen
+        name="ManageLocations"
+        component={ManageLocationsScreen}
+        options={{ title: 'Locations' }}
       />
     </Stack.Navigator>
   );

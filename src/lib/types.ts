@@ -102,6 +102,7 @@ export type ProfileStackParamList = {
 export type SettingsStackParamList = {
   SettingsHome: undefined;
   ManageMembers: undefined;
+  ManageLocations: undefined;
 };
 
 export type InventoryStackParamList = {

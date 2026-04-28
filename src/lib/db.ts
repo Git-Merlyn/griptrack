@@ -144,6 +144,19 @@ export function getLocationsByOrg(orgId: string): Location[] {
   return rows.map((r) => ({ ...r, is_active: r.is_active === 1 }));
 }
 
+/** Returns ALL locations (active + inactive) — used by the management screen. */
+export function getAllLocationsByOrg(orgId: string): Location[] {
+  const rows = db.getAllSync(
+    `SELECT * FROM locations WHERE org_id = ? ORDER BY name ASC`,
+    [orgId]
+  ) as Array<Omit<Location, 'is_active'> & { is_active: number }>;
+  return rows.map((r) => ({ ...r, is_active: r.is_active === 1 }));
+}
+
+export function deleteLocationLocal(id: string): void {
+  db.runSync(`DELETE FROM locations WHERE id = ?`, [id]);
+}
+
 export function replaceLocationsForOrg(orgId: string, locs: Location[]): void {
   db.runSync('DELETE FROM locations WHERE org_id = ?', [orgId]);
   for (const loc of locs) {

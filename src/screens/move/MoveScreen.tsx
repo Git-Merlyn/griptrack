@@ -325,8 +325,8 @@ function MoveItemModal({
 }: MoveItemModalProps) {
   const [qtyInput, setQtyInput] = useState('');
   const [toLocation, setToLocation] = useState('');
-  const [locationPickerVisible, setLocationPickerVisible] = useState(false);
   const [locationSearch, setLocationSearch] = useState('');
+  const [showLocPicker, setShowLocPicker] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const maxQty = item ? getQty(item) : 0;
@@ -337,6 +337,7 @@ function MoveItemModal({
       setQtyInput(String(getQty(item)));
       setToLocation('');
       setLocationSearch('');
+      setShowLocPicker(false);
     }
   }, [item?.id]);
 
@@ -383,156 +384,125 @@ function MoveItemModal({
   }
 
   return (
-    <>
-      <Modal
-        visible={!!item}
-        animationType="slide"
-        transparent
-        onRequestClose={onClose}
-      >
-        <Pressable className="flex-1 bg-black/60" onPress={onClose} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View className="bg-surface rounded-t-3xl border-t border-white/10">
-            {/* Handle */}
-            <View className="items-center pt-3 pb-1">
-              <View className="w-10 h-1 bg-white/20 rounded-full" />
-            </View>
-
-            {/* Header */}
-            <View className="px-5 pt-3 pb-4 flex-row items-start justify-between">
-              <View className="flex-1 mr-3">
-                <Text className="text-slate-100 text-lg font-semibold" numberOfLines={2}>
-                  {item?.name}
-                </Text>
-                <Text className="text-text text-sm mt-0.5">
-                  From: {item?.location ?? '—'}  ·  {maxQty} available
-                </Text>
-              </View>
-              <TouchableOpacity onPress={onClose} hitSlop={8}>
-                <Ionicons name="close" size={22} color="#6b7280" />
-              </TouchableOpacity>
-            </View>
-
-            <View className="px-5 pb-8">
-              {/* Quantity */}
-              <Text className="text-text text-sm mb-1.5">Quantity</Text>
-              <View className="bg-background border border-white/10 rounded-xl px-4 mb-4">
-                <TextInput
-                  className="py-3.5 text-slate-100 text-base"
-                  keyboardType="number-pad"
-                  placeholder={`Max ${maxQty}`}
-                  placeholderTextColor="#4b5563"
-                  value={qtyInput}
-                  onChangeText={setQtyInput}
-                  returnKeyType="done"
-                />
-              </View>
-
-              {/* Destination */}
-              <Text className="text-text text-sm mb-1.5">Destination</Text>
-              <TouchableOpacity
-                className="bg-background border border-white/10 rounded-xl px-4 py-3.5 flex-row items-center justify-between mb-6"
-                onPress={() => setLocationPickerVisible(true)}
-                activeOpacity={0.8}
-              >
-                <Text
-                  className="text-base"
-                  style={{ color: toLocation ? '#f1f5f9' : '#4b5563' }}
-                >
-                  {toLocation || 'Select location…'}
-                </Text>
-                <Ionicons name="chevron-down" size={16} color="#6b7280" />
-              </TouchableOpacity>
-
-              {/* Move button */}
-              <TouchableOpacity
-                className={`rounded-xl py-4 items-center ${
-                  !toLocation || submitting ? 'bg-accent/40' : 'bg-accent'
-                }`}
-                onPress={handleMove}
-                disabled={!toLocation || submitting}
-                activeOpacity={0.85}
-              >
-                {submitting ? (
-                  <ActivityIndicator color="#0f1117" />
-                ) : (
-                  <Text className="text-slate-900 font-semibold text-base">
-                    Move equipment
-                  </Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* Location picker — nested modal */}
-      <Modal
-        visible={locationPickerVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setLocationPickerVisible(false)}
-      >
-        <Pressable
-          className="flex-1 bg-black/60"
-          onPress={() => setLocationPickerVisible(false)}
-        />
-        <View className="bg-surface rounded-t-3xl border-t border-white/10 max-h-[55%]">
+    <Modal visible={!!item} animationType="slide" transparent onRequestClose={onClose}>
+      <Pressable className="flex-1 bg-black/60" onPress={onClose} />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <View className="bg-surface rounded-t-3xl border-t border-white/10">
+          {/* Handle */}
           <View className="items-center pt-3 pb-1">
             <View className="w-10 h-1 bg-white/20 rounded-full" />
           </View>
-          <View className="px-5 pt-3 pb-2 flex-row items-center justify-between">
-            <Text className="text-slate-100 text-lg font-semibold">Select Location</Text>
-            <TouchableOpacity onPress={() => setLocationPickerVisible(false)} hitSlop={8}>
-              <Ionicons name="close" size={22} color="#6b7280" />
-            </TouchableOpacity>
-          </View>
-          <View className="px-5 pb-2">
-            <View className="flex-row items-center bg-background border border-white/10 rounded-xl px-3 gap-2">
-              <Ionicons name="search" size={14} color="#6b7280" />
-              <TextInput
-                className="flex-1 py-2.5 text-slate-100 text-sm"
-                placeholder="Search locations…"
-                placeholderTextColor="#4b5563"
-                value={locationSearch}
-                onChangeText={setLocationSearch}
-                autoCorrect={false}
-              />
-            </View>
-          </View>
-          <FlatList
-            data={filteredLocations}
-            keyExtractor={(l) => l}
-            contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
-            ItemSeparatorComponent={() => <View className="h-px bg-white/5" />}
-            ListEmptyComponent={
-              <Text className="text-text text-sm text-center py-8">No locations found</Text>
-            }
-            renderItem={({ item: loc }) => (
-              <TouchableOpacity
-                className="flex-row items-center justify-between py-3.5"
-                onPress={() => {
-                  setToLocation(loc);
-                  setLocationPickerVisible(false);
-                  setLocationSearch('');
-                }}
-                activeOpacity={0.7}
-              >
-                <Text
-                  className={`text-base ${
-                    toLocation === loc ? 'text-accent font-medium' : 'text-slate-100'
-                  }`}
-                >
-                  {loc}
-                </Text>
-                {toLocation === loc && (
-                  <Ionicons name="checkmark" size={20} color="#4debf9" />
+
+          {showLocPicker ? (
+            /* ── Inline location picker ── */
+            <>
+              <View className="px-5 pt-3 pb-2 flex-row items-center gap-3">
+                <TouchableOpacity onPress={() => { setShowLocPicker(false); setLocationSearch(''); }} hitSlop={8}>
+                  <Ionicons name="arrow-back" size={22} color="#4debf9" />
+                </TouchableOpacity>
+                <Text className="text-slate-100 text-lg font-semibold">Select Location</Text>
+              </View>
+              <View className="px-5 pb-2">
+                <View className="flex-row items-center bg-background border border-white/10 rounded-xl px-3 gap-2">
+                  <Ionicons name="search" size={14} color="#6b7280" />
+                  <TextInput
+                    className="flex-1 py-2.5 text-slate-100 text-sm"
+                    placeholder="Search locations…"
+                    placeholderTextColor="#4b5563"
+                    value={locationSearch}
+                    onChangeText={setLocationSearch}
+                    autoCorrect={false}
+                    autoFocus
+                  />
+                </View>
+              </View>
+              <FlatList
+                data={filteredLocations}
+                keyExtractor={(l) => l}
+                style={{ maxHeight: 320 }}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+                ItemSeparatorComponent={() => <View className="h-px bg-white/5" />}
+                ListEmptyComponent={
+                  <Text className="text-text text-sm text-center py-8">No locations found</Text>
+                }
+                renderItem={({ item: loc }) => (
+                  <TouchableOpacity
+                    className="flex-row items-center justify-between py-3.5"
+                    onPress={() => {
+                      setToLocation(loc);
+                      setShowLocPicker(false);
+                      setLocationSearch('');
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text className={`text-base ${toLocation === loc ? 'text-accent font-medium' : 'text-slate-100'}`}>
+                      {loc}
+                    </Text>
+                    {toLocation === loc && <Ionicons name="checkmark" size={20} color="#4debf9" />}
+                  </TouchableOpacity>
                 )}
-              </TouchableOpacity>
-            )}
-          />
+              />
+            </>
+          ) : (
+            /* ── Move form ── */
+            <>
+              <View className="px-5 pt-3 pb-4 flex-row items-start justify-between">
+                <View className="flex-1 mr-3">
+                  <Text className="text-slate-100 text-lg font-semibold" numberOfLines={2}>
+                    {item?.name}
+                  </Text>
+                  <Text className="text-text text-sm mt-0.5">
+                    From: {item?.location ?? '—'}  ·  {maxQty} available
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={onClose} hitSlop={8}>
+                  <Ionicons name="close" size={22} color="#6b7280" />
+                </TouchableOpacity>
+              </View>
+
+              <View className="px-5 pb-8">
+                <Text className="text-text text-sm mb-1.5">Quantity</Text>
+                <View className="bg-background border border-white/10 rounded-xl px-4 mb-4">
+                  <TextInput
+                    className="py-3.5 text-slate-100 text-base"
+                    keyboardType="number-pad"
+                    placeholder={`Max ${maxQty}`}
+                    placeholderTextColor="#4b5563"
+                    value={qtyInput}
+                    onChangeText={setQtyInput}
+                    returnKeyType="done"
+                  />
+                </View>
+
+                <Text className="text-text text-sm mb-1.5">Destination</Text>
+                <TouchableOpacity
+                  className="bg-background border border-white/10 rounded-xl px-4 py-3.5 flex-row items-center justify-between mb-6"
+                  onPress={() => setShowLocPicker(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text className="text-base" style={{ color: toLocation ? '#f1f5f9' : '#4b5563' }}>
+                    {toLocation || 'Select location…'}
+                  </Text>
+                  <Ionicons name="chevron-down" size={16} color="#6b7280" />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  className={`rounded-xl py-4 items-center ${!toLocation || submitting ? 'bg-accent/40' : 'bg-accent'}`}
+                  onPress={handleMove}
+                  disabled={!toLocation || submitting}
+                  activeOpacity={0.85}
+                >
+                  {submitting ? (
+                    <ActivityIndicator color="#0f1117" />
+                  ) : (
+                    <Text className="text-slate-900 font-semibold text-base">Move equipment</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
         </View>
-      </Modal>
-    </>
+      </KeyboardAvoidingView>
+    </Modal>
   );
 }

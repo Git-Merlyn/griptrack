@@ -3,8 +3,7 @@ import { View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 
-import { AppTabParamList } from '../lib/types';
-import { isOrgAdmin } from '../lib/types';
+import { AppTabParamList, isOrgAdmin, canManageInventory } from '../lib/types';
 import InventoryStack from './InventoryStack';
 import MoveScreen from '../screens/move/MoveScreen';
 import RequestsScreen from '../screens/requests/RequestsScreen';
@@ -26,7 +25,8 @@ export default function AppNavigator() {
   const { features } = useOrgContext();
   const { profile } = useAuthContext();
 
-  const canSeeSettings = profile?.role != null && isOrgAdmin(profile.role);
+  // dept_head+ can access Settings (for location management); feature flags stay owner/admin only
+  const canSeeSettings = profile?.role != null && canManageInventory(profile.role);
 
   return (
     <View style={{ flex: 1 }}>
