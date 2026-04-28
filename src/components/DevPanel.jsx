@@ -100,7 +100,7 @@ export default function DevPanel() {
   } = useUser();
 
   const { activeTeamId, activeTeam, teams } = useTeam();
-  const { hasTeamSelected, canAdd, canDelete, canEdit, canMove, loadingEquipment } =
+  const { hasTeamSelected, canAdd, canDelete, canEdit, canMove, loadingEquipment, refreshEquipment } =
     useContext(EquipmentContext);
 
   const handleSeed = async () => {
@@ -116,6 +116,10 @@ export default function DevPanel() {
       const rows = buildSeedItems(orgId, activeTeamId);
       const { error } = await supabase.from("equipment_items").insert(rows);
       if (error) throw error;
+      // Refresh local state so items appear immediately without a page reload.
+      // The DevPanel inserts bypass EquipmentContext, so we must pull the new
+      // rows back explicitly rather than relying on the realtime subscription.
+      await refreshEquipment();
       setSeedMsg(`✓ ${rows.length} items seeded`);
       window.toast?.success?.(`Seeded ${rows.length} items into ${activeTeam?.name}`);
     } catch (err) {
