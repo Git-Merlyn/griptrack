@@ -11,7 +11,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useOrgContext } from '../../context/OrgContext';
 import { useAuthContext } from '../../context/AuthContext';
-import { SettingsStackParamList, isOrgAdmin } from '../../lib/types';
+import { SettingsStackParamList, isOrgAdmin, canManageInventory } from '../../lib/types';
 import ToggleSwitch from '../../components/ToggleSwitch';
 
 type SettingsNav = NativeStackNavigationProp<SettingsStackParamList, 'SettingsHome'>;
@@ -24,6 +24,7 @@ export default function SettingsScreen() {
   const isOwner = profile?.role === 'owner';
   const isAdmin = profile?.role === 'admin';
   const isOrgAdminUser = profile?.role != null && isOrgAdmin(profile.role);
+  const canManageLocs = profile?.role != null && canManageInventory(profile.role);
 
   const [saving, setSaving] = useState(false);
 
@@ -101,16 +102,20 @@ export default function SettingsScreen() {
         </>
       )}
 
-      {/* ── Locations — dept_head, admin, owner ── */}
-      <SectionHeader title="Locations" />
-      <View className="bg-surface border border-white/10 rounded-2xl overflow-hidden">
-        <NavRow
-          icon="location-outline"
-          title="Manage Locations"
-          subtitle="Add, rename, or deactivate truck and stage locations"
-          onPress={() => navigation.navigate('ManageLocations')}
-        />
-      </View>
+      {/* ── Locations — dept_head, admin, owner only ── */}
+      {canManageLocs && (
+        <>
+          <SectionHeader title="Locations" />
+          <View className="bg-surface border border-white/10 rounded-2xl overflow-hidden">
+            <NavRow
+              icon="location-outline"
+              title="Manage Locations"
+              subtitle="Add, rename, or deactivate truck and stage locations"
+              onPress={() => navigation.navigate('ManageLocations')}
+            />
+          </View>
+        </>
+      )}
     </ScrollView>
   );
 }
