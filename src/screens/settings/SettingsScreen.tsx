@@ -24,7 +24,6 @@ export default function SettingsScreen() {
   const isOwner = profile?.role === 'owner';
   const isAdmin = profile?.role === 'admin';
   const isOrgAdminUser = profile?.role != null && isOrgAdmin(profile.role);
-  const isDeptHead = profile?.role === 'department_head';
 
   const [saving, setSaving] = useState(false);
 
@@ -45,6 +44,17 @@ export default function SettingsScreen() {
       className="flex-1 bg-background"
       contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
     >
+      {/* ── Account — all roles ── */}
+      <SectionHeader title="Account" />
+      <View className="bg-surface border border-white/10 rounded-2xl overflow-hidden mb-6">
+        <NavRow
+          icon="person-outline"
+          title="Profile"
+          subtitle="Name, email, password"
+          onPress={() => navigation.navigate('ProfileHome')}
+        />
+      </View>
+
       {/* ── Optional Features — owner/admin only ── */}
       {isOrgAdminUser && (
         <>

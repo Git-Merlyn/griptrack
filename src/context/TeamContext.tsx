@@ -79,12 +79,24 @@ export function TeamProvider({ children }: { children: ReactNode }) {
       const list = (data ?? []) as Team[];
       setTeams(list);
 
-      // If the stored team was deleted, fall back to the user's own team
       if (canSwitch) {
         setActiveTeamIdState((current) => {
+          // If the stored team no longer exists, fall back
           if (current && !list.some((t) => t.id === current)) {
-            if (orgId) AsyncStorage.setItem(storageKey(orgId), userTeamId ?? '');
-            return userTeamId;
+            const fallback = (userTeamId && list.some((t) => t.id === userTeamId))
+              ? userTeamId
+              : (list[0]?.id ?? null);
+            if (orgId && fallback) AsyncStorage.setItem(storageKey(orgId), fallback);
+            return fallback;
+          }
+          // No team selected yet (e.g. owner with no stored pref, or teams feature disabled)
+          // Auto-select: user's own team if valid, otherwise the first team.
+          if (!current && list.length > 0) {
+            const defaultId = (userTeamId && list.some((t) => t.id === userTeamId))
+              ? userTeamId
+              : list[0].id;
+            if (orgId) AsyncStorage.setItem(storageKey(orgId), defaultId);
+            return defaultId;
           }
           return current;
         });

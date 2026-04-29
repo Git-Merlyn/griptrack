@@ -2,6 +2,7 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SettingsStackParamList } from '../lib/types';
 import SettingsScreen from '../screens/settings/SettingsScreen';
+import ProfileScreen from '../screens/profile/ProfileScreen';
 import ManageMembersScreen from '../screens/settings/ManageMembersScreen';
 import ManageLocationsScreen from '../screens/settings/ManageLocationsScreen';
 
@@ -20,6 +21,11 @@ export default function SettingsStack() {
         name="SettingsHome"
         component={SettingsScreen}
         options={{ title: 'Settings' }}
+      />
+      <Stack.Screen
+        name="ProfileHome"
+        component={ProfileScreen}
+        options={{ title: 'Profile' }}
       />
       <Stack.Screen
         name="ManageMembers"
