@@ -33,6 +33,7 @@ export function initDB(): void {
       start_date  TEXT,
       end_date    TEXT,
       updated_by  TEXT,
+      updated_at  TEXT,
       created_at  TEXT
     );
 
@@ -72,6 +73,15 @@ export function initDB(): void {
       value TEXT
     );
   `);
+
+  // Migrate existing installs — add updated_at if the column doesn't exist yet.
+  // SQLite doesn't support ALTER TABLE ADD COLUMN IF NOT EXISTS, so we catch the
+  // "duplicate column" error and ignore it.
+  try {
+    db.execSync(`ALTER TABLE equipment_items ADD COLUMN updated_at TEXT`);
+  } catch {
+    // Column already exists — safe to ignore
+  }
 }
 
 // ─── UUID ─────────────────────────────────────────────────────────────────────
@@ -90,15 +100,15 @@ export function upsertEquipmentItem(item: EquipmentItem): void {
   db.runSync(
     `INSERT OR REPLACE INTO equipment_items
      (id, org_id, team_id, item_id, name, category, source, quantity, reserve_min,
-      location, status, start_date, end_date, updated_by, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      location, status, start_date, end_date, updated_by, updated_at, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       item.id, item.org_id, item.team_id, item.item_id ?? null,
       item.name, item.category ?? null, item.source ?? null,
       item.quantity, item.reserve_min,
       item.location, item.status,
       item.start_date ?? null, item.end_date ?? null,
-      item.updated_by, item.created_at,
+      item.updated_by, item.updated_at ?? null, item.created_at,
     ]
   );
 }

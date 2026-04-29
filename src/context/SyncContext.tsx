@@ -9,6 +9,16 @@
  *   - When offline: mutations add entries to the sync_queue table.
  *   - On reconnect (or app foreground): drain queue → full pull from Supabase.
  *   - Server always wins on conflict (full replace after queue drain).
+ *
+ * Conflict resolution (equipment_items updates):
+ *   Each queued update payload stores a `snapshot_updated_at` — the server
+ *   timestamp of the row as the offline user saw it. On drain, we fetch the
+ *   current server row. If its `updated_at` is newer than `snapshot_updated_at`,
+ *   someone else changed the record while we were offline; we discard our queued
+ *   op and let the server version win.
+ *
+ *   Quantity changes from moves use Postgres `increment` (delta, not absolute)
+ *   so two concurrent partial moves from the same source don't double-count.
  */
 
 import React, {
@@ -88,12 +98,59 @@ async function drainQueue(auditTable: string): Promise<void> {
       if (entry.operation === 'insert') {
         const { error } = await supabase.from(tableName).insert(payload);
         if (error) throw error;
+
       } else if (entry.operation === 'update') {
-        const { error } = await supabase
-          .from(tableName)
-          .update(payload.patch)
-          .eq('id', payload.id);
-        if (error) throw error;
+        // ── Conflict check (equipment_items only) ──────────────────────────
+        // If the queued payload includes a snapshot_updated_at, compare it to
+        // the server's current updated_at. If the server is newer, someone else
+        // changed this row while we were offline — discard our stale op.
+        if (tableName === 'equipment_items' && payload.snapshot_updated_at) {
+          const { data: current } = await supabase
+            .from(tableName)
+            .select('updated_at')
+            .eq('id', payload.id)
+            .single();
+
+          if (current?.updated_at && current.updated_at > payload.snapshot_updated_at) {
+            console.info(
+              `[Sync] skipping stale update for ${payload.id} — server updated at ${current.updated_at}, our snapshot was ${payload.snapshot_updated_at}`
+            );
+            removeSyncEntry(entry.id);
+            continue;
+          }
+        }
+
+        // ── Quantity delta (move operations) ──────────────────────────────
+        // Move ops store `qty_delta` instead of an absolute quantity in the
+        // patch, so two concurrent partial moves from the same source don't
+        // overwrite each other's decrement. We use Postgres's increment RPC
+        // for atomic application.
+        if (payload.qty_delta !== undefined && tableName === 'equipment_items') {
+          const { error } = await supabase.rpc('increment_equipment_quantity', {
+            item_id: payload.id,
+            delta: payload.qty_delta,
+            updated_by_val: payload.patch.updated_by,
+            updated_at_val: payload.patch.updated_at,
+          });
+          if (error) throw error;
+
+          // Apply any non-quantity fields (e.g. location) as a normal patch
+          const { qty_delta: _d, ...restPatch } = payload.patch;
+          if (Object.keys(restPatch).length > 2) { // more than just updated_by + updated_at
+            const { error: patchErr } = await supabase
+              .from(tableName)
+              .update(restPatch)
+              .eq('id', payload.id);
+            if (patchErr) throw patchErr;
+          }
+        } else {
+          const { error } = await supabase
+            .from(tableName)
+            .update(payload.patch)
+            .eq('id', payload.id);
+          if (error) throw error;
+        }
+
       } else if (entry.operation === 'delete') {
         const { error } = await supabase.from(tableName).delete().eq('id', payload.id);
         if (error) throw error;

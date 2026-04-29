@@ -39,6 +39,7 @@ export interface EquipmentItem {
   start_date: string | null;
   end_date: string | null;
   updated_by: string;
+  updated_at: string;
   created_at: string;
 }
 

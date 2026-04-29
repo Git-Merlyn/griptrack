@@ -105,6 +105,7 @@ export function useEquipmentMutations(): UseMutationsReturn {
         start_date: fields.start_date || null,
         end_date: fields.end_date || null,
         updated_by: updatedBy,
+        updated_at: now,
         created_at: now,
       };
 
@@ -140,8 +141,10 @@ export function useEquipmentMutations(): UseMutationsReturn {
     async (id: string, fields: Partial<ItemFields>): Promise<EquipmentItem> => {
       if (!profile?.org_id) throw new Error('Not authenticated');
 
+      const now = new Date().toISOString();
+
       // Build patch — only include provided fields
-      const patch: Record<string, unknown> = { updated_by: updatedBy };
+      const patch: Record<string, unknown> = { updated_by: updatedBy, updated_at: now };
       if (fields.name !== undefined) patch.name = fields.name.trim();
       if (fields.category !== undefined) patch.category = fields.category.trim() || null;
       if (fields.source !== undefined) patch.source = fields.source.trim() || null;
@@ -167,7 +170,8 @@ export function useEquipmentMutations(): UseMutationsReturn {
         bumpLocalVersion();
         return data as EquipmentItem;
       } else {
-        // Apply patch to local SQLite record
+        // Find the current local record so we can snapshot its updated_at for
+        // conflict detection on drain, and apply the patch locally.
         const existing = getEquipmentByTeam(profile.org_id, activeTeamId ?? '').find(
           (i) => i.id === id
         );
@@ -175,7 +179,15 @@ export function useEquipmentMutations(): UseMutationsReturn {
           upsertEquipmentItem({ ...existing, ...(patch as Partial<EquipmentItem>) });
         }
 
-        enqueueOp({ table_name: EQUIPMENT_TABLE, operation: 'update', payload: JSON.stringify({ id, patch }) });
+        enqueueOp({
+          table_name: EQUIPMENT_TABLE,
+          operation: 'update',
+          payload: JSON.stringify({
+            id,
+            snapshot_updated_at: existing?.updated_at,
+            patch,
+          }),
+        });
         await writeAuditLog({ orgId: profile.org_id, equipmentId: id, userId, actor: updatedBy, action: 'edit', isOnline: false });
         bumpLocalVersion();
         return { ...(existing ?? {}), ...(patch as Partial<EquipmentItem>), id } as EquipmentItem;
@@ -213,7 +225,8 @@ export function useEquipmentMutations(): UseMutationsReturn {
     async (item: EquipmentItem, notes: string): Promise<EquipmentItem> => {
       if (!profile?.org_id) throw new Error('Not authenticated');
 
-      const patch = { status: 'Damaged', updated_by: updatedBy };
+      const now = new Date().toISOString();
+      const patch = { status: 'Damaged', updated_by: updatedBy, updated_at: now };
       const updated: EquipmentItem = { ...item, ...patch };
 
       upsertEquipmentItem(updated);
@@ -233,7 +246,15 @@ export function useEquipmentMutations(): UseMutationsReturn {
         bumpLocalVersion();
         return data as EquipmentItem;
       } else {
-        enqueueOp({ table_name: EQUIPMENT_TABLE, operation: 'update', payload: JSON.stringify({ id: item.id, patch }) });
+        enqueueOp({
+          table_name: EQUIPMENT_TABLE,
+          operation: 'update',
+          payload: JSON.stringify({
+            id: item.id,
+            snapshot_updated_at: item.updated_at,
+            patch,
+          }),
+        });
         await writeAuditLog({ orgId: profile.org_id, equipmentId: item.id, userId, actor: updatedBy, action: 'damage', notes: notes.trim() || undefined, isOnline: false });
         bumpLocalVersion();
         return updated;
