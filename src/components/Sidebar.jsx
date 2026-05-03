@@ -210,6 +210,14 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef(null);
 
+  // Allow the ErrorBoundary (a class component with no access to this state)
+  // to open the feedback modal by dispatching a custom event.
+  useEffect(() => {
+    const handler = () => setFeedbackOpen(true);
+    window.addEventListener("griptrack:open-feedback", handler);
+    return () => window.removeEventListener("griptrack:open-feedback", handler);
+  }, []);
+
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 768px)");
     const apply = () => {

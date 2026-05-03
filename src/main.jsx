@@ -6,6 +6,7 @@ import UserProvider from "./context/UserProvider";
 import { TeamProvider } from "./context/TeamProvider";
 import { EquipmentProvider } from "./context/EquipmentContext";
 import App from "./App";
+import ErrorBoundary from "./components/ErrorBoundary";
 import "./index.css";
 
 // Dev-only: permission testing panel.
@@ -20,14 +21,16 @@ import DevPanel from "./components/DevPanel.jsx";
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
-      <UserProvider>
-        <TeamProvider>
-          <EquipmentProvider>
-            <App />
-            {import.meta.env.DEV && <DevPanel />}
-          </EquipmentProvider>
-        </TeamProvider>
-      </UserProvider>
+      <ErrorBoundary>
+        <UserProvider>
+          <TeamProvider>
+            <EquipmentProvider>
+              <App />
+              {import.meta.env.DEV && <DevPanel />}
+            </EquipmentProvider>
+          </TeamProvider>
+        </UserProvider>
+      </ErrorBoundary>
     </BrowserRouter>
   </React.StrictMode>,
 );
