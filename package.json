@@ -6,7 +6,9 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "test": "jest",
+    "test:run": "jest --ci"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -30,8 +32,11 @@
     "tailwindcss": "^3.4.0"
   },
   "devDependencies": {
+    "@testing-library/react-native": "^13.2.0",
+    "@types/jest": "^29.5.14",
     "@types/react": "~19.2.10",
     "babel-preset-expo": "~55.0.8",
+    "jest-expo": "~55.0.5",
     "typescript": "~5.9.2"
   },
   "private": true

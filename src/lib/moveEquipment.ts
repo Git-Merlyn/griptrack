@@ -32,7 +32,7 @@ const AUDIT_TABLE = process.env.EXPO_PUBLIC_EQUIPMENT_AUDIT_TABLE ?? 'equipment_
 
 // ─── Merge detection ──────────────────────────────────────────────────────────
 
-function isMergeable(a: EquipmentItem, b: EquipmentItem): boolean {
+export function isMergeable(a: EquipmentItem, b: EquipmentItem): boolean {
   return (
     String(a.item_id ?? '') === String(b.item_id ?? '') &&
     String(a.name ?? '') === String(b.name ?? '') &&
@@ -44,7 +44,7 @@ function isMergeable(a: EquipmentItem, b: EquipmentItem): boolean {
   );
 }
 
-function findMergeDestination(
+export function findMergeDestination(
   allItems: EquipmentItem[],
   source: EquipmentItem,
   toLocation: string

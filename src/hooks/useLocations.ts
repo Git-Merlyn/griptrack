@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Location } from '../lib/types';
 import { getLocationsByOrg } from '../lib/db';
 import { useAuthContext } from '../context/AuthContext';
@@ -32,7 +32,7 @@ export function useLocations(): UseLocationsReturn {
     loadFromDB();
   }, [loadFromDB, localVersion]);
 
-  const locationNames = locations.map((l) => l.name);
+  const locationNames = useMemo(() => locations.map((l) => l.name), [locations]);
 
   return { locations, locationNames, loading };
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 export interface BulkSelectionResult {
   bulkMode: boolean;
@@ -15,33 +15,33 @@ export function useBulkSelection(): BulkSelectionResult {
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  function enterBulkMode(initialId?: string) {
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+
+  const enterBulkMode = useCallback((initialId?: string) => {
     setBulkMode(true);
     setSelectedIds(initialId ? [initialId] : []);
-  }
+  }, []);
 
-  function exitBulkMode() {
+  const exitBulkMode = useCallback(() => {
     setBulkMode(false);
     setSelectedIds([]);
-  }
+  }, []);
 
-  function isSelected(id: string) {
-    return selectedIds.includes(id);
-  }
+  const isSelected = useCallback((id: string) => selectedSet.has(id), [selectedSet]);
 
-  function toggleSelected(id: string) {
+  const toggleSelected = useCallback((id: string) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
     );
-  }
+  }, []);
 
-  function selectAllVisible(ids: string[]) {
+  const selectAllVisible = useCallback((ids: string[]) => {
     setSelectedIds(ids);
-  }
+  }, []);
 
-  function clearSelection() {
+  const clearSelection = useCallback(() => {
     setSelectedIds([]);
-  }
+  }, []);
 
   return {
     bulkMode,
