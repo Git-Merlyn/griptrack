@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import useDebounce from "@/hooks/useDebounce";
 
 export const PAGE_SIZE_OPTIONS = [
@@ -25,19 +25,19 @@ export default function useInventoryView({
   const [sortKey, setSortKey] = useState(initialSortKey);
   const [sortDir, setSortDir] = useState(initialSortDir);
 
-  const toggleSort = (key) => {
+  const toggleSort = useCallback((key) => {
     if (sortKey === key) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
       return;
     }
     setSortKey(key);
     setSortDir("asc");
-  };
+  }, [sortKey]);
 
-  const sortArrow = (key) => {
+  const sortArrow = useCallback((key) => {
     if (sortKey !== key) return "";
     return sortDir === "asc" ? " ▲" : " ▼";
-  };
+  }, [sortKey, sortDir]);
 
   // ── Pagination ────────────────────────────────────────────────────────────
   const [page,     setPage]     = useState(1);
@@ -49,10 +49,10 @@ export default function useInventoryView({
   // sort changes (at which point the item drops into its natural sorted position).
   const [pinnedIds, setPinnedIds] = useState(new Set());
 
-  const pinItem = (id) => {
+  const pinItem = useCallback((id) => {
     if (!id) return;
     setPinnedIds((prev) => new Set([...prev, String(id)]));
-  };
+  }, []);
 
   // Reset to page 1 and clear pins whenever filters or sort change
   useEffect(() => {

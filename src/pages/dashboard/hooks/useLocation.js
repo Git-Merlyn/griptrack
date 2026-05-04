@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 /**
  * useLocation
@@ -90,7 +90,7 @@ export default function useLocation({
     return Array.from(map.values()).sort((a, b) => a.localeCompare(b));
   }, [contextLocations, inferredEquipmentLocations, customLocations]);
 
-  const addCustomLocation = (name) => {
+  const addCustomLocation = useCallback((name) => {
     const trimmed = String(name || "").trim();
     if (!trimmed) return;
 
@@ -110,7 +110,7 @@ export default function useLocation({
 
       return Array.from(map.values()).sort((a, b) => a.localeCompare(b));
     });
-  };
+  }, []);
 
   return {
     allLocations,

@@ -28,11 +28,8 @@ export function auditToCsv(rows, nameMap = {}) {
 
   const formatTs = (ts) => {
     if (!ts) return "";
-    try {
-      return new Date(ts).toLocaleString();
-    } catch {
-      return String(ts);
-    }
+    const d = new Date(ts);
+    return isNaN(d.getTime()) ? String(ts) : d.toLocaleString();
   };
 
   const formatMeta = (meta) => {
