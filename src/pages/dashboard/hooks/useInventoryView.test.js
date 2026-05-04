@@ -189,10 +189,11 @@ describe("pagination", () => {
       useInventoryView({ equipment: manyItems }),
     );
 
-    act(() => {
-      result.current.setPageSize(3);
-      result.current.setPage(2);
-    });
+    // setPageSize and setPage must be in separate act() calls:
+    // setPageSize triggers a useEffect that resets page to 1, so batching them
+    // together would let the effect override the setPage(2) call.
+    act(() => result.current.setPageSize(3));
+    act(() => result.current.setPage(2));
     expect(result.current.page).toBe(2);
 
     act(() => result.current.setFilterStatus("Out"));
