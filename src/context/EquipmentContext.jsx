@@ -189,8 +189,8 @@ export const EquipmentProvider = ({ children }) => {
 
     // New-style fields (keep for future migration)
     item_id: row.item_id ?? null,
-    name: row.name,
-    quantity: row.quantity,
+    name: row.name ?? "",
+    quantity: Number.isFinite(Number(row.quantity)) ? Number(row.quantity) : 0,
     reserve_min: row.reserve_min ?? 0,
     startDate: row.start_date ?? null,
     endDate: row.end_date ?? null,

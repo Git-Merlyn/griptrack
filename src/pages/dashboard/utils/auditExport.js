@@ -88,7 +88,13 @@ export async function fetchAndDownloadAuditCsv(supabase, orgId, nameMap = {}) {
 
   const rows = data ?? [];
   const csv = auditToCsv(rows, nameMap);
-  downloadCsv(csv, "griptrack-movement-history");
+
+  try {
+    downloadCsv(csv, "griptrack-movement-history");
+  } catch (e) {
+    console.error("Audit CSV download failed", e);
+    throw e;
+  }
 
   return rows.length;
 }

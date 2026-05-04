@@ -166,6 +166,7 @@ const UserProvider = ({ children }) => {
 
         // Load subscription for org
         await loadSubscription(nextOrgId);
+        if (cancelled) return;
 
         // Load the user's assigned team (crew/dept_head are locked to one team)
         const { data: memberRow } = await supabase
@@ -182,6 +183,8 @@ const UserProvider = ({ children }) => {
         setNeedsOrgSetup(true);
         setTeamId(null);
       }
+
+      if (cancelled) return;
 
       // Load user profile
       const { data: profileRow, error: profileErr } = await supabase
