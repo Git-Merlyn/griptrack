@@ -18,13 +18,9 @@ import useUser from "@/context/useUser";
  */
 function daysUntil(dateStr) {
   if (!dateStr) return null;
-  try {
-    const end = new Date(dateStr);
-    const diffMs = end.getTime() - Date.now();
-    return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-  } catch {
-    return null;
-  }
+  const end = new Date(dateStr);
+  if (isNaN(end.getTime())) return null;
+  return Math.ceil((end.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 }
 
 /**

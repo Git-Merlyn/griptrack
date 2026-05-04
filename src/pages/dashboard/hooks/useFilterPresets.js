@@ -43,28 +43,31 @@ const useFilterPresets = ({ orgId } = {}) => {
       const trimmed = String(name || "").trim();
       if (!trimmed) return;
 
-      const next = [
-        ...presets,
-        {
-          id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-          name: trimmed,
-          filters,
-        },
-      ];
-
-      setPresets(next);
-      savePresets(orgId, next);
+      setPresets((prev) => {
+        const next = [
+          ...prev,
+          {
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            name: trimmed,
+            filters,
+          },
+        ];
+        savePresets(orgId, next);
+        return next;
+      });
     },
-    [presets, orgId],
+    [orgId],
   );
 
   const deletePreset = useCallback(
     (id) => {
-      const next = presets.filter((p) => p.id !== id);
-      setPresets(next);
-      savePresets(orgId, next);
+      setPresets((prev) => {
+        const next = prev.filter((p) => p.id !== id);
+        savePresets(orgId, next);
+        return next;
+      });
     },
-    [presets, orgId],
+    [orgId],
   );
 
   return { presets, savePreset, deletePreset };

@@ -47,7 +47,13 @@ export default function useBulkSelection({
   // When bulk mode turns off, reset selection and location and run exit callback.
   // NOTE: `onExitBulkMode` is often passed as an inline function from the parent,
   // so we store it in a ref to avoid triggering this effect every render.
+  // didMountRef prevents the callback from firing spuriously on initial mount.
+  const didMountRef = useRef(false);
   useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
     if (!bulkMode) {
       setSelectedIds((prev) => (prev.length ? [] : prev));
       setBulkLocation((prev) => (prev ? "" : prev));
