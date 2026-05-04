@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { EquipmentItem } from '../lib/types';
+import { EquipmentItem, ParsedPDFItem } from '../lib/types';
 import { useAuthContext } from '../context/AuthContext';
 import { useTeamContext } from '../context/TeamContext';
 import { useSyncContext } from '../context/SyncContext';
@@ -65,6 +65,7 @@ async function writeAuditLog(params: AuditParams): Promise<void> {
 
 interface UseMutationsReturn {
   addItem: (fields: ItemFields) => Promise<EquipmentItem>;
+  addMultipleItems: (parsedItems: ParsedPDFItem[]) => Promise<void>;
   updateItem: (id: string, fields: Partial<ItemFields>) => Promise<EquipmentItem>;
   deleteItem: (id: string) => Promise<void>;
   reportDamage: (item: EquipmentItem, notes: string) => Promise<EquipmentItem>;
@@ -219,6 +220,51 @@ export function useEquipmentMutations(): UseMutationsReturn {
     [profile, userId, updatedBy, isOnline, bumpLocalVersion]
   );
 
+  // ─── addMultipleItems ─────────────────────────────────────────────────────
+
+  const addMultipleItems = useCallback(
+    async (parsedItems: ParsedPDFItem[]): Promise<void> => {
+      if (!profile?.org_id || !activeTeamId) throw new Error('No org or team selected');
+      if (!isOnline) throw new Error('PDF import requires a connection');
+
+      const now = new Date().toISOString();
+
+      const records: EquipmentItem[] = parsedItems.map((parsed) => ({
+        id: generateId(),
+        org_id: profile.org_id,
+        team_id: activeTeamId,
+        item_id: null,
+        name: parsed.name.trim(),
+        category: parsed.category.trim() || null,
+        source: parsed.source.trim() || null,
+        location: parsed.location.trim(),
+        quantity: parsed.quantity,
+        reserve_min: 0,
+        status: 'Available',
+        start_date: parsed.start_date || null,
+        end_date: parsed.end_date || null,
+        updated_by: updatedBy,
+        updated_at: now,
+        created_at: now,
+      }));
+
+      // Online-only: write to Supabase first, then persist server-confirmed copies locally
+      const { data, error } = await supabase
+        .from(EQUIPMENT_TABLE)
+        .insert(records)
+        .select('*');
+
+      if (error) throw error;
+
+      for (const item of data as EquipmentItem[]) {
+        upsertEquipmentItem(item);
+      }
+
+      bumpLocalVersion();
+    },
+    [profile, activeTeamId, updatedBy, isOnline, bumpLocalVersion]
+  );
+
   // ─── reportDamage ─────────────────────────────────────────────────────────
 
   const reportDamage = useCallback(
@@ -263,5 +309,5 @@ export function useEquipmentMutations(): UseMutationsReturn {
     [profile, userId, updatedBy, isOnline, bumpLocalVersion]
   );
 
-  return { addItem, updateItem, deleteItem, reportDamage };
+  return { addItem, addMultipleItems, updateItem, deleteItem, reportDamage };
 }

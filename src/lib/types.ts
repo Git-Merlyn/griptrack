@@ -102,9 +102,23 @@ export type SettingsStackParamList = {
   ManageLocations: undefined;
 };
 
+// ─── PDF import ───────────────────────────────────────────────────────────────
+
+export interface ParsedPDFItem {
+  id: string;           // client-generated UUID for list keying, not persisted
+  name: string;
+  category: string;
+  quantity: number;
+  source: string;
+  location: string;
+  start_date: string | null;
+  end_date: string | null;
+}
+
 export type InventoryStackParamList = {
   InventoryList: undefined;
   ItemDetail: { item: EquipmentItem };
   ItemForm: { mode: 'add' } | { mode: 'edit'; item: EquipmentItem };
   AuditLog: { item: EquipmentItem };
+  PDFReview: { parsedItems: ParsedPDFItem[] };
 };

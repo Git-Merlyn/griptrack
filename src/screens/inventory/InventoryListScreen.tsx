@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +19,8 @@ import { useAuthContext } from '../../context/AuthContext';
 import TeamSwitcher from '../../components/TeamSwitcher';
 import OrgOverview from '../../components/OrgOverview';
 import { useOrgContext } from '../../context/OrgContext';
+import { useSyncContext } from '../../context/SyncContext';
+import { usePDFImport } from '../../hooks/usePDFImport';
 import { statusColor, getQty, qtyColor } from '../../lib/helpers';
 
 type Props = NativeStackScreenProps<InventoryStackParamList, 'InventoryList'>;
@@ -28,6 +31,9 @@ export default function InventoryListScreen({ navigation }: Props) {
   const { activeTeam, activeTeamId, canSwitch, loadingTeams } = useTeamContext();
   const { profile } = useAuthContext();
   const { features } = useOrgContext();
+
+  const { isOnline } = useSyncContext();
+  const { status: importStatus, pickAndParse } = usePDFImport();
 
   const teamsActive = canSwitch && features.teamsEnabled;
   const canManage = profile?.role != null && canManageInventory(profile.role);
@@ -75,6 +81,24 @@ export default function InventoryListScreen({ navigation }: Props) {
         ) : undefined,
     });
   }, [navigation, activeTeam, teamsActive]);
+
+  async function handleImportPDF() {
+    if (!isOnline) {
+      Alert.alert('Offline', 'PDF import requires a connection. Please reconnect and try again.');
+      return;
+    }
+    try {
+      const items = await pickAndParse();
+      if (!items) return; // user cancelled
+      if (items.length === 0) {
+        Alert.alert('No Items Found', 'The PDF did not contain any recognizable line items.');
+        return;
+      }
+      navigation.navigate('PDFReview', { parsedItems: items });
+    } catch (e: any) {
+      Alert.alert('Parse Error', e.message ?? 'Failed to parse PDF');
+    }
+  }
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -186,15 +210,34 @@ export default function InventoryListScreen({ navigation }: Props) {
         />
       )}
 
-      {/* FAB — dept_head / admin / owner only */}
+      {/* FABs — dept_head / admin / owner only */}
       {canManage && (
-        <TouchableOpacity
-          className="absolute bottom-6 right-5 bg-accent w-14 h-14 rounded-full items-center justify-center shadow-lg"
-          onPress={() => navigation.navigate('ItemForm', { mode: 'add' })}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="add" size={28} color="#0f1117" />
-        </TouchableOpacity>
+        <>
+          <TouchableOpacity
+            className="absolute bottom-6 right-24 bg-surface border border-white/10 w-14 h-14 rounded-full items-center justify-center shadow-lg"
+            onPress={handleImportPDF}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="document-text-outline" size={22} color="#4debf9" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            className="absolute bottom-6 right-5 bg-accent w-14 h-14 rounded-full items-center justify-center shadow-lg"
+            onPress={() => navigation.navigate('ItemForm', { mode: 'add' })}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="add" size={28} color="#0f1117" />
+          </TouchableOpacity>
+        </>
+      )}
+
+      {/* Parsing overlay */}
+      {importStatus === 'parsing' && (
+        <View className="absolute inset-0 bg-black/60 items-center justify-center">
+          <View className="bg-surface rounded-2xl px-8 py-6 items-center gap-3">
+            <ActivityIndicator color="#4debf9" size="large" />
+            <Text className="text-slate-300 text-sm">Parsing PDF…</Text>
+          </View>
+        </View>
       )}
 
       {teamsActive && (

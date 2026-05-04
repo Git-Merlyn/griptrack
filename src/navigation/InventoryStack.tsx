@@ -5,6 +5,7 @@ import InventoryListScreen from '../screens/inventory/InventoryListScreen';
 import ItemDetailScreen from '../screens/inventory/ItemDetailScreen';
 import ItemFormScreen from '../screens/inventory/ItemFormScreen';
 import AuditLogScreen from '../screens/inventory/AuditLogScreen';
+import PDFReviewScreen from '../screens/inventory/PDFReviewScreen';
 
 const Stack = createNativeStackNavigator<InventoryStackParamList>();
 
@@ -36,6 +37,11 @@ export default function InventoryStack() {
         name="AuditLog"
         component={AuditLogScreen}
         options={{ title: 'Item History' }}
+      />
+      <Stack.Screen
+        name="PDFReview"
+        component={PDFReviewScreen}
+        options={{ title: 'Review Import' }}
       />
     </Stack.Navigator>
   );
