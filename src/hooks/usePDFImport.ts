@@ -2,7 +2,8 @@ import { useState, useCallback } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { ParsedPDFItem } from '../lib/types';
-import { parsePDF, parseCSV } from '../lib/parseRentalFile';
+import { parseCSV } from '../lib/parseRentalFile';
+import { supabase } from '../lib/supabase';
 
 export type PDFImportStatus = 'idle' | 'parsing' | 'done' | 'error';
 
@@ -40,16 +41,22 @@ export function usePDFImport(): UsePDFImportReturn {
         const text = await FileSystem.readAsStringAsync(asset.uri);
         items = parseCSV(text);
       } else {
-        // Read PDF as base64, convert to Uint8Array for pdfjs-dist
+        // Send the PDF to the Edge Function for server-side parsing.
+        // Hermes (React Native's JS engine) doesn't support import.meta, so
+        // client-side PDF parsing libraries like pdfjs-dist can't run on device.
         const base64 = await FileSystem.readAsStringAsync(asset.uri, {
           encoding: 'base64',
         });
-        const binary = atob(base64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) {
-          bytes[i] = binary.charCodeAt(i);
-        }
-        items = await parsePDF(bytes);
+
+        const { data, error: fnError } = await supabase.functions.invoke(
+          'parse-rental-pdf',
+          { body: { fileBase64: base64, fileName: asset.name } }
+        );
+
+        if (fnError) throw fnError;
+        if (!Array.isArray(data)) throw new Error('Unexpected response from parse-rental-pdf');
+
+        items = data as ParsedPDFItem[];
       }
 
       setStatus('done');
