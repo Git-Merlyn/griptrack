@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useState, useMemo } from 'react';
+import React, { useLayoutEffect, useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -65,24 +65,45 @@ export default function InventoryListScreen({ navigation }: Props) {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerRight: () =>
-        teamsActive && activeTeam ? (
-          <TouchableOpacity
-            onPress={() => setSwitcherVisible(true)}
-            className="flex-row items-center gap-1.5 mr-1"
-            hitSlop={8}
-          >
-            <Ionicons name="people-outline" size={16} color="#4debf9" />
-            <Text className="text-accent text-sm font-medium" numberOfLines={1}>
-              {activeTeam.name}
-            </Text>
-            <Ionicons name="chevron-down" size={14} color="#4debf9" />
-          </TouchableOpacity>
-        ) : undefined,
+      headerRight: () => (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, marginRight: 0 }}>
+          {canManage && (
+            <TouchableOpacity
+              onPress={() =>
+                Alert.alert('', '', [
+                  {
+                    text: 'Add Item',
+                    onPress: () => navigation.navigate('ItemForm', { mode: 'add' }),
+                  },
+                  { text: 'Import PDF / CSV', onPress: handleImportPDF },
+                  { text: 'Cancel', style: 'cancel' },
+                ])
+              }
+              hitSlop={10}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="add" size={28} color="#4debf9" />
+            </TouchableOpacity>
+          )}
+          {teamsActive && activeTeam && (
+            <TouchableOpacity
+              onPress={() => setSwitcherVisible(true)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+              hitSlop={10}
+            >
+              <Ionicons name="people-outline" size={16} color="#4debf9" />
+              <Text className="text-accent text-sm font-medium" numberOfLines={1}>
+                {activeTeam.name}
+              </Text>
+              <Ionicons name="chevron-down" size={14} color="#4debf9" />
+            </TouchableOpacity>
+          )}
+        </View>
+      ),
     });
-  }, [navigation, activeTeam, teamsActive]);
+  }, [navigation, activeTeam, teamsActive, canManage, handleImportPDF]);
 
-  async function handleImportPDF() {
+  const handleImportPDF = useCallback(async () => {
     if (!isOnline) {
       Alert.alert('Offline', 'PDF import requires a connection. Please reconnect and try again.');
       return;
@@ -98,7 +119,7 @@ export default function InventoryListScreen({ navigation }: Props) {
     } catch (e: any) {
       Alert.alert('Parse Error', e.message ?? 'Failed to parse PDF');
     }
-  }
+  }, [isOnline, pickAndParse, navigation]);
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -184,7 +205,7 @@ export default function InventoryListScreen({ navigation }: Props) {
         <FlatList
           data={displayItems}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: canManage ? 96 : 24 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
           ItemSeparatorComponent={() => <View className="h-2.5" />}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#4debf9" />
@@ -208,26 +229,6 @@ export default function InventoryListScreen({ navigation }: Props) {
             />
           )}
         />
-      )}
-
-      {/* FABs — dept_head / admin / owner only */}
-      {canManage && (
-        <>
-          <TouchableOpacity
-            className="absolute bottom-6 right-24 bg-surface border border-white/10 w-14 h-14 rounded-full items-center justify-center shadow-lg"
-            onPress={handleImportPDF}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="document-text-outline" size={22} color="#4debf9" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            className="absolute bottom-6 right-5 bg-accent w-14 h-14 rounded-full items-center justify-center shadow-lg"
-            onPress={() => navigation.navigate('ItemForm', { mode: 'add' })}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="add" size={28} color="#0f1117" />
-          </TouchableOpacity>
-        </>
       )}
 
       {/* Parsing overlay */}
