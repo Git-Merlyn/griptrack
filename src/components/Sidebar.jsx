@@ -235,6 +235,19 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
     return () => document.removeEventListener("mousedown", handler);
   }, [settingsOpen]);
 
+  // Lock body scroll while the mobile drawer is open.
+  // On iOS, an overflow-y:auto scroll container (the main content pane) keeps
+  // active momentum state even when visually covered by a fixed overlay.
+  // Locking body scroll prevents that from swallowing touch events on the
+  // drawer's nav buttons — which is why navigation failed from the Dashboard
+  // (lots of scrollable content) but worked fine from Staff/Locations.
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [drawerOpen]);
+
   const navigate = useNavigate();
   const closeDrawer = () => setDrawerOpen(false);
 
@@ -382,7 +395,7 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
 
       {/* Nav */}
       <div className="flex-1 overflow-y-auto">
-        <NavItems navCollapsed={collapsed} />
+        {NavItems({ navCollapsed: collapsed })}
       </div>
 
       {/* Settings at bottom */}
@@ -414,7 +427,9 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
               <button type="button" className="btn-secondary-sm p-2" onClick={closeDrawer}>✕</button>
             </div>
             <div className="flex-1 pt-3">
-              <NavItems navCollapsed={false} />
+              {/* Called as a plain function (not JSX) so React never unmounts/remounts
+                  it mid-tap due to the function reference changing on each Sidebar render. */}
+              {NavItems({ navCollapsed: false })}
             </div>
             <div className="border-t border-text/10 pt-2 pb-4">
               <div className="px-2">

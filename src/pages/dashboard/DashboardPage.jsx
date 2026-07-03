@@ -109,11 +109,11 @@ const ImportToast = ({ show, message, onDismiss }) => {
 };
 
 const FilterSelect = ({ value, onChange, placeholder, options }) => (
-  <div className="relative flex items-center">
+  <div className="relative">
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className={`px-3 py-2 rounded-lg border shadow-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition appearance-none pr-8 max-w-[160px] ${
+      className={`w-full px-2 py-2 rounded-lg border shadow-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition appearance-none pr-6 text-sm ${
         value
           ? "bg-accent/10 border-accent text-accent font-medium"
           : "bg-surface border-text/20 text-text/60"
@@ -232,8 +232,8 @@ const BulkToolbar = ({
         </button>
       </div>
 
-      {/* Row 3: Dropdown filters — flex-wrap so they sit 2-per-row on mobile */}
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Row 3: Dropdown filters — 3-column grid keeps all three on one row at any mobile width */}
+      <div className="grid grid-cols-3 gap-2">
         <FilterSelect
           value={filterLocation}
           onChange={setFilterLocation}
@@ -252,22 +252,22 @@ const BulkToolbar = ({
           placeholder="All Categories"
           options={categoryOptions}
         />
-
-        {hasActiveFilters && (
-          <button
-            type="button"
-            onClick={() => {
-              setFilterLocation("");
-              setFilterStatus("");
-              setFilterCategory("");
-              setShowBelowReserve(false);
-            }}
-            className="text-xs text-text/50 hover:text-text underline underline-offset-2 transition"
-          >
-            Clear all filters
-          </button>
-        )}
       </div>
+
+      {hasActiveFilters && (
+        <button
+          type="button"
+          onClick={() => {
+            setFilterLocation("");
+            setFilterStatus("");
+            setFilterCategory("");
+            setShowBelowReserve(false);
+          }}
+          className="text-xs text-text/50 hover:text-text underline underline-offset-2 transition self-start"
+        >
+          Clear all filters
+        </button>
+      )}
 
       {/* Row 4: Bulk action controls (only in bulk mode) */}
       {bulkMode && (
