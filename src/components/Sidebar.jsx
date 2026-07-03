@@ -405,16 +405,15 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
       </div>
 
       {drawerOpen && (
-        <div className="md:hidden fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/60" onClick={closeDrawer} />
-          {/* z-10 ensures the panel sits above the overlay within this stacking context,
-              so touches on nav links aren't captured by the backdrop on some iOS builds. */}
-          <div className="absolute left-0 top-0 h-full w-72 bg-surface border-r border-text/10 flex flex-col z-10">
+        <div className="md:hidden fixed inset-0 z-50 flex">
+          {/* Drawer panel comes FIRST in the DOM so it receives touch events
+              before the backdrop. No z-index tricks needed — DOM order wins. */}
+          <div className="relative w-72 h-full bg-surface border-r border-text/10 flex flex-col">
             <div className="flex items-center justify-between px-4 py-4 border-b border-text/10">
               <div className="font-bold text-accent text-lg">GripTrack</div>
               <button type="button" className="btn-secondary-sm p-2" onClick={closeDrawer}>✕</button>
             </div>
-            <div className="flex-1 overflow-y-auto pt-3">
+            <div className="flex-1 pt-3">
               <NavItems navCollapsed={false} />
             </div>
             <div className="border-t border-text/10 pt-2 pb-4">
@@ -435,6 +434,10 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
               </div>
             </div>
           </div>
+
+          {/* Backdrop covers the rest of the screen — comes AFTER drawer in DOM
+              so taps on the drawer area never reach it */}
+          <div className="flex-1 bg-black/60" onClick={closeDrawer} />
         </div>
       )}
     </>
