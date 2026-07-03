@@ -48,8 +48,11 @@ const DashboardHeader = ({
     <div className="flex items-center justify-between gap-3">
       <h2 className="text-3xl font-bold text-accent">Dashboard</h2>
 
+      {/* hidden sm:flex: CSS-level guard so buttons never flash on mobile
+          during the brief window before isMobile state resolves in JS.
+          hideActions={isMobile} is the JS-driven equivalent once it runs. */}
       {!hideActions && (
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="hidden md:flex flex-wrap items-center justify-end gap-2">
           {canAdd && (
             <button type="button" onClick={onAddItem} className="btn-accent">
               <span className="whitespace-nowrap">Add Item</span>
@@ -1225,7 +1228,7 @@ const DashboardPage = () => {
       />}
 
       {hasTeamSelected && isMobile && (
-        <div className="flex items-center justify-start gap-2 -mb-2">
+        <div className="flex flex-wrap items-center gap-2 -mb-2">
           {canAdd && (
             <button type="button" onClick={openAdd} className="btn-accent">
               <span className="whitespace-nowrap">Add Item</span>
@@ -1254,6 +1257,14 @@ const DashboardPage = () => {
             className="btn-secondary"
           >
             <span className="whitespace-nowrap">Export</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowSummaryModal(true)}
+            className="btn-secondary"
+          >
+            <span className="whitespace-nowrap">Summary</span>
           </button>
         </div>
       )}

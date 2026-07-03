@@ -245,9 +245,12 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
         : "text-text/60 hover:text-text hover:bg-text/10"
     }`;
 
+  // `touch-action-manipulation` on nav links disables the 300 ms iOS tap delay
+  // and prevents the momentum-scroll container from eating touch events.
   const NavItems = ({ onDone, navCollapsed = false }) => (
     <nav className="flex flex-col gap-0.5 px-2">
       <NavLink to="/" end onClick={() => onDone?.()} title="Dashboard"
+        style={{ touchAction: "manipulation" }}
         className={({ isActive }) => navLinkClass(isActive, navCollapsed)}>
         <Icons.Dashboard />
         {!navCollapsed && <span>Dashboard</span>}
@@ -267,6 +270,7 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
 
       {isAdmin && (
         <NavLink to="/staff" onClick={() => onDone?.()} title="Staff"
+          style={{ touchAction: "manipulation" }}
           className={({ isActive }) => navLinkClass(isActive, navCollapsed)}>
           <Icons.Staff />
           {!navCollapsed && <span>Staff</span>}
@@ -275,6 +279,7 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
 
       {isAdmin && (
         <NavLink to="/locations" onClick={() => onDone?.()} title="Locations"
+          style={{ touchAction: "manipulation" }}
           className={({ isActive }) => navLinkClass(isActive, navCollapsed)}>
           <Icons.Locations />
           {!navCollapsed && <span>Locations</span>}
@@ -390,7 +395,9 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
       {drawerOpen && (
         <div className="md:hidden fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/60" onClick={closeDrawer} />
-          <div className="absolute left-0 top-0 h-full w-72 bg-surface border-r border-text/10 flex flex-col">
+          {/* z-10 ensures the panel sits above the overlay within this stacking context,
+              so touches on nav links aren't captured by the backdrop on some iOS builds. */}
+          <div className="absolute left-0 top-0 h-full w-72 bg-surface border-r border-text/10 flex flex-col z-10">
             <div className="flex items-center justify-between px-4 py-4 border-b border-text/10">
               <div className="font-bold text-accent text-lg">GripTrack</div>
               <button type="button" className="btn-secondary-sm p-2" onClick={closeDrawer}>✕</button>
