@@ -815,6 +815,12 @@ const DashboardPage = () => {
       setShowMobileDetailsModal(false);
       setMobileDetailsItem(null);
     },
+    // Pre-fill category and location when the user has those filters active.
+    // Saves typing when adding multiple items to the same category/location.
+    defaults: {
+      category: filterCategory || "",
+      location: filterLocation || "",
+    },
   });
 
   useEffect(() => {

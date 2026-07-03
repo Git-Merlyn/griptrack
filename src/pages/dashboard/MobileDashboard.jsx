@@ -73,7 +73,7 @@ const MobileDashboard = ({
                 <button
                   type="button"
                   onClick={() => onOpenDetails(item)}
-                  className="font-semibold text-accent truncate text-left hover:underline underline-offset-2"
+                  className="block w-full font-semibold text-accent truncate text-left hover:underline underline-offset-2"
                 >
                   {item.name}
                 </button>
