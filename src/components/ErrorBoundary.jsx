@@ -1,15 +1,17 @@
 // src/components/ErrorBoundary.jsx
 // Catches unhandled React render errors and shows a friendly fallback
-// instead of a blank screen. Directs users to the in-app feedback button
-// via a custom DOM event so we don't need to wire prop/context into a
-// class component.
+// instead of a blank screen.
+//
+// The Sidebar is unmounted when the fallback is showing, so the old custom
+// event approach didn't work. FeedbackModal is rendered directly here instead.
 
 import { Component } from "react";
+import FeedbackModal from "./feedback/FeedbackModal";
 
 export default class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, feedbackOpen: false };
   }
 
   static getDerivedStateFromError(error) {
@@ -17,15 +19,8 @@ export default class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, info) {
-    // Log to console so it's visible in dev tools
     console.error("[ErrorBoundary] Uncaught error:", error, info);
   }
-
-  handleOpenFeedback = () => {
-    // Signal the Sidebar to open the feedback modal.
-    // The Sidebar listens for this event with a useEffect.
-    window.dispatchEvent(new CustomEvent("griptrack:open-feedback"));
-  };
 
   handleReload = () => {
     window.location.reload();
@@ -48,7 +43,7 @@ export default class ErrorBoundary extends Component {
             </p>
           </div>
 
-          {/* Error detail (collapsible, dev-friendly) */}
+          {/* Error detail (collapsible) */}
           {this.state.error?.message && (
             <details className="bg-background rounded-lg px-4 py-3 text-xs text-text/50 cursor-pointer">
               <summary className="font-medium text-text/60 select-none">
@@ -69,7 +64,7 @@ export default class ErrorBoundary extends Component {
             </button>
             <button
               type="button"
-              onClick={this.handleOpenFeedback}
+              onClick={() => this.setState({ feedbackOpen: true })}
               className="btn-secondary w-full"
             >
               Report this issue
@@ -81,6 +76,14 @@ export default class ErrorBoundary extends Component {
             know what you were doing when this happened.
           </p>
         </div>
+
+        {/* FeedbackModal rendered directly — the Sidebar is unmounted when
+            the error boundary fallback is showing, so we can't rely on the
+            custom event bridge that normally opens it. */}
+        <FeedbackModal
+          isOpen={this.state.feedbackOpen}
+          onClose={() => this.setState({ feedbackOpen: false })}
+        />
       </div>
     );
   }

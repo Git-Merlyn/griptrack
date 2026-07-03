@@ -752,6 +752,25 @@ const DashboardPage = () => {
     new Set(equipment.map((e) => e.category).filter(Boolean)),
   ).sort((a, b) => String(a).localeCompare(String(b)));
 
+  // Inventory view state (search, filter, sort, pagination, pinning).
+  // Declared here — above useEditFlow — so filterCategory/filterLocation
+  // are in scope when passed as defaults to useEditFlow below.
+  const {
+    searchQuery,      setSearchQuery,
+    filterLocation,   setFilterLocation,
+    filterStatus,     setFilterStatus,
+    filterCategory,   setFilterCategory,
+    showBelowReserve, setShowBelowReserve,
+    toggleSort, sortArrow,
+    visibleEquipment,
+    sortedEquipment,
+    paginatedEquipment,
+    page, setPage,
+    pageSize, setPageSize,
+    totalCount, totalPages,
+    pinItem,
+  } = useInventoryView({ equipment });
+
   // Edit/Add modal state and logic handled by useEditFlow below
   const [movingItem, setMovingItem] = useState(null);
   const [moveData, setMoveData] = useState({ qty: 1, newLocation: "" });
@@ -1072,21 +1091,8 @@ const DashboardPage = () => {
     });
   };
 
-  const {
-    searchQuery,      setSearchQuery,
-    filterLocation,   setFilterLocation,
-    filterStatus,     setFilterStatus,
-    filterCategory,   setFilterCategory,
-    showBelowReserve, setShowBelowReserve,
-    toggleSort, sortArrow,
-    visibleEquipment,
-    sortedEquipment,      // full list — used for exports
-    paginatedEquipment,   // current page slice — used for rendering
-    page, setPage,
-    pageSize, setPageSize,
-    totalCount, totalPages,
-    pinItem,
-  } = useInventoryView({ equipment });
+  // useInventoryView is declared earlier in the component (above useEditFlow)
+  // so that filterCategory/filterLocation are in scope for useEditFlow defaults.
 
   const { presets, savePreset, deletePreset } = useFilterPresets({ orgId });
 
