@@ -57,35 +57,33 @@ function MemberRow({ member, teams, onChangeRole, onChangeTeam, onRemove, isSelf
   };
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-700 bg-surface">
+    <div className="flex flex-col gap-2 px-4 py-3 rounded-xl border border-gray-700 bg-surface">
       {/* Identity */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-medium text-text truncate">
-            {member.profile?.full_name || "Unnamed user"}
+      <div className="flex items-center gap-2 flex-wrap min-w-0">
+        <span className="font-medium text-text truncate">
+          {member.profile?.full_name || "Unnamed user"}
+        </span>
+        {isSelf && (
+          <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-700 text-gray-400">
+            You
           </span>
-          {isSelf && (
-            <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-700 text-gray-400">
-              You
-            </span>
-          )}
-          <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${roleBadgeClass(member.role)}`}>
-            {roleLabel(member.role)}
-          </span>
-        </div>
-        <div className="text-xs text-gray-400 mt-0.5 truncate">
+        )}
+        <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${roleBadgeClass(member.role)}`}>
+          {roleLabel(member.role)}
+        </span>
+        <div className="w-full text-xs text-gray-400 truncate">
           {member.profile?.email || member.user_id}
         </div>
       </div>
 
-      {/* Team selector */}
+      {/* Controls: team + role + remove — flex-wrap so they never overflow */}
       {!isOwner && !isSelf && (
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-wrap">
           <select
             value={member.team_id ?? ""}
             onChange={handleTeamChange}
             disabled={teamBusy}
-            className="px-2 py-1.5 rounded bg-white text-black text-sm min-w-[130px]"
+            className="px-2 py-1.5 rounded bg-white text-black text-sm flex-1 min-w-[110px] max-w-[200px]"
           >
             <option value="">No team</option>
             {teams
@@ -95,7 +93,6 @@ function MemberRow({ member, teams, onChangeRole, onChangeTeam, onRemove, isSelf
               ))}
           </select>
 
-          {/* Role selector */}
           <select
             value={member.role}
             onChange={handleRoleChange}

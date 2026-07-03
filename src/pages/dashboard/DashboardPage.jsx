@@ -109,12 +109,11 @@ const ImportToast = ({ show, message, onDismiss }) => {
 };
 
 const FilterSelect = ({ value, onChange, placeholder, options }) => (
-  // shrink-0 prevents the select from compressing inside the horizontal scroll row
-  <div className="relative flex items-center shrink-0">
+  <div className="relative flex items-center">
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className={`px-3 py-2 rounded-lg border shadow-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition appearance-none pr-8 ${
+      className={`px-3 py-2 rounded-lg border shadow-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition appearance-none pr-8 max-w-[160px] ${
         value
           ? "bg-accent/10 border-accent text-accent font-medium"
           : "bg-surface border-text/20 text-text/60"
@@ -233,8 +232,8 @@ const BulkToolbar = ({
         </button>
       </div>
 
-      {/* Row 3: Dropdown filters — horizontally scrollable on mobile */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
+      {/* Row 3: Dropdown filters — flex-wrap so they sit 2-per-row on mobile */}
+      <div className="flex flex-wrap items-center gap-2">
         <FilterSelect
           value={filterLocation}
           onChange={setFilterLocation}
