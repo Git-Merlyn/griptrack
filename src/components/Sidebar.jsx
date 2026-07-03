@@ -1,7 +1,7 @@
 // src/components/Sidebar.jsx
 
 import React, { useEffect, useRef, useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import FeedbackModal from "./feedback/FeedbackModal";
 import useUser from "@/context/useUser";
 import useTrial from "@/hooks/useTrial";
@@ -197,6 +197,7 @@ function SettingsPanel({ collapsed, onClose }) {
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
+  const location = useLocation();
   const { role, features } = useUser();
   const isOwner = role === "owner";
   const isAdmin = role === "owner" || role === "admin";
@@ -234,7 +235,18 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
     return () => document.removeEventListener("mousedown", handler);
   }, [settingsOpen]);
 
+  const navigate = useNavigate();
   const closeDrawer = () => setDrawerOpen(false);
+
+  // Navigates to a route and closes the mobile drawer.
+  // Using navigate() explicitly rather than relying on NavLink + onClick
+  // because on some iOS/Android builds, combining state-setter (closeDrawer)
+  // with a NavLink click in an overflow scroll container can cause the
+  // navigation to be swallowed. Explicit navigate() is always reliable.
+  const navTo = (path) => {
+    navigate(path);
+    closeDrawer();
+  };
 
   // hover:bg-text/10 works in both modes: subtle dark tint in light, subtle
   // light tint in dark — unlike hover:bg-white/5 which vanishes on light bg.
@@ -245,65 +257,66 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
         : "text-text/60 hover:text-text hover:bg-text/10"
     }`;
 
-  // `touch-action-manipulation` on nav links disables the 300 ms iOS tap delay
-  // and prevents the momentum-scroll container from eating touch events.
-  const NavItems = ({ onDone, navCollapsed = false }) => (
+  const NavItems = ({ navCollapsed = false }) => (
     <nav className="flex flex-col gap-0.5 px-2">
-      <NavLink to="/" end onClick={() => onDone?.()} title="Dashboard"
+      <button type="button" onClick={() => navTo("/")} title="Dashboard"
         style={{ touchAction: "manipulation" }}
-        className={({ isActive }) => navLinkClass(isActive, navCollapsed)}>
+        className={navLinkClass(location.pathname === "/", navCollapsed)}>
         <Icons.Dashboard />
         {!navCollapsed && <span>Dashboard</span>}
-      </NavLink>
+      </button>
 
       {/* Active team sub-indicator */}
       {!navCollapsed && activeTeamId && activeTeam && (
-        <NavLink to="/teams" onClick={() => onDone?.()} title={`Team: ${activeTeam.name}`}
-          className={({ isActive }) =>
-            `ml-4 flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs transition-colors ${
-              isActive ? "text-accent" : "text-text/50 hover:text-text/80"
-            }`}>
+        <button type="button" onClick={() => navTo("/teams")} title={`Team: ${activeTeam.name}`}
+          style={{ touchAction: "manipulation" }}
+          className={`ml-4 flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs transition-colors ${
+            location.pathname === "/teams" ? "text-accent" : "text-text/50 hover:text-text/80"
+          }`}>
           <span className="w-1.5 h-1.5 rounded-full bg-accent flex-shrink-0" />
           <span className="truncate">{activeTeam.name}</span>
-        </NavLink>
+        </button>
       )}
 
       {isAdmin && (
-        <NavLink to="/staff" onClick={() => onDone?.()} title="Staff"
+        <button type="button" onClick={() => navTo("/staff")} title="Staff"
           style={{ touchAction: "manipulation" }}
-          className={({ isActive }) => navLinkClass(isActive, navCollapsed)}>
+          className={navLinkClass(location.pathname === "/staff", navCollapsed)}>
           <Icons.Staff />
           {!navCollapsed && <span>Staff</span>}
-        </NavLink>
+        </button>
       )}
 
       {isAdmin && (
-        <NavLink to="/locations" onClick={() => onDone?.()} title="Locations"
+        <button type="button" onClick={() => navTo("/locations")} title="Locations"
           style={{ touchAction: "manipulation" }}
-          className={({ isActive }) => navLinkClass(isActive, navCollapsed)}>
+          className={navLinkClass(location.pathname === "/locations", navCollapsed)}>
           <Icons.Locations />
           {!navCollapsed && <span>Locations</span>}
-        </NavLink>
+        </button>
       )}
 
       {features.teams_enabled && (isAdmin || !canSwitchTeams) && (
-        <NavLink to="/teams" onClick={() => onDone?.()} title="Teams"
-          className={({ isActive }) => navLinkClass(isActive, navCollapsed)}>
+        <button type="button" onClick={() => navTo("/teams")} title="Teams"
+          style={{ touchAction: "manipulation" }}
+          className={navLinkClass(location.pathname === "/teams", navCollapsed)}>
           <Icons.Teams />
           {!navCollapsed && <span>Teams</span>}
-        </NavLink>
+        </button>
       )}
 
       {features.requests_enabled && (
-        <NavLink to="/requests" onClick={() => onDone?.()} title="Requests"
-          className={({ isActive }) => navLinkClass(isActive, navCollapsed)}>
+        <button type="button" onClick={() => navTo("/requests")} title="Requests"
+          style={{ touchAction: "manipulation" }}
+          className={navLinkClass(location.pathname === "/requests", navCollapsed)}>
           <Icons.Requests />
           {!navCollapsed && <span>Requests</span>}
-        </NavLink>
+        </button>
       )}
 
       <button type="button" title="Beta Feedback"
-        onClick={() => { onDone?.(); setFeedbackOpen(true); }}
+        style={{ touchAction: "manipulation" }}
+        onClick={() => { closeDrawer(); setFeedbackOpen(true); }}
         className={`w-full flex items-center gap-3 ${navCollapsed ? "px-0 justify-center" : "px-4"} py-2.5 rounded-lg transition-colors text-text/60 hover:text-text hover:bg-text/10`}>
         <Icons.Feedback />
         {!navCollapsed && <span>Beta Feedback</span>}
@@ -311,11 +324,10 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
 
       {/* Trial badge */}
       {(isTrialActive || isTrialExpired) && (
-        <NavLink to="/billing" onClick={() => onDone?.()}
+        <button type="button" onClick={() => navTo("/billing")}
+          style={{ touchAction: "manipulation" }}
           title={isTrialExpired ? "Trial expired" : `Trial: ${daysLeft}d left`}
-          className={({ isActive }) =>
-            `w-full flex items-center gap-3 ${navCollapsed ? "px-0 justify-center" : "px-4"} py-2 rounded-lg transition-colors ${isActive ? "bg-accent/15" : ""}`
-          }>
+          className={`w-full flex items-center gap-3 ${navCollapsed ? "px-0 justify-center" : "px-4"} py-2 rounded-lg transition-colors ${location.pathname === "/billing" ? "bg-accent/15" : ""}`}>
           {navCollapsed ? (
             <span className={`w-2 h-2 rounded-full ${isTrialExpired ? "bg-danger" : daysLeft <= 7 ? "bg-warning" : "bg-success"}`} />
           ) : (
@@ -326,7 +338,7 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
               {isTrialExpired ? "Trial expired" : `Trial: ${daysLeft}d left`}
             </span>
           )}
-        </NavLink>
+        </button>
       )}
     </nav>
   );
@@ -403,7 +415,7 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
               <button type="button" className="btn-secondary-sm p-2" onClick={closeDrawer}>✕</button>
             </div>
             <div className="flex-1 overflow-y-auto pt-3">
-              <NavItems onDone={closeDrawer} navCollapsed={false} />
+              <NavItems navCollapsed={false} />
             </div>
             <div className="border-t border-text/10 pt-2 pb-4">
               <div className="px-2">

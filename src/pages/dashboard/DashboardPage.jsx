@@ -109,7 +109,8 @@ const ImportToast = ({ show, message, onDismiss }) => {
 };
 
 const FilterSelect = ({ value, onChange, placeholder, options }) => (
-  <div className="relative flex items-center">
+  // shrink-0 prevents the select from compressing inside the horizontal scroll row
+  <div className="relative flex items-center shrink-0">
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
@@ -173,71 +174,67 @@ const BulkToolbar = ({
 
   return (
     <div className="flex flex-col gap-3 mb-4">
-      {/* Row 1: Search + Multi-select controls */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by Name"
-            className="w-full max-w-md px-3 py-2 rounded-lg bg-surface text-text border border-text/20 placeholder:text-text/40 shadow-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition"
-          />
-          {searchQuery.trim() ? (
-            <button
-              type="button"
-              onClick={() => setSearchQuery("")}
-              className="btn-secondary-sm"
-            >
-              Clear
-            </button>
-          ) : null}
-        </div>
-
-        <div className="flex flex-col items-end gap-1.5">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={toggleBulkMode}
-              className="btn-secondary-sm"
-            >
-              {bulkMode ? "Exit Multi-Select" : "Multi-Select"}
-            </button>
-
-            {bulkMode && (
-              <button
-                type="button"
-                onClick={onSelectFromFile}
-                className="btn-secondary-sm"
-              >
-                Select from File
-              </button>
-            )}
-
-            {bulkMode && (
-              <span className="text-sm text-text/70">
-                Selected: <span className="font-semibold">{selectedCount}</span>
-              </span>
-            )}
-          </div>
-
-          {/* Below Reserve sits directly under Multi-Select */}
+      {/* Row 1: Search */}
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search by Name"
+          className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-surface text-text border border-text/20 placeholder:text-text/40 shadow-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition"
+        />
+        {searchQuery.trim() ? (
           <button
             type="button"
-            onClick={() => setShowBelowReserve((v) => !v)}
-            className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition ${
-              showBelowReserve
-                ? "bg-danger/10 border-danger text-danger"
-                : "bg-surface border-text/20 text-text/60 hover:border-text/40"
-            }`}
+            onClick={() => setSearchQuery("")}
+            className="btn-secondary-sm shrink-0"
           >
-            Below Reserve
+            Clear
           </button>
-        </div>
+        ) : null}
       </div>
 
-      {/* Row 2: Dropdown filters */}
+      {/* Row 2: Action buttons — horizontal on all screen sizes */}
       <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={toggleBulkMode}
+          className="btn-secondary-sm"
+        >
+          {bulkMode ? "Exit Multi-Select" : "Multi-Select"}
+        </button>
+
+        {bulkMode && (
+          <button
+            type="button"
+            onClick={onSelectFromFile}
+            className="btn-secondary-sm"
+          >
+            Select from File
+          </button>
+        )}
+
+        {bulkMode && (
+          <span className="text-sm text-text/70">
+            Selected: <span className="font-semibold">{selectedCount}</span>
+          </span>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setShowBelowReserve((v) => !v)}
+          className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition ${
+            showBelowReserve
+              ? "bg-danger/10 border-danger text-danger"
+              : "bg-surface border-text/20 text-text/60 hover:border-text/40"
+          }`}
+        >
+          Below Reserve
+        </button>
+      </div>
+
+      {/* Row 3: Dropdown filters — horizontally scrollable on mobile */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
         <FilterSelect
           value={filterLocation}
           onChange={setFilterLocation}
@@ -273,7 +270,7 @@ const BulkToolbar = ({
         )}
       </div>
 
-      {/* Row 3: Bulk action controls (only in bulk mode) */}
+      {/* Row 4: Bulk action controls (only in bulk mode) */}
       {bulkMode && (
         <div className="flex flex-wrap items-center gap-2">
           <select
