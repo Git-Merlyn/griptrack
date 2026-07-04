@@ -6,6 +6,7 @@
 // event approach didn't work. FeedbackModal is rendered directly here instead.
 
 import { Component } from "react";
+import * as Sentry from "@sentry/react";
 import FeedbackModal from "./feedback/FeedbackModal";
 
 export default class ErrorBoundary extends Component {
@@ -20,6 +21,10 @@ export default class ErrorBoundary extends Component {
 
   componentDidCatch(error, info) {
     console.error("[ErrorBoundary] Uncaught error:", error, info);
+    // No-op unless Sentry.init ran (VITE_SENTRY_DSN set in main.jsx)
+    Sentry.captureException(error, {
+      contexts: { react: { componentStack: info?.componentStack } },
+    });
   }
 
   handleReload = () => {
