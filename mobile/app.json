@@ -7,13 +7,11 @@
     "userInterfaceStyle": "dark",
     "icon": "./assets/icon.png",
     "newArchEnabled": true,
-
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#0f1117"
     },
-
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.griptrack.mobile",
@@ -23,7 +21,6 @@
         "NSPhotoLibraryUsageDescription": "GripTrack needs access to your photo library to attach images to equipment."
       }
     },
-
     "android": {
       "package": "com.griptrack.mobile",
       "versionCode": 1,
@@ -38,11 +35,9 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
-
     "web": {
       "favicon": "./assets/favicon.png"
     },
-
     "plugins": [
       "expo-secure-store",
       "expo-sqlite",
@@ -60,11 +55,11 @@
         }
       ]
     ],
-
     "extra": {
       "eas": {
-        "projectId": "YOUR_EAS_PROJECT_ID"
+        "projectId": "ad29aeec-a31b-453b-9650-26ec41236a9e"
       }
-    }
+    },
+    "owner": "cbenwell"
   }
 }
