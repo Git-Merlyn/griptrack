@@ -37,7 +37,16 @@ export default function useEditFlow({ isMobile, onBeforeOpen, defaults } = {}) {
   useEffect(() => {
     // Only reset when not actively editing
     if (editingId === null && !showMobileEditModal && !showDesktopEditModal) {
-      setNewItem(defaultItem);
+      // Bail out when values are unchanged — callers may pass a fresh
+      // `defaults` object each render, and unconditionally setting a new
+      // object here would re-render and loop forever.
+      setNewItem((prev) => {
+        const keys = Object.keys(defaultItem);
+        const same =
+          keys.length === Object.keys(prev).length &&
+          keys.every((k) => prev[k] === defaultItem[k]);
+        return same ? prev : defaultItem;
+      });
     }
   }, [defaultItem, editingId, showMobileEditModal, showDesktopEditModal]);
 

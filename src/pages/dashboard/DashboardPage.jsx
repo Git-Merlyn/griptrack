@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect } from "react";
+import React, { useContext, useState, useEffect, useMemo } from "react";
 import { NavLink } from "react-router-dom";
 import ImportFileModal from "@/components/ImportFileModal";
 import EquipmentContext from "@/context/EquipmentContext";
@@ -813,6 +813,18 @@ const DashboardPage = () => {
   const [showMobileDetailsModal, setShowMobileDetailsModal] = useState(false);
   const [mobileDetailsItem, setMobileDetailsItem] = useState(null);
 
+  // Pre-fill category and location when the user has those filters active.
+  // Memoized: a fresh object literal here re-triggers useEditFlow's reset
+  // effect on every render, which loops setState and starves router
+  // navigation away from the dashboard.
+  const editDefaults = useMemo(
+    () => ({
+      category: filterCategory || "",
+      location: filterLocation || "",
+    }),
+    [filterCategory, filterLocation],
+  );
+
   // Edit flow modal state and handlers (centralized)
   const {
     editingId,
@@ -833,12 +845,7 @@ const DashboardPage = () => {
       setShowMobileDetailsModal(false);
       setMobileDetailsItem(null);
     },
-    // Pre-fill category and location when the user has those filters active.
-    // Saves typing when adding multiple items to the same category/location.
-    defaults: {
-      category: filterCategory || "",
-      location: filterLocation || "",
-    },
+    defaults: editDefaults,
   });
 
   useEffect(() => {
