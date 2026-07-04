@@ -2,26 +2,51 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Role } from '../lib/types';
 
+/**
+ * Org member management — mirrors the web app's Staff page.
+ *
+ * Membership, roles, and team assignment live in `organization_members`
+ * (keyed by org_id + user_id); `profiles` only supplies display name/email.
+ * Invites go through the `invite-staff` edge function and are tracked in
+ * `org_invites`, exactly like the web app.
+ */
+
 export interface OrgMemberProfile {
-  id: string;
+  user_id: string;
   full_name: string | null;
   email: string;
   role: Role;
   team_id: string | null;
+  created_at: string;
+}
+
+export interface PendingInvite {
+  id: string;
+  email: string;
+  role: Role;
+  created_at: string;
+}
+
+export interface InviteResult {
+  /** Set when the invitee already has an account — share this link with them */
+  generatedLink: string | null;
 }
 
 interface UseOrgMembersResult {
   members: OrgMemberProfile[];
+  invites: PendingInvite[];
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
-  changeRole: (memberId: string, role: Role) => Promise<void>;
-  removeMember: (memberId: string) => Promise<void>;
-  addMemberByEmail: (email: string) => Promise<'added' | 'not_found' | 'already_member'>;
+  changeRole: (userId: string, role: Role) => Promise<void>;
+  changeTeam: (userId: string, teamId: string | null) => Promise<void>;
+  removeMember: (userId: string) => Promise<void>;
+  inviteMember: (email: string, role: Role, teamId: string | null) => Promise<InviteResult>;
 }
 
 export function useOrgMembers(orgId: string | null): UseOrgMembersResult {
   const [members, setMembers] = useState<OrgMemberProfile[]>([]);
+  const [invites, setInvites] = useState<PendingInvite[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,94 +55,127 @@ export function useOrgMembers(orgId: string | null): UseOrgMembersResult {
     setLoading(true);
     setError(null);
 
-    const { data, error: err } = await supabase
-      .from('profiles')
-      .select('id, full_name, email, role, team_id')
-      .eq('org_id', orgId)
-      .order('role', { ascending: true })
-      .order('full_name', { ascending: true });
+    try {
+      const { data: memberRows, error: membersErr } = await supabase
+        .from('organization_members')
+        .select('user_id, role, team_id, created_at')
+        .eq('org_id', orgId)
+        .order('created_at', { ascending: true });
 
-    setLoading(false);
+      if (membersErr) throw membersErr;
 
-    if (err) {
-      setError(err.message);
-      return;
+      // Names/emails come from profiles — fetched separately since there's no
+      // FK join exposed between the two tables.
+      const userIds = (memberRows ?? []).map((r) => r.user_id).filter(Boolean);
+      let profileMap = new Map<string, { full_name: string | null; email: string }>();
+      if (userIds.length > 0) {
+        const { data: profileRows } = await supabase
+          .from('profiles')
+          .select('id, email, full_name')
+          .in('id', userIds);
+        profileMap = new Map(
+          (profileRows ?? []).map((p) => [p.id, { full_name: p.full_name, email: p.email }])
+        );
+      }
+
+      setMembers(
+        (memberRows ?? []).map((r) => {
+          const p = profileMap.get(r.user_id);
+          return {
+            user_id: r.user_id,
+            role: r.role as Role,
+            team_id: r.team_id ?? null,
+            created_at: r.created_at,
+            full_name: p?.full_name ?? null,
+            email: p?.email ?? r.user_id,
+          };
+        })
+      );
+
+      const { data: inviteRows, error: invitesErr } = await supabase
+        .from('org_invites')
+        .select('id, email, role, created_at')
+        .eq('org_id', orgId)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+
+      if (!invitesErr) setInvites((inviteRows ?? []) as PendingInvite[]);
+    } catch (e: any) {
+      setError(e?.message ?? 'Failed to load members');
+    } finally {
+      setLoading(false);
     }
-
-    setMembers((data ?? []) as OrgMemberProfile[]);
   }, [orgId]);
 
   useEffect(() => { fetch(); }, [fetch]);
 
-  async function changeRole(memberId: string, role: Role) {
+  async function changeRole(userId: string, role: Role) {
     // Optimistic update
-    setMembers((prev) =>
-      prev.map((m) => (m.id === memberId ? { ...m, role } : m))
-    );
+    setMembers((prev) => prev.map((m) => (m.user_id === userId ? { ...m, role } : m)));
 
     const { error: err } = await supabase
-      .from('profiles')
+      .from('organization_members')
       .update({ role })
-      .eq('id', memberId);
+      .eq('org_id', orgId)
+      .eq('user_id', userId);
 
     if (err) {
-      // Revert and re-fetch on failure
+      await fetch(); // revert to server state
+      throw new Error(err.message);
+    }
+  }
+
+  async function changeTeam(userId: string, teamId: string | null) {
+    setMembers((prev) => prev.map((m) => (m.user_id === userId ? { ...m, team_id: teamId } : m)));
+
+    const { error: err } = await supabase
+      .from('organization_members')
+      .update({ team_id: teamId })
+      .eq('org_id', orgId)
+      .eq('user_id', userId);
+
+    if (err) {
       await fetch();
       throw new Error(err.message);
     }
   }
 
-  async function removeMember(memberId: string) {
-    // Remove from org by clearing org_id and team_id
-    const { error: err } = await supabase
-      .from('profiles')
-      .update({ org_id: null, team_id: null, role: 'crew' })
-      .eq('id', memberId);
+  async function removeMember(userId: string) {
+    const { data: deleted, error: err } = await supabase
+      .from('organization_members')
+      .delete()
+      .eq('org_id', orgId)
+      .eq('user_id', userId)
+      .select('user_id');
 
     if (err) throw new Error(err.message);
+    if (!deleted?.length) throw new Error('Failed to remove member.');
 
-    // Remove from local list immediately
-    setMembers((prev) => prev.filter((m) => m.id !== memberId));
+    setMembers((prev) => prev.filter((m) => m.user_id !== userId));
   }
 
-  async function addMemberByEmail(email: string): Promise<'added' | 'not_found' | 'already_member'> {
-    const normalised = email.trim().toLowerCase();
+  async function inviteMember(email: string, role: Role, teamId: string | null): Promise<InviteResult> {
+    const { data, error: err } = await supabase.functions.invoke('invite-staff', {
+      body: { email: email.trim(), orgId, role, teamId },
+    });
 
-    // Look up a profile with this email that has no org yet
-    const { data, error: err } = await supabase
-      .from('profiles')
-      .select('id, full_name, email, role, team_id, org_id')
-      .eq('email', normalised)
-      .maybeSingle();
+    if (err) throw new Error(data?.error || err.message || 'Invite failed');
 
-    if (err) throw new Error(err.message);
-    if (!data) return 'not_found';
-    if (data.org_id === orgId) return 'already_member';
-
-    // Assign them to this org as crew
-    const { error: updateErr } = await supabase
-      .from('profiles')
-      .update({ org_id: orgId, role: 'crew', team_id: null })
-      .eq('id', data.id);
-
-    if (updateErr) throw new Error(updateErr.message);
-
-    // Add to local list
-    setMembers((prev) => [
-      ...prev,
-      { id: data.id, full_name: data.full_name, email: data.email, role: 'crew', team_id: null },
-    ]);
-
-    return 'added';
+    await fetch();
+    return {
+      generatedLink: data?.alreadyRegistered && data?.generatedLink ? data.generatedLink : null,
+    };
   }
 
   return {
     members,
+    invites,
     loading,
     error,
     refresh: fetch,
     changeRole,
+    changeTeam,
     removeMember,
-    addMemberByEmail,
+    inviteMember,
   };
 }
