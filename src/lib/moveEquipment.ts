@@ -82,12 +82,10 @@ async function writeAuditLog(params: {
   };
 
   if (params.isOnline) {
-    try {
-      await supabase.from(AUDIT_TABLE).insert(payload);
-    } catch (e) {
-      // Audit must never block a move
-      console.warn('Failed to write audit event', e);
-    }
+    // Supabase returns { error } rather than throwing — check it explicitly.
+    // Audit must never block a move, so log and continue.
+    const { error } = await supabase.from(AUDIT_TABLE).insert(payload);
+    if (error) console.warn('Failed to write audit event', error.message);
   } else {
     enqueueOp({ table_name: 'audit', operation: 'insert', payload: JSON.stringify(payload) });
   }

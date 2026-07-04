@@ -51,11 +51,10 @@ async function writeAuditLog(params: AuditParams): Promise<void> {
   };
 
   if (params.isOnline) {
-    try {
-      await supabase.from(AUDIT_TABLE).insert(payload);
-    } catch (e) {
-      console.warn('Failed to write audit event', e);
-    }
+    // Supabase returns { error } rather than throwing — check it explicitly,
+    // otherwise failures vanish. Audit still must never block the mutation.
+    const { error } = await supabase.from(AUDIT_TABLE).insert(payload);
+    if (error) console.warn('Failed to write audit event', error.message);
   } else {
     enqueueOp({ table_name: 'audit', operation: 'insert', payload: JSON.stringify(payload) });
   }
