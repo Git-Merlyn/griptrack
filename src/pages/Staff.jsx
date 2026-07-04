@@ -270,7 +270,6 @@ export default function Staff() {
   };
 
   // Group members by team for a cleaner view
-  const teamMap = new Map(teams.map((t) => [t.id, t]));
   const membersByTeam = members.reduce((acc, m) => {
     const key = m.team_id ?? "__none__";
     if (!acc[key]) acc[key] = [];

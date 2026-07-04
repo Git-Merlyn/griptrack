@@ -427,12 +427,12 @@ const ImportFileModal = ({
         // Already ISO
         if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
         // MM/DD/YYYY or MM-DD-YYYY (US)
-        const mdy = s.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})$/);
+        const mdy = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
         if (mdy) {
           return `${mdy[3]}-${mdy[1].padStart(2, "0")}-${mdy[2].padStart(2, "0")}`;
         }
         // YYYY/MM/DD
-        const ymd = s.match(/^(\d{4})[/\-](\d{2})[/\-](\d{2})$/);
+        const ymd = s.match(/^(\d{4})[/-](\d{2})[/-](\d{2})$/);
         if (ymd) return `${ymd[1]}-${ymd[2]}-${ymd[3]}`;
         // DD.MM.YYYY (European)
         const dmy = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
@@ -447,13 +447,13 @@ const ImportFileModal = ({
         const pats =
           type === "start"
             ? [
-                /(?:ship|out|start|delivery|pickup|rental\s*start)\s*date\s*[:\-]?\s*([0-9][0-9./\-]+)/i,
-                /date\s*(?:out|shipped|start)\s*[:\-]?\s*([0-9][0-9./\-]+)/i,
+                /(?:ship|out|start|delivery|pickup|rental\s*start)\s*date\s*[:-]?\s*([0-9][0-9./-]+)/i,
+                /date\s*(?:out|shipped|start)\s*[:-]?\s*([0-9][0-9./-]+)/i,
               ]
             : [
-                /(?:return|due|end|rental\s*end)\s*date\s*[:\-]?\s*([0-9][0-9./\-]+)/i,
-                /date\s*(?:in|due|return|back)\s*[:\-]?\s*([0-9][0-9./\-]+)/i,
-                /expected\s*return\s*[:\-]?\s*([0-9][0-9./\-]+)/i,
+                /(?:return|due|end|rental\s*end)\s*date\s*[:-]?\s*([0-9][0-9./-]+)/i,
+                /date\s*(?:in|due|return|back)\s*[:-]?\s*([0-9][0-9./-]+)/i,
+                /expected\s*return\s*[:-]?\s*([0-9][0-9./-]+)/i,
               ];
         for (const re of pats) {
           const m = text.match(re);
@@ -574,7 +574,7 @@ const ImportFileModal = ({
         // Pattern: line starts with 1-4 digits, optional "x/×", then description
         const codelessQtyRe = /^\s*(\d{1,4})\s+(?:[xX×]\s*)?(.{3,})$/;
         // Category header: ALL CAPS words only, no digits, 4+ chars total
-        const categoryHeaderRe = /^[A-Z][A-Z\s&/\-]{3,}$/;
+        const categoryHeaderRe = /^[A-Z][A-Z\s&/-]{3,}$/;
 
         let fallbackCategory = "";
 

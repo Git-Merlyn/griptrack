@@ -19,8 +19,6 @@ const ROLES = [
 // Realistic grip/electric seed data for dev testing.
 // Covers a range of categories, statuses, locations, and quantities.
 function buildSeedItems(orgId, teamId) {
-  const locations = ["G&E Truck", "Stage A", "Stage B", "Cage", "Unassigned"];
-  const now = new Date();
   const rentalStart = "2025-05-01";
   const rentalEnd   = "2025-06-30";
 
