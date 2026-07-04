@@ -52,19 +52,6 @@ export interface Team {
   max_seats: number | null;
 }
 
-// Mirrors the productions table (see web repo: supabase/migrations/productions.sql).
-// Each production is an isolated equipment workspace; null production_id on
-// equipment_items means the General pool.
-export interface Production {
-  id: string;
-  org_id: string;
-  name: string;
-  status: 'active' | 'archived';
-  start_date: string | null;
-  end_date: string | null;
-  created_at: string;
-}
-
 export interface OrgMember {
   org_id: string;
   user_id: string;
