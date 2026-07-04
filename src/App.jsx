@@ -139,7 +139,16 @@ const App = () => {
       <Analytics />
       <SpeedInsights />
 
-      {!authUser ? (
+      {loadingOrg ? (
+        // Session/org still resolving. Rendering routes before we know whether
+        // a session exists would let the unauthenticated "*" catch-all rewrite
+        // deep links (e.g. a refresh on /staff) to /auth and bounce the user
+        // back to the dashboard.
+        <div className="min-h-screen flex flex-col items-center justify-center bg-black gap-3">
+          <span className="text-2xl font-bold text-accent">GripTrack</span>
+          <span className="text-gray-500 text-sm animate-pulse">Loading…</span>
+        </div>
+      ) : !authUser ? (
         // Unauthenticated: show public pages, redirect protected routes to /auth
         <Suspense fallback={<PageLoader />}>
           <Routes>
@@ -152,11 +161,6 @@ const App = () => {
             <Route path="*" element={<Navigate to="/auth" replace />} />
           </Routes>
         </Suspense>
-      ) : loadingOrg ? (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-black gap-3">
-          <span className="text-2xl font-bold text-accent">GripTrack</span>
-          <span className="text-gray-500 text-sm animate-pulse">Loading…</span>
-        </div>
       ) : (
         // Authenticated
         <>
