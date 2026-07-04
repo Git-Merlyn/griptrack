@@ -43,6 +43,8 @@ import {
   replaceLocationsForOrg,
   replaceRequestsForOrg,
   setSyncMeta,
+  upsertEquipmentItem,
+  deleteEquipmentItemLocal,
 } from '../lib/db';
 import { EquipmentItem, Location, canManageInventory } from '../lib/types';
 import type { EquipmentRequest } from '../hooks/useRequests';
@@ -58,6 +60,11 @@ interface SyncContextValue {
   isSyncing: boolean;
   lastSyncedAt: Date | null;
   syncError: string | null;
+  /**
+   * Transient, user-facing notice after a drain in which offline changes were
+   * discarded (server won a conflict) or permanently failed. Auto-clears.
+   */
+  syncNotice: string | null;
   /** Number of mutations waiting in the offline queue */
   pendingOps: number;
   /**
@@ -75,6 +82,7 @@ const SyncContext = createContext<SyncContextValue>({
   isSyncing: false,
   lastSyncedAt: null,
   syncError: null,
+  syncNotice: null,
   pendingOps: 0,
   localVersion: 0,
   bumpLocalVersion: () => {},
@@ -87,8 +95,18 @@ export function useSyncContext() {
 
 // ─── Pull helpers (pure, outside component) ───────────────────────────────────
 
-async function drainQueue(auditTable: string): Promise<void> {
+/** Outcome of a queue drain — used to tell the user what didn't make it. */
+export interface DrainStats {
+  applied: number;
+  /** Ops skipped because the server row changed while we were offline (server wins) */
+  discarded: number;
+  /** Ops permanently dropped after exhausting retries */
+  failed: number;
+}
+
+async function drainQueue(auditTable: string): Promise<DrainStats> {
   const entries = getSyncQueue();
+  const stats: DrainStats = { applied: 0, discarded: 0, failed: 0 };
 
   for (const entry of entries) {
     const payload = JSON.parse(entry.payload);
@@ -126,6 +144,7 @@ async function drainQueue(auditTable: string): Promise<void> {
               `[Sync] skipping stale update for ${payload.id} — server updated at ${current.updated_at}, our snapshot was ${payload.snapshot_updated_at}`
             );
             removeSyncEntry(entry.id);
+            stats.discarded++;
             continue;
           }
         }
@@ -167,6 +186,7 @@ async function drainQueue(auditTable: string): Promise<void> {
       }
 
       removeSyncEntry(entry.id);
+      stats.applied++;
     } catch (e: any) {
       incrementSyncRetries(entry.id);
 
@@ -181,12 +201,15 @@ async function drainQueue(auditTable: string): Promise<void> {
       // 1 to compare against the intended max of 3 attempts.
       if (isGone || entry.retries + 1 >= 3) {
         removeSyncEntry(entry.id);
+        stats.failed++;
       }
 
       console.warn(`[Sync] queue entry ${entry.id} failed (retry ${entry.retries + 1})`, e?.message);
       // Continue — don't let one bad entry block everything else
     }
   }
+
+  return stats;
 }
 
 async function pullFromSupabase(params: {
@@ -235,12 +258,14 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [syncNotice, setSyncNotice] = useState<string | null>(null);
   const [pendingOps, setPendingOps] = useState(0);
   const [localVersion, setLocalVersion] = useState(0);
 
   // Refs so callbacks always see the latest values without re-creating
   const isOnlineRef = useRef(true);
   const syncInProgressRef = useRef(false);
+  const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Which team we last kicked off a sync for — re-syncs on team switch,
   // not just on first mount.
   const lastSyncedTeamRef = useRef<string | null>(null);
@@ -267,7 +292,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     setSyncError(null);
 
     try {
-      await drainQueue(AUDIT_TABLE);
+      const stats = await drainQueue(AUDIT_TABLE);
       await pullFromSupabase({
         orgId: profile.org_id,
         teamId: activeTeamId,
@@ -280,6 +305,20 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       setSyncMeta('last_synced', now.toISOString());
       setPendingOps(0);
       bumpLocalVersion();
+
+      // Tell the user when offline changes didn't make it: either someone
+      // else edited the same items while we were offline (server wins), or
+      // an op failed permanently. Auto-clears after a few seconds.
+      const lost = stats.discarded + stats.failed;
+      if (lost > 0) {
+        setSyncNotice(
+          stats.discarded > 0 && stats.failed === 0
+            ? `${stats.discarded} offline change${stats.discarded !== 1 ? 's' : ''} skipped — items were updated by someone else`
+            : `${lost} offline change${lost !== 1 ? 's' : ''} couldn't be applied`
+        );
+        if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+        noticeTimerRef.current = setTimeout(() => setSyncNotice(null), 8000);
+      }
     } catch (e: any) {
       console.error('[Sync] sync failed', e);
       setSyncError(e?.message ?? 'Sync failed');
@@ -289,6 +328,56 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }
     return true;
   }, [profile, activeTeamId, session, bumpLocalVersion]);
+
+  // ─── Realtime — live equipment updates while online ────────────────────────
+  // Mirrors the web app: another device's insert/update/delete lands in
+  // SQLite immediately instead of waiting for the next full sync. The queue
+  // drain remains the source of truth for our own offline mutations.
+
+  useEffect(() => {
+    if (!profile?.org_id || !activeTeamId || !isOnline) return;
+
+    const orgId = profile.org_id;
+    const channel = supabase
+      .channel(`equipment-${orgId}-${activeTeamId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'equipment_items', filter: `org_id=eq.${orgId}` },
+        (payload) => {
+          const row = payload.new as EquipmentItem;
+          if (row.team_id !== activeTeamId) return;
+          upsertEquipmentItem(row);
+          bumpLocalVersion();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'equipment_items', filter: `org_id=eq.${orgId}` },
+        (payload) => {
+          const row = payload.new as EquipmentItem;
+          if (row.team_id !== activeTeamId) return;
+          upsertEquipmentItem(row);
+          bumpLocalVersion();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'equipment_items', filter: `org_id=eq.${orgId}` },
+        (payload) => {
+          // DELETE payloads only carry the primary key; deleting a row we
+          // don't have locally is a harmless no-op.
+          const id = (payload.old as { id?: string } | null)?.id;
+          if (!id) return;
+          deleteEquipmentItemLocal(String(id));
+          bumpLocalVersion();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile?.org_id, activeTeamId, isOnline, bumpLocalVersion]);
 
   // ─── NetInfo — detect connectivity changes ─────────────────────────────────
 
@@ -344,6 +433,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         isSyncing,
         lastSyncedAt,
         syncError,
+        syncNotice,
         pendingOps,
         localVersion,
         bumpLocalVersion,

@@ -10,11 +10,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSyncContext } from '../context/SyncContext';
 
 export default function SyncStatusBar() {
-  const { isOnline, isSyncing, syncError, pendingOps } = useSyncContext();
+  const { isOnline, isSyncing, syncError, syncNotice, pendingOps } = useSyncContext();
   const insets = useSafeAreaInsets();
 
   // Nothing to show — online and idle
-  if (isOnline && !isSyncing && !syncError && pendingOps === 0) return null;
+  if (isOnline && !isSyncing && !syncError && !syncNotice && pendingOps === 0) return null;
 
   // Pad the top so the bar sits below the system status bar (notch / Dynamic Island)
   const topPad = { paddingTop: insets.top + 4 };
@@ -46,6 +46,18 @@ export default function SyncStatusBar() {
         <View className="w-2 h-2 rounded-full bg-danger" />
         <Text className="text-danger text-xs flex-1" numberOfLines={1}>
           Sync error — {syncError}
+        </Text>
+      </View>
+    );
+  }
+
+  // Transient conflict notice — some offline changes were skipped or dropped
+  if (syncNotice) {
+    return (
+      <View style={topPad} className="bg-surface border-b border-white/10 px-4 pb-2 flex-row items-center gap-2">
+        <View className="w-2 h-2 rounded-full bg-warning" />
+        <Text className="text-warning text-xs flex-1" numberOfLines={2}>
+          {syncNotice}
         </Text>
       </View>
     );
