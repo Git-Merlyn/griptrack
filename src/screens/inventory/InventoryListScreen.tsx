@@ -141,6 +141,23 @@ export default function InventoryListScreen({ navigation }: Props) {
     );
   }
 
+  // Crew/dept-heads are locked to their assigned team; without one there is
+  // nothing to sync or show. Explain that instead of an empty inventory.
+  if (!canSwitch && !activeTeamId && !loadingTeams) {
+    return (
+      <View className="flex-1 bg-background items-center justify-center px-8">
+        <Ionicons name="people-outline" size={44} color="#374151" />
+        <Text className="text-slate-100 font-semibold text-base mt-4">
+          No team assigned yet
+        </Text>
+        <Text className="text-text text-sm text-center mt-2">
+          Ask your coordinator to assign you to a team, then pull down to
+          refresh or reopen the app.
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View className="flex-1 bg-background">
       {/* Search bar */}
