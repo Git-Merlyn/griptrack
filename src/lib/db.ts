@@ -159,6 +159,14 @@ export function getAllLocationsByOrg(orgId: string): Location[] {
   return rows.map((r) => ({ ...r, is_active: r.is_active === 1 }));
 }
 
+export function renameLocationLocal(id: string, name: string): void {
+  db.runSync(`UPDATE locations SET name = ? WHERE id = ?`, [name, id]);
+}
+
+export function setLocationActiveLocal(id: string, isActive: boolean): void {
+  db.runSync(`UPDATE locations SET is_active = ? WHERE id = ?`, [isActive ? 1 : 0, id]);
+}
+
 export function deleteLocationLocal(id: string): void {
   db.runSync(`DELETE FROM locations WHERE id = ?`, [id]);
 }

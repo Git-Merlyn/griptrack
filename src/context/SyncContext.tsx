@@ -177,11 +177,13 @@ async function drainQueue(auditTable: string): Promise<void> {
         e?.message?.includes('not found') ||
         e?.message?.includes('does not exist');
 
-      if (isGone || entry.retries >= 3) {
+      // entry.retries is the pre-increment value read from the queue, so add
+      // 1 to compare against the intended max of 3 attempts.
+      if (isGone || entry.retries + 1 >= 3) {
         removeSyncEntry(entry.id);
       }
 
-      console.warn(`[Sync] queue entry ${entry.id} failed (retry ${entry.retries})`, e?.message);
+      console.warn(`[Sync] queue entry ${entry.id} failed (retry ${entry.retries + 1})`, e?.message);
       // Continue — don't let one bad entry block everything else
     }
   }
@@ -205,12 +207,13 @@ async function pullFromSupabase(params: {
   if (itemsErr) throw itemsErr;
   if (items) replaceEquipmentForTeam(orgId, teamId, items as EquipmentItem[]);
 
-  // Locations
+  // Locations — pull ALL (including inactive): the management screen lists
+  // deactivated locations, and read paths filter on is_active themselves.
+  // Filtering here made every sync erase inactive rows from SQLite.
   const { data: locs, error: locsErr } = await supabase
     .from('locations')
     .select('*')
-    .eq('org_id', orgId)
-    .eq('is_active', true);
+    .eq('org_id', orgId);
   if (locsErr) throw locsErr;
   if (locs) replaceLocationsForOrg(orgId, locs as Location[]);
 
