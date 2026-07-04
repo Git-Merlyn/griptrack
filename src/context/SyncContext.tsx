@@ -66,7 +66,8 @@ interface SyncContextValue {
    */
   localVersion: number;
   bumpLocalVersion: () => void;
-  triggerSync: () => Promise<void>;
+  /** Resolves true when a sync actually started, false when skipped. */
+  triggerSync: () => Promise<boolean>;
 }
 
 const SyncContext = createContext<SyncContextValue>({
@@ -77,7 +78,7 @@ const SyncContext = createContext<SyncContextValue>({
   pendingOps: 0,
   localVersion: 0,
   bumpLocalVersion: () => {},
-  triggerSync: async () => {},
+  triggerSync: async () => false,
 });
 
 export function useSyncContext() {
@@ -104,7 +105,16 @@ async function drainQueue(auditTable: string): Promise<void> {
         // If the queued payload includes a snapshot_updated_at, compare it to
         // the server's current updated_at. If the server is newer, someone else
         // changed this row while we were offline — discard our stale op.
-        if (tableName === 'equipment_items' && payload.snapshot_updated_at) {
+        //
+        // qty_delta ops are exempt: they're relative changes applied via the
+        // increment RPC precisely so they compose with concurrent edits.
+        // Running the staleness check on them would discard the second of two
+        // offline moves (the first drain bumps updated_at), losing quantity.
+        if (
+          tableName === 'equipment_items' &&
+          payload.snapshot_updated_at &&
+          payload.qty_delta === undefined
+        ) {
           const { data: current } = await supabase
             .from(tableName)
             .select('updated_at')
@@ -228,7 +238,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   // Refs so callbacks always see the latest values without re-creating
   const isOnlineRef = useRef(true);
   const syncInProgressRef = useRef(false);
-  const hasSyncedOnMountRef = useRef(false);
+  // Which team we last kicked off a sync for — re-syncs on team switch,
+  // not just on first mount.
+  const lastSyncedTeamRef = useRef<string | null>(null);
 
   // Init DB on mount (safe to call multiple times — uses CREATE IF NOT EXISTS)
   useEffect(() => {
@@ -241,9 +253,11 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     setPendingOps(getSyncQueueCount());
   }, []);
 
-  const triggerSync = useCallback(async () => {
-    if (syncInProgressRef.current) return;
-    if (!profile?.org_id || !activeTeamId || !session?.user.id) return;
+  // Returns true when a sync actually started (false when skipped because one
+  // is already running or auth/team state isn't ready).
+  const triggerSync = useCallback(async (): Promise<boolean> => {
+    if (syncInProgressRef.current) return false;
+    if (!profile?.org_id || !activeTeamId || !session?.user.id) return false;
 
     syncInProgressRef.current = true;
     setIsSyncing(true);
@@ -270,6 +284,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       setIsSyncing(false);
       syncInProgressRef.current = false;
     }
+    return true;
   }, [profile, activeTeamId, session, bumpLocalVersion]);
 
   // ─── NetInfo — detect connectivity changes ─────────────────────────────────
@@ -301,19 +316,23 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     return () => sub.remove();
   }, [triggerSync]);
 
-  // ─── Initial sync — once profile + team are ready ─────────────────────────
+  // ─── Initial sync + team switches — pull whenever the active team changes ──
 
   useEffect(() => {
     if (
-      !hasSyncedOnMountRef.current &&
       profile?.org_id &&
       activeTeamId &&
-      session?.user.id
+      session?.user.id &&
+      lastSyncedTeamRef.current !== activeTeamId
     ) {
-      hasSyncedOnMountRef.current = true;
-      triggerSync();
+      triggerSync().then((started) => {
+        // Only record the team once a sync actually kicked off; if one was
+        // already in flight, leave the ref unset — isSyncing flipping back to
+        // false re-runs this effect and retries for the new team.
+        if (started) lastSyncedTeamRef.current = activeTeamId;
+      });
     }
-  }, [profile?.org_id, activeTeamId, session?.user.id, triggerSync]);
+  }, [profile?.org_id, activeTeamId, session?.user.id, triggerSync, isSyncing]);
 
   return (
     <SyncContext.Provider
