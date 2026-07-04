@@ -5,14 +5,15 @@ import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import useUser from "@/context/useUser";
 import useTeam from "@/context/useTeam";
+import { ASSIGNABLE_ROLES as SHARED_ASSIGNABLE_ROLES } from "@shared/roles";
 
 // Role options available when inviting or changing an existing member.
-// Owners are not assignable — there is exactly one per org.
-const ASSIGNABLE_ROLES = [
-  { value: "crew",             label: "Crew" },
-  { value: "department_head",  label: "Dept Head" },
-  { value: "admin",            label: "Admin" },
-];
+// The list itself is shared with mobile (owner is never assignable);
+// only the display labels live here.
+const ASSIGNABLE_ROLES = SHARED_ASSIGNABLE_ROLES.map((value) => ({
+  value,
+  label: roleLabel(value),
+}));
 
 function roleBadgeClass(role) {
   switch (role) {

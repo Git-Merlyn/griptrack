@@ -6,6 +6,7 @@ import {
   useContext,
 } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { canManageInventory, isOrgAdmin } from "@shared/roles";
 import { findMergeDestination } from "./equipmentMoveUtils";
 import UserContext from "./UserContext";
 import TeamContext from "./TeamContext";
@@ -26,12 +27,11 @@ export const EquipmentProvider = ({ children }) => {
   const { activeTeamId } = useContext(TeamContext) || {};
 
   // Role-based permission flags (mirrors database RLS)
-  const isCoordinator = role === "admin" || role === "owner";
-  const isDepartmentHead = role === "department_head";
-  const canAdd    = isDepartmentHead || isCoordinator;  // crew cannot add items
-  const canDelete = isCoordinator;                       // admin/owner only
-  const canMove   = true;                                // all roles can move items
-  const canEdit   = isDepartmentHead || isCoordinator;  // crew cannot edit metadata
+  const isCoordinator = !!role && isOrgAdmin(role);
+  const canAdd    = !!role && canManageInventory(role); // crew cannot add items
+  const canDelete = isCoordinator;                      // admin/owner only
+  const canMove   = true;                               // all roles can move items
+  const canEdit   = !!role && canManageInventory(role); // crew cannot edit metadata
 
   // The effective team scope for queries:
   // - crew/dept_head: locked to their assigned team (from organization_members)

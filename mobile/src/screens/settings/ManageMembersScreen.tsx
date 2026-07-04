@@ -19,7 +19,7 @@ import { useOrgMembers, OrgMemberProfile } from '../../hooks/useOrgMembers';
 import { useOrgContext } from '../../context/OrgContext';
 import { useAuthContext } from '../../context/AuthContext';
 import { useTeamContext } from '../../context/TeamContext';
-import { Role, isOrgAdmin } from '../../lib/types';
+import { Role, isOrgAdmin, ASSIGNABLE_ROLES } from '../../lib/types';
 
 // ─── Role config ──────────────────────────────────────────────────────────────
 
@@ -30,9 +30,6 @@ const ROLE_CONFIG: Record<Role, { label: string; bg: string; text: string }> = {
   crew:            { label: 'Crew',      bg: 'rgba(156,163,175,0.12)', text: '#9ca3af' },
 };
 
-// Roles that can be assigned to others — owner is never assignable,
-// matching the web app (exactly one owner per org).
-const ASSIGNABLE_ROLES: Role[] = ['crew', 'department_head', 'admin'];
 
 function RoleBadge({ role }: { role: Role }) {
   const cfg = ROLE_CONFIG[role] ?? ROLE_CONFIG.crew;

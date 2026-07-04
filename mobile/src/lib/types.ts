@@ -1,21 +1,16 @@
 // ─── Roles ────────────────────────────────────────────────────────────────────
+// Single source of truth shared with the web app — see <repo>/shared/roles.ts.
+// Re-exported here so existing imports from './types' keep working.
 
-export type Role = 'owner' | 'admin' | 'department_head' | 'crew';
+import type { Role } from '../../../shared/roles';
 
-/** Roles that can manage inventory (add/edit items, approve requests) */
-export function canManageInventory(role: Role): boolean {
-  return role === 'owner' || role === 'admin' || role === 'department_head';
-}
-
-/** Roles that can see all teams and switch between them */
-export function canSwitchTeams(role: Role): boolean {
-  return role === 'owner' || role === 'admin';
-}
-
-/** Roles that can delete items or manage users across all teams */
-export function isOrgAdmin(role: Role): boolean {
-  return role === 'owner' || role === 'admin';
-}
+export {
+  canManageInventory,
+  canSwitchTeams,
+  isOrgAdmin,
+  ASSIGNABLE_ROLES,
+} from '../../../shared/roles';
+export type { Role } from '../../../shared/roles';
 
 // ─── Equipment status constants ───────────────────────────────────────────────
 

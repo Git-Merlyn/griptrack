@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import UserContext from "./UserContext";
 import { supabase } from "@/lib/supabaseClient";
+import { canSwitchTeams as roleCanSwitchTeams, isOrgAdmin } from "@shared/roles";
 
 const UserProvider = ({ children }) => {
   // Supabase auth identity
@@ -265,9 +266,9 @@ const UserProvider = ({ children }) => {
   // In dev mode, devRoleOverride takes precedence so the DevPanel can simulate any role.
   const effectiveRole = (import.meta.env.DEV && devRoleOverride) ? devRoleOverride : role;
   const isDepartmentHead = effectiveRole === "department_head";
-  const isCoordinator = effectiveRole === "admin" || effectiveRole === "owner";
+  const isCoordinator = !!effectiveRole && isOrgAdmin(effectiveRole);
   // admin/owner can browse any team; crew/dept_head are locked to their assigned team
-  const canSwitchTeams = isCoordinator;
+  const canSwitchTeams = !!effectiveRole && roleCanSwitchTeams(effectiveRole);
 
   // Toggle an org-level feature flag. Owner-only in the UI, but no server-side
   // enforcement here — RLS on the organizations table handles that.
