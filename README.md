@@ -4,6 +4,12 @@ GripTrack is a full-stack inventory management app built for film crews to track
 
 It focuses on fast workflows, partial item movement, and handling the messy realities of production environments.
 
+## Repository layout
+
+- **`/` (root)** — the web app (React + Vite), deployed on Vercel. Used by managers for billing and high-level administration.
+- **[`mobile/`](mobile/)** — the day-to-day mobile app (Expo / React Native) with offline-first SQLite sync. Run it with `npm install && npx expo start` from `mobile/`.
+- **[`supabase/`](supabase/)** — shared backend: SQL migrations and edge functions used by both apps.
+
 ### Desktop View
 
 ![Desktop View](./screenshots/desktop_view.png)

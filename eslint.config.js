@@ -4,7 +4,8 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 
 export default [
-  { ignores: ['dist'] },
+  // mobile/ is the Expo app with its own TS toolchain — not linted from here
+  { ignores: ['dist', 'mobile'] },
   {
     files: ['**/*.{js,jsx}'],
     languageOptions: {
