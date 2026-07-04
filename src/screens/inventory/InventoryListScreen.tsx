@@ -63,6 +63,27 @@ export default function InventoryListScreen({ navigation }: Props) {
 
   const showOrgOverview = teamsActive && !activeTeamId && !loadingTeams;
 
+  // Declared before the useLayoutEffect below that lists it as a dependency —
+  // referencing it earlier is a TDZ violation that only works on engines that
+  // don't enforce TDZ.
+  const handleImportPDF = useCallback(async () => {
+    if (!isOnline) {
+      Alert.alert('Offline', 'PDF import requires a connection. Please reconnect and try again.');
+      return;
+    }
+    try {
+      const items = await pickAndParse();
+      if (!items) return; // user cancelled
+      if (items.length === 0) {
+        Alert.alert('No Items Found', 'The PDF did not contain any recognizable line items.');
+        return;
+      }
+      navigation.navigate('PDFReview', { parsedItems: items });
+    } catch (e: any) {
+      Alert.alert('Parse Error', e.message ?? 'Failed to parse PDF');
+    }
+  }, [isOnline, pickAndParse, navigation]);
+
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
@@ -102,24 +123,6 @@ export default function InventoryListScreen({ navigation }: Props) {
       ),
     });
   }, [navigation, activeTeam, teamsActive, canManage, handleImportPDF]);
-
-  const handleImportPDF = useCallback(async () => {
-    if (!isOnline) {
-      Alert.alert('Offline', 'PDF import requires a connection. Please reconnect and try again.');
-      return;
-    }
-    try {
-      const items = await pickAndParse();
-      if (!items) return; // user cancelled
-      if (items.length === 0) {
-        Alert.alert('No Items Found', 'The PDF did not contain any recognizable line items.');
-        return;
-      }
-      navigation.navigate('PDFReview', { parsedItems: items });
-    } catch (e: any) {
-      Alert.alert('Parse Error', e.message ?? 'Failed to parse PDF');
-    }
-  }, [isOnline, pickAndParse, navigation]);
 
   async function handleRefresh() {
     setRefreshing(true);
