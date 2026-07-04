@@ -849,7 +849,8 @@ const DashboardPage = () => {
   });
 
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 768px)");
+    // 767.98px matches the Sidebar and avoids overlapping Tailwind's md: at 768px
+    const mq = window.matchMedia("(max-width: 767.98px)");
     const apply = () => setIsMobile(mq.matches);
     apply();
     mq.addEventListener?.("change", apply);

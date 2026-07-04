@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import UserContext from "./UserContext";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -34,6 +34,10 @@ const UserProvider = ({ children }) => {
 
   // Org feature flags
   const [features, setFeatures] = useState({ teams_enabled: true, requests_enabled: true });
+
+  // User id whose org/profile bootstrap has fully completed. Lets the auth
+  // listener ignore repeat events for the same user (see below).
+  const bootstrappedUserIdRef = useRef(null);
 
   const isPlaceholderOrgName = (name) => {
     const n = String(name || "").trim().toLowerCase();
@@ -94,6 +98,7 @@ const UserProvider = ({ children }) => {
       if (cancelled) return;
 
       if (!session?.user) {
+        bootstrappedUserIdRef.current = null;
         setAuthUser(null);
         setOrgId(null);
         setRole(null);
@@ -209,6 +214,9 @@ const UserProvider = ({ children }) => {
         setNeedsProfileSetup(!String(profileRow?.full_name || "").trim());
       }
 
+      // Bootstrap finished for this user — later auth events for the same
+      // user (token refresh, tab refocus) don't need to repeat it.
+      bootstrappedUserIdRef.current = session.user.id;
       setLoadingOrg(false);
     };
 
@@ -226,6 +234,16 @@ const UserProvider = ({ children }) => {
         // Re-running ensureOrg here causes in-flight requests to be aborted by
         // the subsequent navigation, which flips needsProfileSetup incorrectly.
         if (event === "USER_UPDATED") return;
+
+        // SIGNED_IN re-fires on tab refocus and TOKEN_REFRESHED fires roughly
+        // hourly — both for the user we already bootstrapped. Re-running
+        // ensureOrg would flip loadingOrg and unmount the whole app to the
+        // loading screen, wiping page state. Just keep the auth user fresh.
+        if (session?.user?.id && session.user.id === bootstrappedUserIdRef.current) {
+          setAuthUser(session.user);
+          return;
+        }
+
         ensureOrg(session);
       });
       unsub = sub?.subscription;

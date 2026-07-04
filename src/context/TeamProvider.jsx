@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useContext } from "react";
+import { useState, useEffect, useCallback, useContext, useMemo, useRef } from "react";
 import TeamContext from "./TeamContext";
 import UserContext from "./UserContext";
 import { supabase } from "../lib/supabaseClient";
@@ -11,6 +11,13 @@ export const TeamProvider = ({ children }) => {
   const [teams, setTeams] = useState([]);
   const [loadingTeams, setLoadingTeams] = useState(true);
   const [activeTeamId, setActiveTeamIdState] = useState(null);
+
+  // Current activeTeamId for callbacks that intentionally aren't re-created
+  // when it changes (loadTeams) — avoids acting on a stale value.
+  const activeTeamIdRef = useRef(null);
+  useEffect(() => {
+    activeTeamIdRef.current = activeTeamId;
+  }, [activeTeamId]);
 
   // Hydrate active team from localStorage once orgId is known.
   // Coordinators (admin/owner) remember their last-used team across sessions.
@@ -29,18 +36,21 @@ export const TeamProvider = ({ children }) => {
     setActiveTeamIdState(stored || null);
   }, [orgId, canSwitchTeams, assignedTeamId, devRoleOverride]);
 
-  const setActiveTeamId = (id) => {
-    // Crew/dept_head cannot switch teams — silently ignore
-    if (!canSwitchTeams) return;
-    setActiveTeamIdState(id);
-    if (orgId) {
-      if (id) {
-        localStorage.setItem(lsKey(orgId), id);
-      } else {
-        localStorage.removeItem(lsKey(orgId));
+  const setActiveTeamId = useCallback(
+    (id) => {
+      // Crew/dept_head cannot switch teams — silently ignore
+      if (!canSwitchTeams) return;
+      setActiveTeamIdState(id);
+      if (orgId) {
+        if (id) {
+          localStorage.setItem(lsKey(orgId), id);
+        } else {
+          localStorage.removeItem(lsKey(orgId));
+        }
       }
-    }
-  };
+    },
+    [canSwitchTeams, orgId],
+  );
 
   const loadTeams = useCallback(async () => {
     if (!orgId) return;
@@ -55,9 +65,12 @@ export const TeamProvider = ({ children }) => {
       if (error) throw error;
       setTeams(data ?? []);
 
-      // If stored team no longer exists, clear it
-      if (activeTeamId) {
-        const stillExists = (data ?? []).some((t) => t.id === activeTeamId);
+      // If stored team no longer exists, clear it. Read the CURRENT id from
+      // the ref — this callback is deliberately not re-created on team
+      // switches, so the closed-over state value could be stale.
+      const currentTeamId = activeTeamIdRef.current;
+      if (currentTeamId) {
+        const stillExists = (data ?? []).some((t) => t.id === currentTeamId);
         if (!stillExists) setActiveTeamId(null);
       }
     } catch (err) {
@@ -66,69 +79,89 @@ export const TeamProvider = ({ children }) => {
     } finally {
       setLoadingTeams(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgId]);
+  }, [orgId, setActiveTeamId]);
 
   useEffect(() => {
     loadTeams();
   }, [loadTeams]);
 
-  const createTeam = async ({ name, maxSeats = 10 }) => {
-    if (!orgId) throw new Error("No organization found");
-    const trimmed = String(name || "").trim();
-    if (!trimmed) throw new Error("Team name is required");
+  const createTeam = useCallback(
+    async ({ name, maxSeats = 10 }) => {
+      if (!orgId) throw new Error("No organization found");
+      const trimmed = String(name || "").trim();
+      if (!trimmed) throw new Error("Team name is required");
 
-    const { data, error } = await supabase
-      .from("teams")
-      .insert({ org_id: orgId, name: trimmed, max_seats: maxSeats })
-      .select("id, name, status, max_seats, created_at")
-      .single();
+      const { data, error } = await supabase
+        .from("teams")
+        .insert({ org_id: orgId, name: trimmed, max_seats: maxSeats })
+        .select("id, name, status, max_seats, created_at")
+        .single();
 
-    if (error) throw error;
-    setTeams((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
-    return data;
-  };
+      if (error) throw error;
+      setTeams((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)));
+      return data;
+    },
+    [orgId],
+  );
 
-  const archiveTeam = async (teamId) => {
-    const { data, error } = await supabase
-      .from("teams")
-      .update({ status: "archived" })
-      .eq("id", teamId)
-      .select("id, name, status, max_seats, created_at")
-      .single();
+  const archiveTeam = useCallback(
+    async (teamId) => {
+      const { data, error } = await supabase
+        .from("teams")
+        .update({ status: "archived" })
+        .eq("id", teamId)
+        .select("id, name, status, max_seats, created_at")
+        .single();
 
-    if (error) throw error;
-    setTeams((prev) => prev.map((t) => (t.id === teamId ? data : t)));
-    if (activeTeamId === teamId) setActiveTeamId(null);
-  };
+      if (error) throw error;
+      setTeams((prev) => prev.map((t) => (t.id === teamId ? data : t)));
+      if (activeTeamIdRef.current === teamId) setActiveTeamId(null);
+    },
+    [setActiveTeamId],
+  );
 
-  const deleteTeam = async (teamId) => {
-    const { error } = await supabase.from("teams").delete().eq("id", teamId);
-    if (error) throw error;
-    setTeams((prev) => prev.filter((t) => t.id !== teamId));
-    if (activeTeamId === teamId) setActiveTeamId(null);
-  };
+  const deleteTeam = useCallback(
+    async (teamId) => {
+      const { error } = await supabase.from("teams").delete().eq("id", teamId);
+      if (error) throw error;
+      setTeams((prev) => prev.filter((t) => t.id !== teamId));
+      if (activeTeamIdRef.current === teamId) setActiveTeamId(null);
+    },
+    [setActiveTeamId],
+  );
 
   const activeTeam = teams.find((t) => t.id === activeTeamId) ?? null;
 
-  return (
-    <TeamContext.Provider
-      value={{
-        teams,
-        activeTeamId,
-        activeTeam,
-        loadingTeams,
-        canSwitchTeams,
-        setActiveTeamId,
-        createTeam,
-        archiveTeam,
-        deleteTeam,
-        refreshTeams: loadTeams,
-      }}
-    >
-      {children}
-    </TeamContext.Provider>
+  // Memoized: a fresh value object every render would re-render every
+  // consumer (Sidebar, Dashboard, EquipmentProvider…) on any parent update.
+  const value = useMemo(
+    () => ({
+      teams,
+      activeTeamId,
+      activeTeam,
+      loadingTeams,
+      canSwitchTeams,
+      setActiveTeamId,
+      createTeam,
+      archiveTeam,
+      deleteTeam,
+      refreshTeams: loadTeams,
+    }),
+    [
+      teams,
+      activeTeamId,
+      activeTeam,
+      loadingTeams,
+      canSwitchTeams,
+      setActiveTeamId,
+      createTeam,
+      archiveTeam,
+      deleteTeam,
+      loadTeams,
+    ],
   );
+
+  return <TeamContext.Provider value={value}>{children}</TeamContext.Provider>;
 };
 
 export default TeamProvider;

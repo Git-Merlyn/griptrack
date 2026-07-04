@@ -51,7 +51,7 @@ const Icons = {
 
 // ── SettingsPanel ─────────────────────────────────────────────────────────────
 function SettingsPanel({ collapsed, onClose }) {
-  const { logout, profile, role, features } = useUser();
+  const { logout, profile, role } = useUser();
   const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const isOwner = role === "owner";
@@ -199,7 +199,6 @@ function SettingsPanel({ collapsed, onClose }) {
 const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
   const location = useLocation();
   const { role, features } = useUser();
-  const isOwner = role === "owner";
   const isAdmin = role === "owner" || role === "admin";
 
   const { isTrialActive, isTrialExpired, daysLeft } = useTrial();
@@ -212,7 +211,9 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
   const settingsRef = useRef(null);
 
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 768px)");
+    // 767.98px, not 768px: Tailwind's md: is min-width 768px, so matching
+    // at exactly 768px would render the mobile shell AND the desktop sidebar.
+    const mq = window.matchMedia("(max-width: 767.98px)");
     const apply = () => {
       const mobile = mq.matches;
       setIsMobile(mobile);
@@ -400,7 +401,7 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
 
       {/* Settings at bottom */}
       <div className="pt-2 border-t border-text/10 mt-2">
-        <SettingsButton navCollapsed={collapsed} />
+        {SettingsButton({ navCollapsed: collapsed })}
       </div>
     </div>
   );
@@ -460,8 +461,13 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
 
   return (
     <>
-      {isMobile ? <MobileShell /> : null}
-      <DesktopSidebar />
+      {/* DesktopSidebar / MobileShell / SettingsButton are defined inside this
+          component, so rendering them as JSX (<DesktopSidebar />) would give
+          React a brand-new component type every render and force a full
+          unmount/remount of the sidebar DOM — the same hazard NavItems hit.
+          Calling them as plain functions inlines their elements instead. */}
+      {isMobile ? MobileShell() : null}
+      {DesktopSidebar()}
       <FeedbackModal isOpen={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </>
   );
