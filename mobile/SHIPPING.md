@@ -27,14 +27,41 @@ then `--profile production` (app-bundle) + `eas submit`.
 
 ## iOS — needs an Apple Developer account ($99/yr)
 
-1. Enroll at developer.apple.com, then:
-2. `npx eas-cli build --profile production --platform ios`
-   — EAS walks through certificates/profiles automatically on first run
-   (interactive; sign in with the Apple ID).
-3. `npx eas-cli submit --platform ios` to push to TestFlight; fill in the
-   `submit.production.ios` placeholders in `eas.json` (appleId, ascAppId,
-   appleTeamId) to make submits non-interactive.
-4. In App Store Connect, add testers to TestFlight.
+Bundle id `com.griptrack.mobile`; `ITSAppUsesNonExemptEncryption: false` is
+set in app.json (skips the export-compliance prompt); production builds
+auto-increment the build number. `eas.json` → `submit.production.ios` is
+intentionally `{}` so the first submit runs interactively and captures the
+IDs (see step 4).
+
+Run all commands from `mobile/`. First-time flow, once enrollment is approved:
+
+1. **Build.** `npx eas-cli build --profile production --platform ios`
+   — first run is interactive: sign in with the Apple ID, and EAS generates
+   and stores the distribution certificate + provisioning profile for you.
+2. **Submit to TestFlight.** `npx eas-cli submit --platform ios --latest`
+   — interactive: signs in, **auto-creates the App Store Connect app record**
+   for `com.griptrack.mobile`, uploads the build.
+3. **Add testers.** In App Store Connect → GripTrack → TestFlight, add crew by
+   email (internal testers get it immediately; external needs a one-time
+   lightweight Apple review).
+4. **Make future submits one-command (optional).** After the first submit,
+   grab the three values and paste them into `eas.json` →
+   `submit.production.ios` so CI/non-interactive submits work:
+   - `appleId` — the Apple ID email you enrolled with
+   - `appleTeamId` — App Store Connect → membership, or `eas credentials`
+   - `ascAppId` — App Store Connect → GripTrack → App Information → "Apple ID"
+     (a number), or the id EAS printed during the first submit
+   ```json
+   "ios": { "appleId": "you@example.com", "appleTeamId": "XXXXXXXXXX", "ascAppId": "1234567890" }
+   ```
+
+## Google Play — device verification gate (2024+)
+
+Personal Play Console accounts must verify access to an Android device before
+publishing: install the **Google Play Console** app on any Android device,
+sign in with the developer Google account (owner only), and confirm. One-time,
+~2 min — a borrowed phone works; skip emulators. Until then, Android crew stay
+on the internal-distribution APK links above.
 
 ## Distribution plan (decided July 2026)
 
