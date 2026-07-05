@@ -10,8 +10,13 @@ them automatically; the local `.env` is only for `expo start`.
 ## Android — available now (no store account needed)
 
 ```bash
-npx eas-cli build --profile preview --platform android
+npx eas-cli build --profile preview --platform android   # from mobile/
+npm run mobile:apk                                        # or from the repo root
 ```
+
+> ⚠️ EAS commands must run from `mobile/` (or via the root `mobile:apk`
+> script). Run from the repo root, `eas-cli` will treat the web app as a new
+> Expo project and create a duplicate EAS project that fails to build.
 
 Produces an installable APK with an "internal distribution" link — send it to
 crew, they tap it on their phone, done. The Android keystore is managed by EAS
