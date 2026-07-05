@@ -21,7 +21,11 @@ const AUDIT_TABLE =
 const EquipmentContext = createContext();
 
 export const EquipmentProvider = ({ children }) => {
-  const { orgId, loadingOrg, role, teamId: assignedTeamId, devRoleOverride } = useContext(UserContext) || {};
+  const { orgId, loadingOrg, role, teamId: assignedTeamId, devRoleOverride, features } = useContext(UserContext) || {};
+
+  // When teams are disabled, inventory is a single flat pool scoped to the org
+  // (equipment rows carry team_id = null) and there is no team to select.
+  const teamsEnabled = features?.teams_enabled !== false;
 
   // Read active team for scoping equipment queries
   const { activeTeamId } = useContext(TeamContext) || {};
@@ -133,11 +137,12 @@ export const EquipmentProvider = ({ children }) => {
     // item_id is optional; keep duplicates allowed
     const itemId = item?.item_id ?? item?.itemId ?? item?.id ?? null;
 
-    // team_id: prefer explicit override on the item, fall back to active team
+    // team_id: prefer explicit override on the item, else the active team when
+    // teams are on. Teams off → always null (flat org-wide pool).
     const teamId =
       item?.team_id !== undefined
         ? item.team_id
-        : (activeTeamId ?? null);
+        : (teamsEnabled ? (activeTeamId ?? null) : null);
 
     return {
       org_id: orgId ?? null,
@@ -199,20 +204,24 @@ export const EquipmentProvider = ({ children }) => {
   });
 
   const loadEquipmentFromSupabase = useCallback(async () => {
-    // No team selected — return empty immediately, don't query.
-    // A team must always be selected before inventory is shown.
-    if (!effectiveTeamId) return [];
+    let query = supabase.from(EQUIPMENT_TABLE).select("*");
 
-    const { data, error } = await supabase
-      .from(EQUIPMENT_TABLE)
-      .select("*")
-      .eq("team_id", effectiveTeamId)
-      .order("created_at", { ascending: false });
+    if (teamsEnabled) {
+      // Teams on: a team must be selected before inventory is shown.
+      if (!effectiveTeamId) return [];
+      query = query.eq("team_id", effectiveTeamId);
+    } else {
+      // Teams off: one flat pool scoped to the org (RLS enforces membership).
+      if (!orgId) return [];
+      query = query.eq("org_id", orgId);
+    }
+
+    const { data, error } = await query.order("created_at", { ascending: false });
 
     if (error) throw error;
     return (data ?? []).map(normalizeRowFromDb);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveTeamId]);
+  }, [teamsEnabled, effectiveTeamId, orgId]);
 
   // Load equipment from Supabase on app start (Supabase is the single source of truth)
   useEffect(() => {
@@ -293,11 +302,15 @@ export const EquipmentProvider = ({ children }) => {
         (payload) => {
           const row = normalizeRowFromDb(payload.new);
 
-          // Only apply if this row belongs to our current team scope
+          // Only apply if this row belongs to our current scope. Teams off:
+          // the whole org pool is in scope. Teams on: match the active team
+          // (or, for admin/owner with no filter, everything).
           const rowTeamId = payload.new?.team_id ?? null;
-          const inScope = effectiveTeamId
-            ? rowTeamId === effectiveTeamId
-            : true; // admin/owner with no filter see everything
+          const inScope = !teamsEnabled
+            ? true
+            : effectiveTeamId
+              ? rowTeamId === effectiveTeamId
+              : true;
           if (!inScope) return;
 
           setEquipmentData((prev) => {
@@ -361,8 +374,8 @@ export const EquipmentProvider = ({ children }) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  // effectiveTeamId included so INSERT scoping stays current when the active team changes
-  }, [orgId, loadLocations, effectiveTeamId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // effectiveTeamId / teamsEnabled included so INSERT scoping stays current
+  }, [orgId, loadLocations, effectiveTeamId, teamsEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
   // normalizeRowFromDb is a stable pure fn defined in this scope; omitting from deps is intentional.
 
   // Insert many items (used by PDF import). Duplicates are allowed.
@@ -619,7 +632,9 @@ export const EquipmentProvider = ({ children }) => {
         canMove,
         canEdit,
         // False when no team is selected — Dashboard shows a "pick a team" prompt instead of inventory
-        hasTeamSelected: !!effectiveTeamId,
+        // Teams off: always "selected" (flat org pool) so the dashboard shows
+        // inventory instead of the team-picker. Teams on: need an active team.
+        hasTeamSelected: !teamsEnabled || !!effectiveTeamId,
         // True while the equipment fetch is in-flight — suppresses empty-state flash
         loadingEquipment,
         locations,       // full location objects [{ id, name, description, is_active }]

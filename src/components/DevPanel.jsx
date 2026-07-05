@@ -98,20 +98,26 @@ export default function DevPanel() {
   } = useUser();
 
   const { activeTeamId, activeTeam, teams } = useTeam();
+  const { features } = useUser();
+  const teamsEnabled = features?.teams_enabled !== false;
   const { hasTeamSelected, canAdd, canDelete, canEdit, canMove, loadingEquipment, refreshEquipment } =
     useContext(EquipmentContext);
 
+  // Teams off → seed/clear the flat org pool (team_id null). Teams on → the
+  // active team.
+  const seedTarget = teamsEnabled ? activeTeam?.name : "org (no teams)";
+
   const handleSeed = async () => {
-    if (!orgId || !activeTeamId) {
+    if (!orgId || (teamsEnabled && !activeTeamId)) {
       setSeedMsg("⚠ Select a team first");
       return;
     }
-    if (!confirm(`Seed ~38 grip/electric items into "${activeTeam?.name}"?`)) return;
+    if (!confirm(`Seed ~38 grip/electric items into "${seedTarget}"?`)) return;
 
     setSeeding(true);
     setSeedMsg("");
     try {
-      const rows = buildSeedItems(orgId, activeTeamId);
+      const rows = buildSeedItems(orgId, teamsEnabled ? activeTeamId : null);
       const { error } = await supabase.from("equipment_items").insert(rows);
       if (error) throw error;
       // Refresh local state so items appear immediately without a page reload.
@@ -119,7 +125,7 @@ export default function DevPanel() {
       // rows back explicitly rather than relying on the realtime subscription.
       await refreshEquipment();
       setSeedMsg(`✓ ${rows.length} items seeded`);
-      window.toast?.success?.(`Seeded ${rows.length} items into ${activeTeam?.name}`);
+      window.toast?.success?.(`Seeded ${rows.length} items into ${seedTarget}`);
     } catch (err) {
       console.error("Seed failed", err);
       setSeedMsg(`✗ ${err.message}`);
@@ -129,23 +135,21 @@ export default function DevPanel() {
   };
 
   const handleClear = async () => {
-    if (!orgId || !activeTeamId) {
+    if (!orgId || (teamsEnabled && !activeTeamId)) {
       setSeedMsg("⚠ Select a team first");
       return;
     }
-    if (!confirm(`Delete ALL items in "${activeTeam?.name}"? This cannot be undone.`)) return;
+    if (!confirm(`Delete ALL items in "${seedTarget}"? This cannot be undone.`)) return;
 
     setSeeding(true);
     setSeedMsg("");
     try {
-      const { error } = await supabase
-        .from("equipment_items")
-        .delete()
-        .eq("org_id", orgId)
-        .eq("team_id", activeTeamId);
+      let del = supabase.from("equipment_items").delete().eq("org_id", orgId);
+      del = teamsEnabled ? del.eq("team_id", activeTeamId) : del.is("team_id", null);
+      const { error } = await del;
       if (error) throw error;
       setSeedMsg("✓ Cleared");
-      window.toast?.success?.(`Cleared all items from ${activeTeam?.name}`);
+      window.toast?.success?.(`Cleared all items from ${seedTarget}`);
     } catch (err) {
       console.error("Clear failed", err);
       setSeedMsg(`✗ ${err.message}`);

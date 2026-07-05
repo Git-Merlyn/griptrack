@@ -33,8 +33,10 @@ const UserProvider = ({ children }) => {
   // Trial
   const [trialEndsAt, setTrialEndsAt] = useState(null);
 
-  // Org feature flags
-  const [features, setFeatures] = useState({ teams_enabled: true, requests_enabled: true });
+  // Org feature flags. Default OFF — teams/requests are opt-in; the real
+  // values arrive from bootstrap_session. A stale "on" default would flash
+  // team UI for a teams-off org during load.
+  const [features, setFeatures] = useState({ teams_enabled: false, requests_enabled: false });
 
   // User id whose org/profile bootstrap has fully completed. Lets the auth
   // listener ignore repeat events for the same user (see below).
@@ -145,10 +147,12 @@ const UserProvider = ({ children }) => {
         setOrgName(name);
         setNeedsOrgSetup(isPlaceholderOrgName(name));
         setTrialEndsAt(boot.org.trial_ends_at ?? null);
-        // Fall back to enabled if the flag is absent
+        // Off by default — both features are opt-in. Existing orgs were
+        // backfilled with an explicit flag, so this fallback only affects
+        // genuinely-unset orgs.
         setFeatures({
-          teams_enabled:    boot.org.features?.teams_enabled    ?? true,
-          requests_enabled: boot.org.features?.requests_enabled ?? true,
+          teams_enabled:    boot.org.features?.teams_enabled    ?? false,
+          requests_enabled: boot.org.features?.requests_enabled ?? false,
         });
       } else {
         setOrgName("");
