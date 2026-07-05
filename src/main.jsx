@@ -22,9 +22,18 @@ if (import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({
     dsn: import.meta.env.VITE_SENTRY_DSN,
     environment: import.meta.env.MODE,
-    // Chunk-load failures right after a deploy are handled by the
-    // vite:preloadError reload below — not actionable, don't report them.
-    ignoreErrors: [/Failed to fetch dynamically imported module/i],
+    ignoreErrors: [
+      // Chunk-load failures right after a deploy are handled by the
+      // vite:preloadError reload below — not actionable, don't report them.
+      /Failed to fetch dynamically imported module/i,
+      // Supabase auth-js coordinates cross-tab token refresh via the Web Locks
+      // API; when a page is torn down mid-acquisition (crawlers, fast tab
+      // close) the pending lock rejects with this AbortError as an unhandled
+      // rejection. It originates in @supabase/auth-js/lib/locks.js, is benign
+      // (auth still works), and a real auth problem would surface as other
+      // errors we do capture. Filter the noise.
+      /signal is aborted without reason/i,
+    ],
 
     // Session Replay — a video-like reconstruction of what the user did.
     integrations: [Sentry.replayIntegration()],
