@@ -36,7 +36,15 @@ then `--profile production` (app-bundle) + `eas submit`.
    appleTeamId) to make submits non-interactive.
 4. In App Store Connect, add testers to TestFlight.
 
-## Over-the-air updates (recommended once crews install builds)
+## Distribution plan (decided July 2026)
+
+Both store accounts get set up together (~$125 total): Google Play Console
+($25 one-time) + Apple Developer ($99/yr). Until then, Android crews install
+via internal-distribution APK links and re-install per update — acceptable at
+beta scale. Once the store accounts exist, crews install once from the store
+and updates arrive automatically.
+
+## Over-the-air updates (optional extra on top of the stores)
 
 `expo-updates` ships JS-only fixes without a store round-trip:
 
