@@ -37,10 +37,15 @@ export default defineConfig({
         // Split the stable heavyweight deps out of the app chunk so neither
         // side exceeds Vite's 500 kB advisory and vendor code stays cached
         // across app-only deploys.
-        manualChunks: {
-          react: ["react", "react-dom", "react-router-dom"],
-          sentry: ["@sentry/react"],
-          supabase: ["@supabase/supabase-js"],
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return undefined;
+          // Group all @sentry/* and @sentry-internal/* (replay/rrweb) together
+          // so replay's weight lives in the cacheable vendor chunk, not the app.
+          if (id.includes("@sentry")) return "sentry";
+          if (/[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom)[\\/]/.test(id))
+            return "react";
+          if (id.includes("@supabase")) return "supabase";
+          return undefined;
         },
       },
     },

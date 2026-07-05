@@ -25,6 +25,15 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     // Chunk-load failures right after a deploy are handled by the
     // vite:preloadError reload below — not actionable, don't report them.
     ignoreErrors: [/Failed to fetch dynamically imported module/i],
+
+    // Session Replay — a video-like reconstruction of what the user did.
+    integrations: [Sentry.replayIntegration()],
+    // Record 100% of sessions that hit an error, but only 10% of ordinary
+    // sessions: the free plan includes ~50 replays/month, so recording every
+    // session (the wizard's 1.0 default) would exhaust the quota in a day or
+    // two of beta traffic. Bump replaysSessionSampleRate if you upgrade plans.
+    replaysSessionSampleRate: 0.1,
+    replaysOnErrorSampleRate: 1.0,
   });
 }
 
