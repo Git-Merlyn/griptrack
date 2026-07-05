@@ -32,6 +32,18 @@ export default defineConfig({
     // "hidden": emit .map files for the Sentry upload without adding
     // sourceMappingURL comments to the served bundles.
     sourcemap: uploadSourceMaps ? "hidden" : false,
+    rollupOptions: {
+      output: {
+        // Split the stable heavyweight deps out of the app chunk so neither
+        // side exceeds Vite's 500 kB advisory and vendor code stays cached
+        // across app-only deploys.
+        manualChunks: {
+          react: ["react", "react-dom", "react-router-dom"],
+          sentry: ["@sentry/react"],
+          supabase: ["@supabase/supabase-js"],
+        },
+      },
+    },
   },
 
   resolve: {

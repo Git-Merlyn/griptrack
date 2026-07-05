@@ -1,6 +1,10 @@
-import React, { useContext, useState, useEffect, useMemo } from "react";
+import React, { useContext, useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { NavLink } from "react-router-dom";
-import ImportFileModal from "@/components/ImportFileModal";
+
+// Lazy: ImportFileModal pulls in all of pdfjs-dist (~½ MB minified), and it
+// only renders when the user starts an import. Keeping it out of the main
+// chunk roughly halves the initial bundle.
+const ImportFileModal = lazy(() => import("@/components/ImportFileModal"));
 import EquipmentContext from "@/context/EquipmentContext";
 import useUser from "@/context/useUser";
 import useTeam from "@/context/useTeam";
@@ -1564,22 +1568,24 @@ const DashboardPage = () => {
         onAdd={handleAddNewLocation}
       />
 
-      {/* Import File Modal (keep as-is) */}
+      {/* Import File Modal — lazy chunk starts loading on first open */}
       {showUploadModal && (
-        <ImportFileModal
-          isOpen={showUploadModal}
-          onClose={() => {
-            setShowUploadModal(false);
-            setPdfModalMode("import");
-          }}
-          onUpload={(items) => {
-            if (pdfModalMode === "select") handlePdfSelect(items);
-            else handlePdfUpload(items);
-          }}
-          mode={pdfModalMode}
-          setImportInProgress={setImportInProgress}
-          allLocations={allLocations}
-        />
+        <Suspense fallback={null}>
+          <ImportFileModal
+            isOpen={showUploadModal}
+            onClose={() => {
+              setShowUploadModal(false);
+              setPdfModalMode("import");
+            }}
+            onUpload={(items) => {
+              if (pdfModalMode === "select") handlePdfSelect(items);
+              else handlePdfUpload(items);
+            }}
+            mode={pdfModalMode}
+            setImportInProgress={setImportInProgress}
+            allLocations={allLocations}
+          />
+        </Suspense>
       )}
 
       {/* Summary Report */}
