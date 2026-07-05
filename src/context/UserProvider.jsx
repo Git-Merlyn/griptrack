@@ -117,17 +117,14 @@ const UserProvider = ({ children }) => {
       setAuthUser(session.user);
       setLoadingOrg(true);
 
-      // Auto-link invited user to their org if applicable
-      const { error: inviteError } = await supabase.rpc("accept_org_invite_for_user");
-      if (inviteError) {
-        console.warn("accept_org_invite_for_user failed", inviteError);
-      }
-
-      const { data, error } = await supabase.rpc("ensure_org_for_user");
+      // Single round trip: invite acceptance + org ensure + org row +
+      // subscription + team assignment + profile, all from one RPC.
+      // (Previously six serial requests — the bulk of the loading screen.)
+      const { data: boot, error } = await supabase.rpc("bootstrap_session");
       if (cancelled) return;
 
-      if (error) {
-        console.error("ensure_org_for_user failed", error);
+      if (error || !boot) {
+        console.error("bootstrap_session failed", error);
         setOrgId(null);
         setRole(null);
         setOrgName("");
@@ -139,81 +136,31 @@ const UserProvider = ({ children }) => {
         return;
       }
 
-      const row = Array.isArray(data) ? data[0] : data;
-      const nextOrgId = row?.org_id ?? null;
-      const nextRole = row?.role ?? null;
+      const nextOrgId = boot.org_id ?? null;
       setOrgId(nextOrgId);
-      setRole(nextRole);
+      setRole(boot.role ?? null);
 
-      // Load org name
-      if (nextOrgId) {
-        const { data: orgRow, error: orgErr } = await supabase
-          .from("organizations")
-          .select("name, trial_ends_at, features")
-          .eq("id", nextOrgId)
-          .single();
-
-        if (orgErr) {
-          console.warn("Failed to load organization name", orgErr);
-          setOrgName("");
-          setNeedsOrgSetup(false);
-          setTrialEndsAt(null);
-        } else {
-          const name = String(orgRow?.name || "").trim();
-          setOrgName(name);
-          setNeedsOrgSetup(isPlaceholderOrgName(name));
-          setTrialEndsAt(orgRow?.trial_ends_at ?? null);
-          // Fall back to enabled if the column doesn't exist yet
-          setFeatures({
-            teams_enabled:   orgRow?.features?.teams_enabled   ?? true,
-            requests_enabled: orgRow?.features?.requests_enabled ?? true,
-          });
-        }
-
-        // Load subscription for org
-        await loadSubscription(nextOrgId);
-        if (cancelled) return;
-
-        // Load the user's assigned team (crew/dept_head are locked to one team)
-        const { data: memberRow } = await supabase
-          .from("organization_members")
-          .select("team_id")
-          .eq("org_id", nextOrgId)
-          .eq("user_id", session.user.id)
-          .single();
-
-        if (cancelled) return;
-        setTeamId(memberRow?.team_id ?? null);
+      if (nextOrgId && boot.org) {
+        const name = String(boot.org.name || "").trim();
+        setOrgName(name);
+        setNeedsOrgSetup(isPlaceholderOrgName(name));
+        setTrialEndsAt(boot.org.trial_ends_at ?? null);
+        // Fall back to enabled if the flag is absent
+        setFeatures({
+          teams_enabled:    boot.org.features?.teams_enabled    ?? true,
+          requests_enabled: boot.org.features?.requests_enabled ?? true,
+        });
       } else {
         setOrgName("");
         setNeedsOrgSetup(true);
-        setTeamId(null);
       }
 
-      if (cancelled) return;
+      setSubscription(boot.subscription ?? null);
+      setTeamId(boot.team_id ?? null);
 
-      // Load user profile
-      const { data: profileRow, error: profileErr } = await supabase
-        .from("profiles")
-        .select("id, email, full_name, phone")
-        .eq("id", session.user.id)
-        .single();
-
-      if (profileErr) {
-        // AbortError means the request was cancelled mid-flight (e.g. rapid
-        // navigation on iOS Safari). Don't treat this as a real failure —
-        // leave needsProfileSetup as-is so the user isn't wrongly redirected.
-        if (profileErr.name === "AbortError" || profileErr.message?.includes("aborted")) {
-          console.warn("Profile load aborted — skipping needsProfileSetup update");
-        } else {
-          console.warn("Failed to load profile", profileErr);
-          setProfile(null);
-          setNeedsProfileSetup(true);
-        }
-      } else {
-        setProfile(profileRow ?? null);
-        setNeedsProfileSetup(!String(profileRow?.full_name || "").trim());
-      }
+      const profileRow = boot.profile ?? null;
+      setProfile(profileRow);
+      setNeedsProfileSetup(!String(profileRow?.full_name || "").trim());
 
       // Bootstrap finished for this user — later auth events for the same
       // user (token refresh, tab refocus) don't need to repeat it.
