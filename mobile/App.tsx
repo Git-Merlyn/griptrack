@@ -18,12 +18,14 @@ export default function App() {
       <NavigationContainer>
         <AuthProvider>
           <TeamProvider>
-            <SyncProvider>
-              <OrgProvider>
+            {/* OrgProvider above SyncProvider: sync reads the teams_enabled
+                feature flag to decide org-wide vs team-scoped sync. */}
+            <OrgProvider>
+              <SyncProvider>
                 <StatusBar style="light" />
                 <RootNavigator />
-              </OrgProvider>
-            </SyncProvider>
+              </SyncProvider>
+            </OrgProvider>
           </TeamProvider>
         </AuthProvider>
       </NavigationContainer>

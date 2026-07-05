@@ -40,6 +40,7 @@ import {
   incrementSyncRetries,
   getSyncQueueCount,
   replaceEquipmentForTeam,
+  replaceEquipmentForOrg,
   replaceLocationsForOrg,
   replaceRequestsForOrg,
   setSyncMeta,
@@ -50,6 +51,7 @@ import { EquipmentItem, Location, canManageInventory } from '../lib/types';
 import type { EquipmentRequest } from '../hooks/useRequests';
 import { useAuthContext } from './AuthContext';
 import { useTeamContext } from './TeamContext';
+import { useOrgContext } from './OrgContext';
 
 const AUDIT_TABLE = process.env.EXPO_PUBLIC_EQUIPMENT_AUDIT_TABLE ?? 'equipment_audit';
 
@@ -214,21 +216,27 @@ async function drainQueue(auditTable: string): Promise<DrainStats> {
 
 async function pullFromSupabase(params: {
   orgId: string;
-  teamId: string;
+  teamId: string | null;
+  teamsEnabled: boolean;
   userId: string;
   role: string;
 }): Promise<void> {
-  const { orgId, teamId, userId, role } = params;
+  const { orgId, teamId, teamsEnabled, userId, role } = params;
   const isAdmin = canManageInventory(role as any);
 
-  // Equipment items
-  const { data: items, error: itemsErr } = await supabase
-    .from('equipment_items')
-    .select('*')
-    .eq('org_id', orgId)
-    .eq('team_id', teamId);
+  // Equipment items. Teams off → the whole org is one flat pool; teams on →
+  // scope to the active team.
+  let itemsQuery = supabase.from('equipment_items').select('*').eq('org_id', orgId);
+  if (teamsEnabled && teamId) itemsQuery = itemsQuery.eq('team_id', teamId);
+  const { data: items, error: itemsErr } = await itemsQuery;
   if (itemsErr) throw itemsErr;
-  if (items) replaceEquipmentForTeam(orgId, teamId, items as EquipmentItem[]);
+  if (items) {
+    if (teamsEnabled && teamId) {
+      replaceEquipmentForTeam(orgId, teamId, items as EquipmentItem[]);
+    } else {
+      replaceEquipmentForOrg(orgId, items as EquipmentItem[]);
+    }
+  }
 
   // Locations — pull ALL (including inactive): the management screen lists
   // deactivated locations, and read paths filter on is_active themselves.
@@ -253,6 +261,8 @@ async function pullFromSupabase(params: {
 export function SyncProvider({ children }: { children: React.ReactNode }) {
   const { profile, session } = useAuthContext();
   const { activeTeamId } = useTeamContext();
+  const { features } = useOrgContext();
+  const teamsEnabled = features.teamsEnabled;
 
   const [isOnline, setIsOnline] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -285,7 +295,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   // is already running or auth/team state isn't ready).
   const triggerSync = useCallback(async (): Promise<boolean> => {
     if (syncInProgressRef.current) return false;
-    if (!profile?.org_id || !activeTeamId || !session?.user.id) return false;
+    // Teams on → need an active team. Teams off → org-wide, no team required.
+    if (!profile?.org_id || !session?.user.id) return false;
+    if (teamsEnabled && !activeTeamId) return false;
 
     syncInProgressRef.current = true;
     setIsSyncing(true);
@@ -296,6 +308,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       await pullFromSupabase({
         orgId: profile.org_id,
         teamId: activeTeamId,
+        teamsEnabled,
         userId: session.user.id,
         role: profile.role,
       });
@@ -327,7 +340,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       syncInProgressRef.current = false;
     }
     return true;
-  }, [profile, activeTeamId, session, bumpLocalVersion]);
+  }, [profile, activeTeamId, teamsEnabled, session, bumpLocalVersion]);
 
   // ─── Realtime — live equipment updates while online ────────────────────────
   // Mirrors the web app: another device's insert/update/delete lands in
@@ -335,17 +348,21 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   // drain remains the source of truth for our own offline mutations.
 
   useEffect(() => {
-    if (!profile?.org_id || !activeTeamId || !isOnline) return;
+    if (!profile?.org_id || !isOnline) return;
+    if (teamsEnabled && !activeTeamId) return;
 
     const orgId = profile.org_id;
+    // Teams off: accept every org row. Teams on: only the active team's rows.
+    const inScope = (row: EquipmentItem) => !teamsEnabled || row.team_id === activeTeamId;
+
     const channel = supabase
-      .channel(`equipment-${orgId}-${activeTeamId}`)
+      .channel(`equipment-${orgId}-${activeTeamId ?? 'org'}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'equipment_items', filter: `org_id=eq.${orgId}` },
         (payload) => {
           const row = payload.new as EquipmentItem;
-          if (row.team_id !== activeTeamId) return;
+          if (!inScope(row)) return;
           upsertEquipmentItem(row);
           bumpLocalVersion();
         }
@@ -355,7 +372,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         { event: 'UPDATE', schema: 'public', table: 'equipment_items', filter: `org_id=eq.${orgId}` },
         (payload) => {
           const row = payload.new as EquipmentItem;
-          if (row.team_id !== activeTeamId) return;
+          if (!inScope(row)) return;
           upsertEquipmentItem(row);
           bumpLocalVersion();
         }
@@ -377,7 +394,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [profile?.org_id, activeTeamId, isOnline, bumpLocalVersion]);
+  }, [profile?.org_id, activeTeamId, teamsEnabled, isOnline, bumpLocalVersion]);
 
   // ─── NetInfo — detect connectivity changes ─────────────────────────────────
 
@@ -408,23 +425,22 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     return () => sub.remove();
   }, [triggerSync]);
 
-  // ─── Initial sync + team switches — pull whenever the active team changes ──
+  // ─── Initial sync + team switches — pull whenever the scope changes ────────
+  // Teams on: re-sync on team switch. Teams off: sync once for the org (the
+  // "team" is a fixed sentinel so the ref logic still fires exactly once).
 
   useEffect(() => {
-    if (
-      profile?.org_id &&
-      activeTeamId &&
-      session?.user.id &&
-      lastSyncedTeamRef.current !== activeTeamId
-    ) {
+    const scopeKey = teamsEnabled ? activeTeamId : '__org__';
+    const ready = profile?.org_id && session?.user.id && (teamsEnabled ? !!activeTeamId : true);
+    if (ready && lastSyncedTeamRef.current !== scopeKey) {
       triggerSync().then((started) => {
-        // Only record the team once a sync actually kicked off; if one was
+        // Only record the scope once a sync actually kicked off; if one was
         // already in flight, leave the ref unset — isSyncing flipping back to
-        // false re-runs this effect and retries for the new team.
-        if (started) lastSyncedTeamRef.current = activeTeamId;
+        // false re-runs this effect and retries.
+        if (started) lastSyncedTeamRef.current = scopeKey;
       });
     }
-  }, [profile?.org_id, activeTeamId, session?.user.id, triggerSync, isSyncing]);
+  }, [profile?.org_id, activeTeamId, teamsEnabled, session?.user.id, triggerSync, isSyncing]);
 
   return (
     <SyncContext.Provider

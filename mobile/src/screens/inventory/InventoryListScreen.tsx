@@ -142,8 +142,9 @@ export default function InventoryListScreen({ navigation }: Props) {
   }
 
   // Crew/dept-heads are locked to their assigned team; without one there is
-  // nothing to sync or show. Explain that instead of an empty inventory.
-  if (!canSwitch && !activeTeamId && !loadingTeams) {
+  // nothing to sync or show. Only relevant when teams are enabled — a teams-off
+  // org has one flat pool and needs no team assignment.
+  if (features.teamsEnabled && !canSwitch && !activeTeamId && !loadingTeams) {
     return (
       <View className="flex-1 bg-background items-center justify-center px-8">
         <Ionicons name="people-outline" size={44} color="#374151" />

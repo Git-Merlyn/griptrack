@@ -21,7 +21,7 @@ export function initDB(): void {
     CREATE TABLE IF NOT EXISTS equipment_items (
       id          TEXT PRIMARY KEY,
       org_id      TEXT NOT NULL,
-      team_id     TEXT NOT NULL,
+      team_id     TEXT,
       item_id     TEXT,
       name        TEXT NOT NULL,
       category    TEXT,
@@ -82,6 +82,52 @@ export function initDB(): void {
   } catch {
     // Column already exists — safe to ignore
   }
+
+  // Migrate existing installs — team_id used to be NOT NULL (teams were
+  // mandatory). Teams-off orgs store team_id = null, so rebuild the table
+  // without the constraint. SQLite can't drop NOT NULL in place; recreate and
+  // copy. Cached rows are preserved.
+  try {
+    const cols = db.getAllSync(`PRAGMA table_info(equipment_items)`) as Array<{
+      name: string;
+      notnull: number;
+    }>;
+    const teamCol = cols.find((c) => c.name === 'team_id');
+    if (teamCol && teamCol.notnull === 1) {
+      db.execSync(`
+        ALTER TABLE equipment_items RENAME TO equipment_items_legacy;
+        CREATE TABLE equipment_items (
+          id          TEXT PRIMARY KEY,
+          org_id      TEXT NOT NULL,
+          team_id     TEXT,
+          item_id     TEXT,
+          name        TEXT NOT NULL,
+          category    TEXT,
+          source      TEXT,
+          quantity    INTEGER NOT NULL DEFAULT 0,
+          reserve_min INTEGER NOT NULL DEFAULT 0,
+          location    TEXT NOT NULL,
+          status      TEXT NOT NULL DEFAULT 'Available',
+          start_date  TEXT,
+          end_date    TEXT,
+          updated_by  TEXT,
+          updated_at  TEXT,
+          created_at  TEXT
+        );
+        INSERT INTO equipment_items
+          (id, org_id, team_id, item_id, name, category, source, quantity,
+           reserve_min, location, status, start_date, end_date, updated_by,
+           updated_at, created_at)
+        SELECT id, org_id, team_id, item_id, name, category, source, quantity,
+           reserve_min, location, status, start_date, end_date, updated_by,
+           updated_at, created_at
+        FROM equipment_items_legacy;
+        DROP TABLE equipment_items_legacy;
+      `);
+    }
+  } catch (e) {
+    console.warn('[db] team_id nullable migration failed', e);
+  }
 }
 
 // ─── UUID ─────────────────────────────────────────────────────────────────────
@@ -99,7 +145,7 @@ export function upsertEquipmentItem(item: EquipmentItem): void {
       location, status, start_date, end_date, updated_by, updated_at, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      item.id, item.org_id, item.team_id, item.item_id ?? null,
+      item.id, item.org_id, item.team_id ?? null, item.item_id ?? null,
       item.name, item.category ?? null, item.source ?? null,
       item.quantity, item.reserve_min,
       item.location, item.status,
@@ -128,6 +174,23 @@ export function replaceEquipmentForTeam(
   items: EquipmentItem[]
 ): void {
   db.runSync('DELETE FROM equipment_items WHERE org_id = ? AND team_id = ?', [orgId, teamId]);
+  for (const item of items) {
+    upsertEquipmentItem(item);
+  }
+}
+
+// Teams-off: the whole org is one flat pool (team_id null).
+export function getEquipmentByOrg(orgId: string): EquipmentItem[] {
+  return db.getAllSync(
+    `SELECT * FROM equipment_items
+     WHERE org_id = ? AND name != '__placeholder__'
+     ORDER BY name ASC`,
+    [orgId]
+  ) as EquipmentItem[];
+}
+
+export function replaceEquipmentForOrg(orgId: string, items: EquipmentItem[]): void {
+  db.runSync('DELETE FROM equipment_items WHERE org_id = ?', [orgId]);
   for (const item of items) {
     upsertEquipmentItem(item);
   }

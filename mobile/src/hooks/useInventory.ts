@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { EquipmentItem } from '../lib/types';
-import { getEquipmentByTeam } from '../lib/db';
+import { getEquipmentByTeam, getEquipmentByOrg } from '../lib/db';
 import { useAuthContext } from '../context/AuthContext';
 import { useTeamContext } from '../context/TeamContext';
 import { useSyncContext } from '../context/SyncContext';
+import { useOrgContext } from '../context/OrgContext';
 
 interface UseInventoryReturn {
   equipment: EquipmentItem[];
@@ -19,6 +20,8 @@ export function useInventory(): UseInventoryReturn {
   const { profile } = useAuthContext();
   const { activeTeamId } = useTeamContext();
   const { localVersion, triggerSync, isSyncing } = useSyncContext();
+  const { features } = useOrgContext();
+  const teamsEnabled = features.teamsEnabled;
 
   const [equipment, setEquipment] = useState<EquipmentItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,13 +30,16 @@ export function useInventory(): UseInventoryReturn {
 
   // Read from SQLite — fast and works offline
   const loadFromDB = useCallback(() => {
-    if (!profile?.org_id || !activeTeamId) {
+    // Teams on → need a team; teams off → the flat org pool.
+    if (!profile?.org_id || (teamsEnabled && !activeTeamId)) {
       setEquipment([]);
       setLoading(false);
       return;
     }
     try {
-      const items = getEquipmentByTeam(profile.org_id, activeTeamId);
+      const items = teamsEnabled
+        ? getEquipmentByTeam(profile.org_id, activeTeamId as string)
+        : getEquipmentByOrg(profile.org_id);
       setEquipment(items);
       setError(null);
     } catch (e: any) {
@@ -42,7 +48,7 @@ export function useInventory(): UseInventoryReturn {
     } finally {
       setLoading(false);
     }
-  }, [profile?.org_id, activeTeamId]);
+  }, [profile?.org_id, activeTeamId, teamsEnabled]);
 
   // Re-read whenever the local DB changes (mutation or sync completed)
   useEffect(() => {

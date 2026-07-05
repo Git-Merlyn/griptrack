@@ -25,9 +25,10 @@ interface OrgContextValue {
   updateFeatures: (next: OrgFeatures) => Promise<void>;
 }
 
+// Off by default — teams/requests are opt-in. Real values load from the org.
 const DEFAULT_FEATURES: OrgFeatures = {
-  teamsEnabled: true,
-  requestsEnabled: true,
+  teamsEnabled: false,
+  requestsEnabled: false,
 };
 
 const OrgContext = createContext<OrgContextValue>({
@@ -72,11 +73,12 @@ export function OrgProvider({ children }: { children: ReactNode }) {
         console.warn('[OrgContext] failed to fetch features, using defaults', error.message);
         setFeatures(DEFAULT_FEATURES);
       } else {
-        // Parse JSONB — default both flags to true if absent
+        // Parse JSONB — off by default (opt-in). Existing orgs were backfilled
+        // with an explicit flag, so absent means a genuinely new/unset org.
         const f = (data?.features as Record<string, unknown>) ?? {};
         setFeatures({
-          teamsEnabled:    f.teams_enabled    !== false,
-          requestsEnabled: f.requests_enabled !== false,
+          teamsEnabled:    f.teams_enabled    === true,
+          requestsEnabled: f.requests_enabled === true,
         });
       }
 

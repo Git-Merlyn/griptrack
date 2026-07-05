@@ -22,7 +22,7 @@ export const CORE_STATUSES = ['Available', 'Out', 'Damaged'] as const;
 export interface EquipmentItem {
   id: string;
   org_id: string;
-  team_id: string;
+  team_id: string | null; // null = flat org pool (teams disabled)
   item_id: string | null;
   name: string;
   category: string | null;

@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { EquipmentItem, ParsedPDFItem } from '../lib/types';
 import { useAuthContext } from '../context/AuthContext';
 import { useTeamContext } from '../context/TeamContext';
+import { useOrgContext } from '../context/OrgContext';
 import { useSyncContext } from '../context/SyncContext';
 import {
   upsertEquipmentItem,
@@ -10,6 +11,7 @@ import {
   enqueueOp,
   generateId,
   getEquipmentByTeam,
+  getEquipmentByOrg,
 } from '../lib/db';
 
 const EQUIPMENT_TABLE = 'equipment_items';
@@ -74,6 +76,8 @@ export function useEquipmentMutations(): UseMutationsReturn {
   const { profile, session } = useAuthContext();
   const { activeTeamId } = useTeamContext();
   const { isOnline, bumpLocalVersion } = useSyncContext();
+  const { features } = useOrgContext();
+  const teamsEnabled = features.teamsEnabled;
 
   const userId = session?.user.id ?? '';
   const updatedBy = profile?.email ?? 'unknown';
@@ -82,7 +86,9 @@ export function useEquipmentMutations(): UseMutationsReturn {
 
   const addItem = useCallback(
     async (fields: ItemFields): Promise<EquipmentItem> => {
-      if (!profile?.org_id || !activeTeamId) {
+      // Teams on → an item belongs to the active team; teams off → the flat
+      // org pool (team_id null).
+      if (!profile?.org_id || (teamsEnabled && !activeTeamId)) {
         throw new Error('No org or team selected');
       }
 
@@ -93,7 +99,7 @@ export function useEquipmentMutations(): UseMutationsReturn {
       const localItem: EquipmentItem = {
         id: newId,
         org_id: profile.org_id,
-        team_id: activeTeamId,
+        team_id: teamsEnabled ? activeTeamId : null,
         item_id: null,
         name: fields.name.trim(),
         category: fields.category.trim() || null,
@@ -132,7 +138,7 @@ export function useEquipmentMutations(): UseMutationsReturn {
         return localItem;
       }
     },
-    [profile, activeTeamId, userId, updatedBy, isOnline, bumpLocalVersion]
+    [profile, activeTeamId, teamsEnabled, userId, updatedBy, isOnline, bumpLocalVersion]
   );
 
   // ─── updateItem ───────────────────────────────────────────────────────────
@@ -172,9 +178,10 @@ export function useEquipmentMutations(): UseMutationsReturn {
       } else {
         // Find the current local record so we can snapshot its updated_at for
         // conflict detection on drain, and apply the patch locally.
-        const existing = getEquipmentByTeam(profile.org_id, activeTeamId ?? '').find(
-          (i) => i.id === id
-        );
+        const localRows = teamsEnabled
+          ? getEquipmentByTeam(profile.org_id, activeTeamId ?? '')
+          : getEquipmentByOrg(profile.org_id);
+        const existing = localRows.find((i) => i.id === id);
         if (existing) {
           upsertEquipmentItem({ ...existing, ...(patch as Partial<EquipmentItem>) });
         }
@@ -193,7 +200,7 @@ export function useEquipmentMutations(): UseMutationsReturn {
         return { ...(existing ?? {}), ...(patch as Partial<EquipmentItem>), id } as EquipmentItem;
       }
     },
-    [profile, activeTeamId, userId, updatedBy, isOnline, bumpLocalVersion]
+    [profile, activeTeamId, teamsEnabled, userId, updatedBy, isOnline, bumpLocalVersion]
   );
 
   // ─── deleteItem ───────────────────────────────────────────────────────────
@@ -223,7 +230,7 @@ export function useEquipmentMutations(): UseMutationsReturn {
 
   const addMultipleItems = useCallback(
     async (parsedItems: ParsedPDFItem[]): Promise<void> => {
-      if (!profile?.org_id || !activeTeamId) throw new Error('No org or team selected');
+      if (!profile?.org_id || (teamsEnabled && !activeTeamId)) throw new Error('No org or team selected');
       if (!isOnline) throw new Error('PDF import requires a connection');
 
       const now = new Date().toISOString();
@@ -231,7 +238,7 @@ export function useEquipmentMutations(): UseMutationsReturn {
       const records: EquipmentItem[] = parsedItems.map((parsed) => ({
         id: generateId(),
         org_id: profile.org_id,
-        team_id: activeTeamId,
+        team_id: teamsEnabled ? activeTeamId : null,
         item_id: null,
         name: parsed.name.trim(),
         category: parsed.category.trim() || null,
@@ -261,7 +268,7 @@ export function useEquipmentMutations(): UseMutationsReturn {
 
       bumpLocalVersion();
     },
-    [profile, activeTeamId, updatedBy, isOnline, bumpLocalVersion]
+    [profile, activeTeamId, teamsEnabled, updatedBy, isOnline, bumpLocalVersion]
   );
 
   // ─── reportDamage ─────────────────────────────────────────────────────────
