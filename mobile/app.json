@@ -17,7 +17,8 @@
       "buildNumber": "1",
       "infoPlist": {
         "NSCameraUsageDescription": "GripTrack uses the camera to scan equipment QR codes.",
-        "NSPhotoLibraryUsageDescription": "GripTrack needs access to your photo library to attach images to equipment."
+        "NSPhotoLibraryUsageDescription": "GripTrack needs access to your photo library to attach images to equipment.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
