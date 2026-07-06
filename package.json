@@ -12,7 +12,9 @@
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "mobile:apk": "cd mobile && npx eas-cli build --profile preview --platform android"
+    "mobile:apk": "cd mobile && npx eas-cli build --profile preview --platform android",
+    "mobile:ios": "cd mobile && npx eas-cli build --profile production --platform ios",
+    "mobile:ios:submit": "cd mobile && npx eas-cli submit --platform ios --latest"
   },
   "dependencies": {
     "@sentry/react": "^10.63.0",
