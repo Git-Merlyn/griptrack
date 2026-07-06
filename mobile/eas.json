@@ -32,7 +32,11 @@
   },
   "submit": {
     "production": {
-      "ios": {},
+      "ios": {
+        "appleId": "cobenwell@gmail.com",
+        "appleTeamId": "XB4R5BXJ7S",
+        "ascAppId": "6788005208"
+      },
       "android": {
         "serviceAccountKeyPath": "./google-play-key.json",
         "track": "internal"
