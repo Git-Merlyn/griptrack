@@ -77,9 +77,9 @@ const TermsPage = () => (
 
     <h2>Governing law</h2>
     <p>
-      These terms are governed by the laws of the Province of{" "}
-      <strong>[PROVINCE]</strong> and the federal laws of Canada applicable
-      there. Disputes will be resolved in the courts of that province.
+      These terms are governed by the laws of the Province of Nova Scotia and
+      the federal laws of Canada applicable there. Disputes will be resolved
+      in the courts of Nova Scotia.
     </p>
 
     <h2>Changes to these terms</h2>

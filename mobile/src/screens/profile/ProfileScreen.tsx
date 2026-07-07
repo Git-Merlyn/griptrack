@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
@@ -118,10 +119,17 @@ export default function ProfileScreen() {
                 text: 'Permanently delete',
                 style: 'destructive',
                 onPress: async () => {
-                  const { error } = await supabase.rpc('delete_my_account');
-                  if (error) {
-                    // Blocked cases (other members / active subscription)
-                    Alert.alert('Cannot delete yet', error.message);
+                  // Edge function: auto-cancels any active subscription, then
+                  // deletes via the delete_my_account RPC. Blocked cases (org
+                  // still has other members) come back as an error message.
+                  const { data, error } = await supabase.functions.invoke('delete-account');
+                  if (error || data?.error) {
+                    let msg = data?.error || error?.message || 'Account deletion failed.';
+                    try {
+                      const body = await (error as any)?.context?.json?.();
+                      if (body?.error) msg = body.error;
+                    } catch { /* keep msg */ }
+                    Alert.alert('Cannot delete yet', msg);
                     return;
                   }
                   await signOut();
@@ -241,6 +249,17 @@ export default function ProfileScreen() {
         >
           <Text className="text-danger/60 text-xs">Delete account…</Text>
         </TouchableOpacity>
+
+        {/* ── Legal ── */}
+        <View className="flex-row justify-center items-center gap-2 mt-2 pb-2">
+          <TouchableOpacity onPress={() => Linking.openURL('https://griptrack.app/privacy')} hitSlop={8}>
+            <Text className="text-text/40 text-xs">Privacy Policy</Text>
+          </TouchableOpacity>
+          <Text className="text-text/30 text-xs">·</Text>
+          <TouchableOpacity onPress={() => Linking.openURL('https://griptrack.app/terms')} hitSlop={8}>
+            <Text className="text-text/40 text-xs">Terms of Service</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );

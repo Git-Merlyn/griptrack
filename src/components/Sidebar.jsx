@@ -64,10 +64,18 @@ function SettingsPanel({ collapsed, onClose }) {
     e.preventDefault();
     if (delState.confirm !== "DELETE") return;
     setDelState((s) => ({ ...s, busy: true, err: "" }));
-    const { error } = await supabase.rpc("delete_my_account");
-    if (error) {
-      // Blocked cases (other members / active subscription) surface here
-      setDelState((s) => ({ ...s, busy: false, err: error.message }));
+    // Edge function: auto-cancels any active Stripe subscription, then runs
+    // the delete_my_account RPC. Blocked cases (org still has other members)
+    // come back as an error message.
+    const { data, error } = await supabase.functions.invoke("delete-account");
+    if (error || data?.error) {
+      let msg = data?.error || error?.message || "Account deletion failed.";
+      // functions.invoke wraps non-2xx as a generic FunctionsHttpError; the
+      // real message is in the response body when available.
+      if (error?.context?.json) {
+        try { msg = (await error.context.json())?.error || msg; } catch { /* keep msg */ }
+      }
+      setDelState((s) => ({ ...s, busy: false, err: msg }));
       return;
     }
     // Account is gone server-side; clear the local session and leave.
@@ -179,6 +187,17 @@ function SettingsPanel({ collapsed, onClose }) {
             >
               <span className="pl-0.5">Delete account…</span>
             </button>
+
+            {/* Legal links */}
+            <div className="flex items-center gap-3 px-4 py-2 border-t border-text/10 mt-1 text-xs text-text/40">
+              <button type="button" onClick={() => { navigate("/privacy"); onClose(); }} className="hover:text-text/70 transition">
+                Privacy
+              </button>
+              <span>·</span>
+              <button type="button" onClick={() => { navigate("/terms"); onClose(); }} className="hover:text-text/70 transition">
+                Terms
+              </button>
+            </div>
           </div>
         </div>
       ) : view === "delete" ? (
@@ -193,7 +212,7 @@ function SettingsPanel({ collapsed, onClose }) {
           <form onSubmit={handleDeleteAccount} className="flex flex-col gap-3 p-4">
             <p className="text-text/70 text-xs leading-relaxed">
               {isOwner
-                ? "This permanently deletes your account AND your organization — all equipment, history, locations, and settings. This cannot be undone."
+                ? "This permanently deletes your account AND your organization — all equipment, history, locations, and settings. Any active subscription is cancelled automatically. This cannot be undone."
                 : "This permanently deletes your account. Your organization's data is not affected. This cannot be undone."}
             </p>
             <p className="text-text/70 text-xs">
