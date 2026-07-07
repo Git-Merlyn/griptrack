@@ -27,6 +27,8 @@ const LocationsPage   = lazy(() => import("./pages/LocationsPage"));
 const RequestsPage    = lazy(() => import("./pages/requests/RequestsPage"));
 const TeamsPage       = lazy(() => import("./pages/TeamsPage"));
 const SettingsPage    = lazy(() => import("./pages/SettingsPage"));
+const PrivacyPage     = lazy(() => import("./pages/legal/PrivacyPage"));
+const TermsPage       = lazy(() => import("./pages/legal/TermsPage"));
 
 import useUser from "./context/useUser";
 import { Analytics } from "@vercel/analytics/react";
@@ -154,6 +156,8 @@ const App = () => {
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/pricing" element={<PricingPage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/terms" element={<TermsPage />} />
             <Route path="/auth" element={<Auth mode="normal" />} />
             <Route path="/invite" element={<Auth mode="invite" />} />
             <Route path="/invite-accept" element={<InviteAccept />} />
@@ -186,6 +190,8 @@ const App = () => {
 
               {/* Public pages remain accessible when logged in */}
               <Route path="/pricing" element={<PricingPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
+              <Route path="/terms" element={<TermsPage />} />
 
               {/* Onboarding */}
               <Route

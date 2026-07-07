@@ -197,6 +197,12 @@ const LandingPage = () => {
           <Link to="/pricing" className="hover:text-gray-400 transition-colors">
             Pricing
           </Link>
+          <Link to="/privacy" className="hover:text-gray-400 transition-colors">
+            Privacy
+          </Link>
+          <Link to="/terms" className="hover:text-gray-400 transition-colors">
+            Terms
+          </Link>
           <Link to="/auth" className="hover:text-gray-400 transition-colors">
             Sign in
           </Link>
