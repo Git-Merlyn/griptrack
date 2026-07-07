@@ -56,8 +56,24 @@ function SettingsPanel({ collapsed, onClose }) {
   const navigate = useNavigate();
   const isOwner = role === "owner";
 
-  const [view, setView] = useState("menu"); // "menu" | "password"
+  const [view, setView] = useState("menu"); // "menu" | "password" | "delete"
   const [pwState, setPwState] = useState({ next: "", confirm: "", busy: false, err: "", ok: false });
+  const [delState, setDelState] = useState({ confirm: "", busy: false, err: "" });
+
+  const handleDeleteAccount = async (e) => {
+    e.preventDefault();
+    if (delState.confirm !== "DELETE") return;
+    setDelState((s) => ({ ...s, busy: true, err: "" }));
+    const { error } = await supabase.rpc("delete_my_account");
+    if (error) {
+      // Blocked cases (other members / active subscription) surface here
+      setDelState((s) => ({ ...s, busy: false, err: error.message }));
+      return;
+    }
+    // Account is gone server-side; clear the local session and leave.
+    await supabase.auth.signOut().catch(() => {});
+    window.location.href = "/";
+  };
 
   const handlePasswordSave = async (e) => {
     e.preventDefault();
@@ -154,7 +170,52 @@ function SettingsPanel({ collapsed, onClose }) {
               <Icons.Logout />
               <span>Log out</span>
             </button>
+
+            {/* Delete account — required by App Store 5.1.1(v) / GDPR / PIPEDA */}
+            <button
+              type="button"
+              onClick={() => setView("delete")}
+              className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-danger/10 transition text-danger/70 hover:text-danger text-xs"
+            >
+              <span className="pl-0.5">Delete account…</span>
+            </button>
           </div>
+        </div>
+      ) : view === "delete" ? (
+        /* Delete account confirmation */
+        <div className="flex flex-col">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-text/10">
+            <button type="button" onClick={() => { setView("menu"); setDelState({ confirm: "", busy: false, err: "" }); }} className="text-text/50 hover:text-text transition">
+              ←
+            </button>
+            <p className="text-danger font-medium text-sm">Delete account</p>
+          </div>
+          <form onSubmit={handleDeleteAccount} className="flex flex-col gap-3 p-4">
+            <p className="text-text/70 text-xs leading-relaxed">
+              {isOwner
+                ? "This permanently deletes your account AND your organization — all equipment, history, locations, and settings. This cannot be undone."
+                : "This permanently deletes your account. Your organization's data is not affected. This cannot be undone."}
+            </p>
+            <p className="text-text/70 text-xs">
+              Type <span className="font-mono font-bold text-danger">DELETE</span> to confirm:
+            </p>
+            <input
+              type="text"
+              placeholder="DELETE"
+              value={delState.confirm}
+              onChange={(e) => setDelState((s) => ({ ...s, confirm: e.target.value, err: "" }))}
+              className="w-full px-3 py-2 rounded bg-background text-text border border-danger/30 text-sm placeholder:text-text/30 focus:outline-none focus:ring-2 focus:ring-danger/40"
+              autoComplete="off"
+            />
+            {delState.err && <p className="text-danger text-xs">{delState.err}</p>}
+            <button
+              type="submit"
+              disabled={delState.confirm !== "DELETE" || delState.busy}
+              className={delState.confirm !== "DELETE" || delState.busy ? "btn-disabled" : "btn-danger"}
+            >
+              {delState.busy ? "Deleting…" : "Permanently delete my account"}
+            </button>
+          </form>
         </div>
       ) : (
         /* Change password form */

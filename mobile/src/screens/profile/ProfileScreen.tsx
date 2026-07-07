@@ -97,6 +97,43 @@ export default function ProfileScreen() {
     ]);
   }
 
+  // App Store 5.1.1(v) / GDPR / PIPEDA: users must be able to delete their
+  // account in-app. Two-step confirm; owners are warned the whole org goes.
+  function confirmDeleteAccount() {
+    const isOwner = profile?.role === 'owner';
+    Alert.alert(
+      'Delete account',
+      isOwner
+        ? 'This permanently deletes your account AND your organization — all equipment, history, locations, and settings. This cannot be undone.'
+        : "This permanently deletes your account. Your organization's data is not affected. This cannot be undone.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert('Are you absolutely sure?', 'There is no way to recover a deleted account.', [
+              { text: 'Keep my account', style: 'cancel' },
+              {
+                text: 'Permanently delete',
+                style: 'destructive',
+                onPress: async () => {
+                  const { error } = await supabase.rpc('delete_my_account');
+                  if (error) {
+                    // Blocked cases (other members / active subscription)
+                    Alert.alert('Cannot delete yet', error.message);
+                    return;
+                  }
+                  await signOut();
+                },
+              },
+            ]);
+          },
+        },
+      ]
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       className="flex-1 bg-background"
@@ -194,6 +231,15 @@ export default function ProfileScreen() {
           activeOpacity={0.8}
         >
           <Text className="text-danger font-medium">Sign out</Text>
+        </TouchableOpacity>
+
+        {/* ── Delete account ── */}
+        <TouchableOpacity
+          className="mt-3 p-3 items-center"
+          onPress={confirmDeleteAccount}
+          activeOpacity={0.7}
+        >
+          <Text className="text-danger/60 text-xs">Delete account…</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
