@@ -73,7 +73,8 @@ export default function SignInScreen({ navigation }: Props) {
             <View className="mb-4">
               <Text className="text-text text-sm mb-1.5">Email</Text>
               <TextInput
-                className="bg-background border border-white/10 rounded-lg px-4 pt-3.5 pb-8 text-slate-100 text-base"
+                className="bg-background border border-white/10 rounded-lg px-4 py-3.5 text-slate-100"
+                style={{ fontSize: 16 }}
                 placeholder="you@example.com"
                 placeholderTextColor="#4b5563"
                 autoCapitalize="none"
