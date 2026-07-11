@@ -237,8 +237,7 @@ export default function ManageLocationsScreen() {
 
             <View style={{ padding: 20, paddingBottom: 40 }}>
               <TextInput
-                className="bg-background border border-white/10 rounded-xl px-4 py-3.5 text-slate-100 text-base mb-5"
-                style={{ lineHeight: 26 }}
+                className="bg-background border border-white/10 rounded-xl px-4 pt-3.5 pb-5 text-slate-100 text-base mb-5"
                 placeholder="e.g. G&E Truck, Stage A…"
                 placeholderTextColor="#4b5563"
                 value={nameInput}
