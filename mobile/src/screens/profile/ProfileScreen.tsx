@@ -288,6 +288,7 @@ function PasswordField({
       <View className="flex-row items-center bg-background border border-white/15 rounded-xl px-3">
         <TextInput
           className="flex-1 py-3.5 text-slate-100 text-base"
+          style={{ lineHeight: 26 }}
           value={value}
           onChangeText={onChangeText}
           secureTextEntry={!show}

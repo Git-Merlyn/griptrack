@@ -101,6 +101,7 @@ function InviteMemberModal({
             <Text className="text-text text-sm mb-1.5">Email address</Text>
             <TextInput
               className="bg-background border border-white/10 rounded-xl px-4 py-3.5 text-slate-100 text-base mb-4"
+              style={{ lineHeight: 26 }}
               placeholder="crew@example.com"
               placeholderTextColor="#4b5563"
               value={email}

@@ -176,6 +176,7 @@ function NewRequestModal({
               <Text className="text-text text-sm mb-1.5">Item name *</Text>
               <TextInput
                 className="bg-background border border-white/10 rounded-xl px-4 py-3.5 text-slate-100 text-base"
+                style={{ lineHeight: 26 }}
                 placeholder="e.g. 4x4 Floppy"
                 placeholderTextColor="#4b5563"
                 value={itemName}
@@ -188,6 +189,7 @@ function NewRequestModal({
               <Text className="text-text text-sm mb-1.5">Quantity *</Text>
               <TextInput
                 className="bg-background border border-white/10 rounded-xl px-4 py-3.5 text-slate-100 text-base"
+                style={{ lineHeight: 26 }}
                 placeholder="1"
                 placeholderTextColor="#4b5563"
                 keyboardType="number-pad"
@@ -201,6 +203,7 @@ function NewRequestModal({
               <Text className="text-text text-sm mb-1.5">Notes</Text>
               <TextInput
                 className="bg-background border border-white/10 rounded-xl px-4 py-3.5 text-slate-100 text-base"
+                style={{ lineHeight: 26 }}
                 placeholder="Any details or context…"
                 placeholderTextColor="#4b5563"
                 multiline

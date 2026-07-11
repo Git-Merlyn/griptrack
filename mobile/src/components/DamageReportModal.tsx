@@ -73,6 +73,7 @@ export default function DamageReportModal({ visible, item, onClose, onDamageRepo
             </Text>
             <TextInput
               className="bg-background border border-white/10 rounded-xl px-4 py-3.5 text-slate-100 text-base mb-5"
+              style={{ lineHeight: 26 }}
               placeholder="Describe the damage…"
               placeholderTextColor="#4b5563"
               multiline
