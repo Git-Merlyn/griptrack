@@ -23,7 +23,6 @@ export default function InviteAccept() {
   }, []);
 
   const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [formError, setFormError] = useState("");
@@ -31,7 +30,6 @@ export default function InviteAccept() {
 
   useEffect(() => {
     setFullName(String(profile?.full_name || ""));
-    setPhone(String(profile?.phone || ""));
   }, [profile]);
 
   useEffect(() => {
@@ -84,7 +82,7 @@ export default function InviteAccept() {
 
     // Authenticated + org bootstrap complete.
     // If profile is incomplete, stay on this page and let the invited user
-    // finish onboarding here (set name / optional phone / password).
+    // finish onboarding here (set name / password).
     if (needsProfileSetup) {
       return;
     }
@@ -119,7 +117,6 @@ export default function InviteAccept() {
     setFormError("");
 
     const trimmedName = String(fullName || "").trim();
-    const trimmedPhone = String(phone || "").trim();
 
     if (!authUser?.id) {
       setFormError("No signed-in user found.");
@@ -157,7 +154,6 @@ export default function InviteAccept() {
         id: authUser.id,
         email: authUser.email?.trim().toLowerCase() || null,
         full_name: trimmedName,
-        phone: trimmedPhone || null,
       });
       if (profileError) throw profileError;
 
@@ -192,20 +188,6 @@ export default function InviteAccept() {
               type="text"
               autoFocus
               required
-            />
-          </div>
-
-          <div>
-            <label className="text-sm text-gray-300">Phone (optional)</label>
-            <input
-              className="w-full mt-1 px-3 py-2 rounded bg-white text-black"
-              value={phone}
-              onChange={(e) => {
-                setFormError("");
-                setPhone(e.target.value);
-              }}
-              type="tel"
-              placeholder="(555) 555-5555"
             />
           </div>
 

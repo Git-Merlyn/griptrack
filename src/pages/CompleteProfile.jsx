@@ -8,13 +8,11 @@ export default function CompleteProfile({ onSaved }) {
   const { authUser, profile } = useUser();
 
   const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
   useEffect(() => {
     setFullName(String(profile?.full_name || ""));
-    setPhone(String(profile?.phone || ""));
   }, [profile]);
 
   const save = async (e) => {
@@ -22,7 +20,6 @@ export default function CompleteProfile({ onSaved }) {
     setErr("");
 
     const trimmedName = String(fullName || "").trim();
-    const trimmedPhone = String(phone || "").trim();
 
     if (!trimmedName) {
       setErr("Full name is required.");
@@ -40,7 +37,6 @@ export default function CompleteProfile({ onSaved }) {
         id: authUser.id,
         email: authUser.email?.trim().toLowerCase() || null,
         full_name: trimmedName,
-        phone: trimmedPhone || null,
       });
 
       if (error) throw error;
@@ -65,7 +61,7 @@ export default function CompleteProfile({ onSaved }) {
           Complete your profile
         </h1>
         <p className="text-gray-300 mb-6">
-          Add your name now. Phone is optional and can be updated later.
+          Add your name to finish setting up your account.
         </p>
 
         <form onSubmit={save} className="flex flex-col gap-3">
@@ -78,17 +74,6 @@ export default function CompleteProfile({ onSaved }) {
               type="text"
               autoFocus
               required
-            />
-          </div>
-
-          <div>
-            <label className="text-sm text-gray-300">Phone (optional)</label>
-            <input
-              className="w-full mt-1 px-3 py-2 rounded bg-white text-black"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              type="tel"
-              placeholder="(555) 555-5555"
             />
           </div>
 

@@ -40,7 +40,14 @@ export default function Auth({ mode: entryMode = "normal" }) {
           throw new Error("Full name is required");
         }
 
-        const { data, error } = await supabase.auth.signUp({ email, password });
+        // Pass the name through signup metadata so handle_new_user() can write
+        // it straight to the profile. Without this the name is dropped and the
+        // user gets asked for it again on the Complete-profile screen.
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { full_name: trimmedName } },
+        });
         if (error) throw error;
 
         // If email confirmation is enabled, Supabase often does not return a session here.
