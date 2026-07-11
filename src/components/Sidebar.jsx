@@ -64,23 +64,29 @@ function SettingsPanel({ collapsed, onClose }) {
     e.preventDefault();
     if (delState.confirm !== "DELETE") return;
     setDelState((s) => ({ ...s, busy: true, err: "" }));
-    // Edge function: auto-cancels any active Stripe subscription, then runs
-    // the delete_my_account RPC. Blocked cases (org still has other members)
-    // come back as an error message.
-    const { data, error } = await supabase.functions.invoke("delete-account");
-    if (error || data?.error) {
-      let msg = data?.error || error?.message || "Account deletion failed.";
-      // functions.invoke wraps non-2xx as a generic FunctionsHttpError; the
-      // real message is in the response body when available.
-      if (error?.context?.json) {
-        try { msg = (await error.context.json())?.error || msg; } catch { /* keep msg */ }
+    try {
+      // Edge function: auto-cancels any active Stripe subscription, then runs
+      // the delete_my_account RPC. Blocked cases (org still has other
+      // members) come back as an error message.
+      const { data, error } = await supabase.functions.invoke("delete-account");
+      if (error || data?.error) {
+        let msg = data?.error || error?.message || "Account deletion failed.";
+        // functions.invoke wraps non-2xx as a generic FunctionsHttpError; the
+        // real message is in the response body when available.
+        if (error?.context?.json) {
+          try { msg = (await error.context.json())?.error || msg; } catch { /* keep msg */ }
+        }
+        setDelState((s) => ({ ...s, busy: false, err: msg }));
+        return;
       }
-      setDelState((s) => ({ ...s, busy: false, err: msg }));
-      return;
+      // Account is gone server-side; clear the local session and leave.
+      await supabase.auth.signOut().catch(() => {});
+      window.location.href = "/";
+    } catch (e2) {
+      // Network failure or an unexpected throw from functions.invoke — without
+      // this, busy stayed true forever with no way to retry.
+      setDelState((s) => ({ ...s, busy: false, err: e2?.message || "Account deletion failed. Please try again." }));
     }
-    // Account is gone server-side; clear the local session and leave.
-    await supabase.auth.signOut().catch(() => {});
-    window.location.href = "/";
   };
 
   const handlePasswordSave = async (e) => {

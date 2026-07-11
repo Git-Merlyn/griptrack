@@ -119,20 +119,28 @@ export default function ProfileScreen() {
                 text: 'Permanently delete',
                 style: 'destructive',
                 onPress: async () => {
-                  // Edge function: auto-cancels any active subscription, then
-                  // deletes via the delete_my_account RPC. Blocked cases (org
-                  // still has other members) come back as an error message.
-                  const { data, error } = await supabase.functions.invoke('delete-account');
-                  if (error || data?.error) {
-                    let msg = data?.error || error?.message || 'Account deletion failed.';
-                    try {
-                      const body = await (error as any)?.context?.json?.();
-                      if (body?.error) msg = body.error;
-                    } catch { /* keep msg */ }
-                    Alert.alert('Cannot delete yet', msg);
-                    return;
+                  try {
+                    // Edge function: auto-cancels any active subscription,
+                    // then deletes via the delete_my_account RPC. Blocked
+                    // cases (org still has other members) come back as an
+                    // error message.
+                    const { data, error } = await supabase.functions.invoke('delete-account');
+                    if (error || data?.error) {
+                      let msg = data?.error || error?.message || 'Account deletion failed.';
+                      try {
+                        const body = await (error as any)?.context?.json?.();
+                        if (body?.error) msg = body.error;
+                      } catch { /* keep msg */ }
+                      Alert.alert('Cannot delete yet', msg);
+                      return;
+                    }
+                    await signOut();
+                  } catch (e: any) {
+                    // Network failure or an unexpected throw from
+                    // functions.invoke — without this, the dialog just closed
+                    // silently with no indication deletion failed.
+                    Alert.alert('Cannot delete yet', e?.message || 'Account deletion failed. Please try again.');
                   }
-                  await signOut();
                 },
               },
             ]);

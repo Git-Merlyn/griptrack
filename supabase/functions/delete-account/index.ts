@@ -47,11 +47,24 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) return json({ error: "Unauthorized" }, 401);
 
-    const { data: memberRow } = await supabase
+    // organization_members has a UNIQUE(user_id) constraint, so at most one
+    // row can ever match — .single() is safe. PGRST116 = no membership row
+    // (valid: not every account has an org); any other error means we can't
+    // confirm the caller's org/role, so fail closed rather than silently
+    // skipping the billing-cancellation check below.
+    const { data: memberRow, error: memberError } = await supabase
       .from("organization_members")
       .select("org_id, role")
       .eq("user_id", user.id)
       .single();
+
+    if (memberError && memberError.code !== "PGRST116") {
+      console.error("Failed to look up membership before deletion", memberError.message);
+      return json(
+        { error: "We couldn't verify your account before deletion. Please try again." },
+        502,
+      );
+    }
 
     // Owners: auto-cancel any live paid subscription before deletion.
     if (memberRow?.org_id && memberRow.role === "owner") {
@@ -60,11 +73,22 @@ serve(async (req) => {
         Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
       );
 
-      const { data: sub } = await adminClient
+      const { data: sub, error: subError } = await adminClient
         .from("subscriptions")
         .select("stripe_subscription_id, status, plan")
         .eq("org_id", memberRow.org_id)
         .single();
+
+      // PGRST116 = no subscription row — nothing to cancel, safe to proceed.
+      // Any other error means we can't confirm billing is inactive; fail
+      // closed rather than risk deleting an account Stripe might still charge.
+      if (subError && subError.code !== "PGRST116") {
+        console.error("Failed to look up subscription before deletion", subError.message);
+        return json(
+          { error: "We couldn't verify your subscription status. Please try again." },
+          502,
+        );
+      }
 
       const hasLivePaidSub =
         sub?.stripe_subscription_id &&
