@@ -5,6 +5,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -106,7 +107,7 @@ export default function SettingsScreen() {
       {canManageLocs && (
         <>
           <SectionHeader title="Locations" />
-          <View className="bg-surface border border-white/10 rounded-2xl overflow-hidden">
+          <View className="bg-surface border border-white/10 rounded-2xl overflow-hidden mb-6">
             <NavRow
               icon="location-outline"
               title="Manage Locations"
@@ -116,6 +117,17 @@ export default function SettingsScreen() {
           </View>
         </>
       )}
+
+      {/* ── Legal ── */}
+      <View className="flex-row justify-center items-center gap-2 mt-2">
+        <TouchableOpacity onPress={() => Linking.openURL('https://griptrack.app/privacy')} hitSlop={8}>
+          <Text className="text-text/40 text-xs">Privacy Policy</Text>
+        </TouchableOpacity>
+        <Text className="text-text/30 text-xs">·</Text>
+        <TouchableOpacity onPress={() => Linking.openURL('https://griptrack.app/terms')} hitSlop={8}>
+          <Text className="text-text/40 text-xs">Terms of Service</Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 }

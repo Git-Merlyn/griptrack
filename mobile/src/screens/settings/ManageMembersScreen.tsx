@@ -100,7 +100,7 @@ function InviteMemberModal({
           <View style={{ padding: 20, paddingBottom: 40 }}>
             <Text className="text-text text-sm mb-1.5">Email address</Text>
             <TextInput
-              className="bg-background border border-white/10 rounded-xl px-4 py-3 text-slate-100 text-base mb-4"
+              className="bg-background border border-white/10 rounded-xl px-4 py-3 text-slate-100 text-base leading-relaxed mb-4"
               placeholder="crew@example.com"
               placeholderTextColor="#4b5563"
               value={email}

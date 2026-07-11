@@ -9,7 +9,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
@@ -257,17 +256,6 @@ export default function ProfileScreen() {
         >
           <Text className="text-danger/60 text-xs">Delete account…</Text>
         </TouchableOpacity>
-
-        {/* ── Legal ── */}
-        <View className="flex-row justify-center items-center gap-2 mt-2 pb-2">
-          <TouchableOpacity onPress={() => Linking.openURL('https://griptrack.app/privacy')} hitSlop={8}>
-            <Text className="text-text/40 text-xs">Privacy Policy</Text>
-          </TouchableOpacity>
-          <Text className="text-text/30 text-xs">·</Text>
-          <TouchableOpacity onPress={() => Linking.openURL('https://griptrack.app/terms')} hitSlop={8}>
-            <Text className="text-text/40 text-xs">Terms of Service</Text>
-          </TouchableOpacity>
-        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -299,7 +287,7 @@ function PasswordField({
       <Text className="text-text text-xs mb-1.5">{label}</Text>
       <View className="flex-row items-center bg-background border border-white/15 rounded-xl px-3">
         <TextInput
-          className="flex-1 py-3 text-slate-100 text-base"
+          className="flex-1 py-3 text-slate-100 text-base leading-relaxed"
           value={value}
           onChangeText={onChangeText}
           secureTextEntry={!show}
