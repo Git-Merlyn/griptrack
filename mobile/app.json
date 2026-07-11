@@ -6,11 +6,6 @@
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "icon": "./assets/icon.png",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0f1117"
-    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.griptrack.mobile",
@@ -53,7 +48,16 @@
           }
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#0f1117"
+        }
+      ]
     ],
     "extra": {
       "eas": {
