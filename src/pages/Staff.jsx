@@ -121,7 +121,7 @@ function MemberRow({ member, teams, onChangeRole, onChangeTeam, onRemove, isSelf
 // ── Staff Page ────────────────────────────────────────────────────────────────
 export default function Staff() {
   const { orgId, role, authUser } = useUser();
-  const { teams, loadingTeams } = useTeam();
+  const { teams, loadingTeams, activeTeamId } = useTeam();
 
   const [members, setMembers]           = useState([]);
   const [invites, setInvites]           = useState([]);
@@ -130,6 +130,13 @@ export default function Staff() {
   const [email, setEmail]               = useState("");
   const [inviteRole, setInviteRole]     = useState("crew");
   const [inviteTeamId, setInviteTeamId] = useState("");
+  // Default the invite team picker to the inviter's active team once teams
+  // load. Only fires while the picker is untouched, so a deliberate "No team"
+  // (or any manual pick) is never overridden.
+  const [inviteTeamTouched, setInviteTeamTouched] = useState(false);
+  useEffect(() => {
+    if (!inviteTeamTouched && activeTeamId) setInviteTeamId(activeTeamId);
+  }, [activeTeamId, inviteTeamTouched]);
   const [inviting, setInviting]         = useState(false);
 
   const [error, setError]               = useState("");
@@ -320,7 +327,7 @@ export default function Staff() {
               <select
                 className="px-3 py-2 rounded bg-white text-black"
                 value={inviteTeamId}
-                onChange={(e) => setInviteTeamId(e.target.value)}
+                onChange={(e) => { setInviteTeamTouched(true); setInviteTeamId(e.target.value); }}
                 disabled={loadingTeams}
               >
                 <option value="">No team</option>

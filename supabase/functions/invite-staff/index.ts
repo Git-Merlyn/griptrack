@@ -46,6 +46,8 @@ serve(async (req) => {
     const email = String(body?.email || "").trim().toLowerCase();
     const orgId = String(body?.orgId || "").trim();
     const role = String(body?.role || "staff").trim();
+    // Optional target team. Empty string / missing => no team.
+    const teamId = body?.teamId ? String(body.teamId).trim() : null;
 
     if (!email || !email.includes("@")) {
       return new Response(JSON.stringify({ error: "Invalid email" }), {
@@ -92,6 +94,24 @@ serve(async (req) => {
       });
     }
 
+    // If a team was specified, it must belong to this org — never let an invite
+    // point a member at a team in another org.
+    if (teamId) {
+      const { data: teamRow, error: teamErr } = await admin
+        .from("teams")
+        .select("id")
+        .eq("id", teamId)
+        .eq("org_id", orgId)
+        .maybeSingle();
+
+      if (teamErr || !teamRow) {
+        return new Response(JSON.stringify({ error: "Team not found in this organization" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     // Load org name for invite email metadata.
     const { data: orgRow } = await admin
       .from("organizations")
@@ -123,6 +143,7 @@ serve(async (req) => {
       role: role === "owner" ? "admin" : role,
       status: "pending",
       invited_by: user.id,
+      team_id: teamId,
     },
     { onConflict: "org_id,email" }
   );

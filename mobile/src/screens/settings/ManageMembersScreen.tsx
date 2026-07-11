@@ -241,7 +241,7 @@ function MemberCard({
 export default function ManageMembersScreen() {
   const { orgId } = useOrgContext();
   const { profile } = useAuthContext();
-  const { teams } = useTeamContext();
+  const { teams, activeTeamId } = useTeamContext();
   const {
     members,
     invites,
@@ -344,8 +344,10 @@ export default function ManageMembersScreen() {
 
   async function handleInvite(email: string, role: Role) {
     try {
-      // New members join without a team; assign one from the member card after.
-      const { generatedLink } = await inviteMember(email, role, null);
+      // Default the invitee to whatever team is active for the inviter. When
+      // teams are off (or "all teams" is selected) activeTeamId is null, so
+      // they join with no team and can be assigned from the member card.
+      const { generatedLink } = await inviteMember(email, role, activeTeamId);
 
       if (generatedLink) {
         Alert.alert(
