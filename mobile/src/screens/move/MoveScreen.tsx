@@ -100,7 +100,8 @@ export default function MoveScreen() {
         <View className="flex-row items-center bg-surface border border-white/10 rounded-xl px-3 gap-2">
           <Ionicons name="search" size={16} color="#6b7280" />
           <TextInput
-            className="flex-1 py-2.5 text-slate-100 text-sm"
+ className="flex-1 py-2.5 text-slate-100"
+            style={{ fontSize: 14 }}
             placeholder="Search equipment…"
             placeholderTextColor="#4b5563"
             value={search}
@@ -406,7 +407,8 @@ function MoveItemModal({
                 <View className="flex-row items-center bg-background border border-white/10 rounded-xl px-3 gap-2">
                   <Ionicons name="search" size={14} color="#6b7280" />
                   <TextInput
-                    className="flex-1 py-2.5 text-slate-100 text-sm"
+ className="flex-1 py-2.5 text-slate-100"
+                    style={{ fontSize: 14 }}
                     placeholder="Search locations…"
                     placeholderTextColor="#4b5563"
                     value={locationSearch}
@@ -464,7 +466,8 @@ function MoveItemModal({
                 <Text className="text-text text-sm mb-1.5">Quantity</Text>
                 <View className="bg-background border border-white/10 rounded-xl px-4 mb-4">
                   <TextInput
-                    className="py-3.5 text-slate-100 text-base"
+ className="py-3.5 text-slate-100"
+                    style={{ fontSize: 16 }}
                     keyboardType="number-pad"
                     placeholder={`Max ${maxQty}`}
                     placeholderTextColor="#4b5563"

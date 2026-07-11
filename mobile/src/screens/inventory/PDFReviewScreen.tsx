@@ -77,7 +77,8 @@ export default function PDFReviewScreen({ navigation, route }: Props) {
         <Text className="text-slate-400 text-xs mb-1.5">Assign all to location</Text>
         <View className="flex-row gap-2">
           <TextInput
-            className="flex-1 bg-surface border border-white/10 rounded-lg px-3 py-2 text-slate-100 text-sm"
+ className="flex-1 bg-surface border border-white/10 rounded-lg px-3 py-2 text-slate-100"
+            style={{ fontSize: 14 }}
             placeholder="Location name…"
             placeholderTextColor="#4b5563"
             value={assignLocation}
@@ -159,7 +160,8 @@ function ParsedItemRow({ item, onChange, onDelete }: RowProps) {
       {/* Name row */}
       <View className="flex-row items-center gap-2">
         <TextInput
-          className="flex-1 text-accent font-semibold text-sm"
+ className="flex-1 text-accent font-semibold"
+          style={{ fontSize: 14 }}
           value={item.name}
           onChangeText={(v) => onChange({ name: v })}
           placeholder="Item name"
@@ -176,7 +178,8 @@ function ParsedItemRow({ item, onChange, onDelete }: RowProps) {
         <View className="flex-1">
           <Text className="text-slate-500 text-xs mb-1">Category</Text>
           <TextInput
-            className="bg-background border border-white/10 rounded-lg px-2.5 py-1.5 text-slate-100 text-xs"
+ className="bg-background border border-white/10 rounded-lg px-2.5 py-1.5 text-slate-100"
+            style={{ fontSize: 12 }}
             value={item.category}
             onChangeText={(v) => onChange({ category: v })}
             placeholder="—"
@@ -187,7 +190,8 @@ function ParsedItemRow({ item, onChange, onDelete }: RowProps) {
         <View style={{ width: 72 }}>
           <Text className="text-slate-500 text-xs mb-1">Qty</Text>
           <TextInput
-            className="bg-background border border-white/10 rounded-lg px-2.5 py-1.5 text-slate-100 text-xs"
+ className="bg-background border border-white/10 rounded-lg px-2.5 py-1.5 text-slate-100"
+            style={{ fontSize: 12 }}
             value={String(item.quantity)}
             onChangeText={(v) => onChange({ quantity: parseInt(v, 10) || 0 })}
             keyboardType="number-pad"
@@ -203,7 +207,8 @@ function ParsedItemRow({ item, onChange, onDelete }: RowProps) {
         <View className="flex-1">
           <Text className="text-slate-500 text-xs mb-1">Location</Text>
           <TextInput
-            className="bg-background border border-white/10 rounded-lg px-2.5 py-1.5 text-slate-100 text-xs"
+ className="bg-background border border-white/10 rounded-lg px-2.5 py-1.5 text-slate-100"
+            style={{ fontSize: 12 }}
             value={item.location}
             onChangeText={(v) => onChange({ location: v })}
             placeholder="—"
@@ -214,7 +219,8 @@ function ParsedItemRow({ item, onChange, onDelete }: RowProps) {
         <View className="flex-1">
           <Text className="text-slate-500 text-xs mb-1">Source</Text>
           <TextInput
-            className="bg-background border border-white/10 rounded-lg px-2.5 py-1.5 text-slate-100 text-xs"
+ className="bg-background border border-white/10 rounded-lg px-2.5 py-1.5 text-slate-100"
+            style={{ fontSize: 12 }}
             value={item.source}
             onChangeText={(v) => onChange({ source: v })}
             placeholder="—"

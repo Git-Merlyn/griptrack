@@ -166,7 +166,8 @@ export default function InventoryListScreen({ navigation }: Props) {
         <View className="flex-row items-center bg-surface border border-white/10 rounded-xl px-3 gap-2">
           <Ionicons name="search" size={16} color="#6b7280" />
           <TextInput
-            className="flex-1 py-2.5 text-slate-100 text-sm"
+ className="flex-1 py-2.5 text-slate-100"
+            style={{ fontSize: 14 }}
             placeholder="Search name, category, location…"
             placeholderTextColor="#4b5563"
             value={searchQuery}
