@@ -113,7 +113,7 @@ function TextInputField({
 }) {
   return (
     <TextInput
-      className="bg-background border border-white/10 rounded-xl px-4 py-3 text-slate-100 text-base leading-7"
+      className="bg-background border border-white/10 rounded-xl px-4 py-3.5 text-slate-100 text-base"
       placeholderTextColor="#4b5563"
       value={value}
       onChangeText={onChangeText}

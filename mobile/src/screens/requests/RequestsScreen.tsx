@@ -175,7 +175,7 @@ function NewRequestModal({
             <View className="mb-4">
               <Text className="text-text text-sm mb-1.5">Item name *</Text>
               <TextInput
-                className="bg-background border border-white/10 rounded-xl px-4 py-3 text-slate-100 text-base leading-7"
+                className="bg-background border border-white/10 rounded-xl px-4 py-3.5 text-slate-100 text-base"
                 placeholder="e.g. 4x4 Floppy"
                 placeholderTextColor="#4b5563"
                 value={itemName}
@@ -187,7 +187,7 @@ function NewRequestModal({
             <View className="mb-4">
               <Text className="text-text text-sm mb-1.5">Quantity *</Text>
               <TextInput
-                className="bg-background border border-white/10 rounded-xl px-4 py-3 text-slate-100 text-base leading-7"
+                className="bg-background border border-white/10 rounded-xl px-4 py-3.5 text-slate-100 text-base"
                 placeholder="1"
                 placeholderTextColor="#4b5563"
                 keyboardType="number-pad"
@@ -200,7 +200,7 @@ function NewRequestModal({
             <View className="mb-6">
               <Text className="text-text text-sm mb-1.5">Notes</Text>
               <TextInput
-                className="bg-background border border-white/10 rounded-xl px-4 py-3 text-slate-100 text-base leading-7"
+                className="bg-background border border-white/10 rounded-xl px-4 py-3.5 text-slate-100 text-base"
                 placeholder="Any details or context…"
                 placeholderTextColor="#4b5563"
                 multiline
