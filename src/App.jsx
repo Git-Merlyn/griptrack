@@ -11,6 +11,7 @@ import { supabase } from "@/lib/supabaseClient";
 
 // Always-eager: these are entry points — every session hits one of them immediately
 import MainLayout from "./components/layout/MainLayout";
+import GhostBar from "./components/GhostBar";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
@@ -168,6 +169,7 @@ const App = () => {
       ) : (
         // Authenticated
         <>
+          <GhostBar />
           {effectiveNeedsOrgSetup &&
           location.pathname !== "/org-setup" &&
           location.pathname !== "/invite-accept" ? (
