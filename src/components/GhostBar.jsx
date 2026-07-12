@@ -18,6 +18,7 @@ export default function GhostBar() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [orgs, setOrgs] = useState([]);
   const [status, setStatus] = useState(null); // { active_org_id, write_enabled, write_expires_at }
+  const [loadErr, setLoadErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
@@ -28,12 +29,15 @@ export default function GhostBar() {
       return;
     }
     setIsAdmin(true);
-    const [{ data: st }, { data: orgList }] = await Promise.all([
+    const [{ data: st }, { data: orgList, error: orgErr }] = await Promise.all([
       supabase.rpc("ghost_status"),
       supabase.rpc("ghost_list_orgs"),
     ]);
     setStatus(Array.isArray(st) ? st[0] : st);
     setOrgs(orgList || []);
+    // Surface it rather than silently showing an empty list — usually means the
+    // ghost migration isn't deployed to this environment.
+    setLoadErr(orgErr ? orgErr.message : "");
   }, []);
 
   useEffect(() => {
@@ -84,7 +88,7 @@ export default function GhostBar() {
       }`}
     >
       <span className="font-bold tracking-wide">
-        👻 DEV{activeOrgId ? (writeArmed ? " · WRITE" : " · read-only") : ""}
+        DEV{activeOrgId ? (writeArmed ? " · WRITE" : " · read-only") : ""}
       </span>
 
       <select
@@ -132,6 +136,12 @@ export default function GhostBar() {
         >
           exit ghost
         </button>
+      ) : null}
+
+      {loadErr ? (
+        <span className="ml-auto text-red-300 truncate max-w-[45%]" title={loadErr}>
+          org list failed: {loadErr}
+        </span>
       ) : null}
     </div>
   );
