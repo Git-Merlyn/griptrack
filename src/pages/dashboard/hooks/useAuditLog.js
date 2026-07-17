@@ -34,7 +34,7 @@ export default function useAuditLog(equipmentId) {
         .select("*")
         .eq("equipment_id", String(equipmentId))
         .eq("org_id", orgId)
-        .order("created_at", { ascending: false })
+        .order("at", { ascending: false })
         .limit(100);
 
       if (sbError) throw sbError;

@@ -74,7 +74,7 @@ function LogEntry({ log }: { log: AuditEvent }) {
       {/* Top row: badge + timestamp */}
       <View className="flex-row items-center justify-between mb-1.5">
         <ActionBadge action={log.action} />
-        <Text className="text-text text-xs">{formatTs(log.created_at)}</Text>
+        <Text className="text-text text-xs">{formatTs(log.at)}</Text>
       </View>
 
       {/* Actor */}

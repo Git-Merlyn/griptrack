@@ -15,7 +15,7 @@ export interface AuditEvent {
   to_location: string | null;
   delta_qty: number | null;
   meta: Record<string, unknown> | null;
-  created_at: string;
+  at: string;
 }
 
 interface UseAuditLogReturn {
@@ -47,7 +47,7 @@ export function useAuditLog(equipmentId: string): UseAuditLogReturn {
         .select('*')
         .eq('equipment_id', equipmentId)
         .eq('org_id', profile.org_id)
-        .order('created_at', { ascending: false })
+        .order('at', { ascending: false })
         .limit(100);
 
       if (sbError) throw sbError;

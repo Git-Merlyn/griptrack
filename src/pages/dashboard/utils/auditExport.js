@@ -50,7 +50,7 @@ export function auditToCsv(rows, nameMap = {}) {
 
     lines.push(
       [
-        formatTs(row.created_at),
+        formatTs(row.at),
         row.action || "",
         itemName,
         equipId,
@@ -81,7 +81,7 @@ export async function fetchAndDownloadAuditCsv(supabase, orgId, nameMap = {}) {
     .from(AUDIT_TABLE)
     .select("*")
     .eq("org_id", orgId)
-    .order("created_at", { ascending: false })
+    .order("at", { ascending: false })
     .limit(10000); // generous cap — wrap reports rarely exceed this
 
   if (error) throw error;

@@ -5,13 +5,14 @@ import UserContext from "@/context/UserContext";
 
 // ── Supabase mock ─────────────────────────────────────────────────────────
 const mockLimit = vi.fn();
+const mockOrder = vi.fn().mockReturnThis();
 
 vi.mock("@/lib/supabaseClient", () => ({
   supabase: {
     from: vi.fn(() => ({
       select: vi.fn().mockReturnThis(),
       eq:     vi.fn().mockReturnThis(),
-      order:  vi.fn().mockReturnThis(),
+      order:  mockOrder,
       limit:  mockLimit,
     })),
   },
@@ -36,8 +37,8 @@ const wrapperNoOrg = ({ children }) =>
   );
 
 const FAKE_LOGS = [
-  { id: "a1", equipment_id: "eq-1", org_id: "org-1", action: "move",   actor: "admin", created_at: "2025-01-01T10:00:00Z" },
-  { id: "a2", equipment_id: "eq-1", org_id: "org-1", action: "update", actor: "admin", created_at: "2025-01-02T10:00:00Z" },
+  { id: "a1", equipment_id: "eq-1", org_id: "org-1", action: "move",   actor: "admin", at: "2025-01-01T10:00:00Z" },
+  { id: "a2", equipment_id: "eq-1", org_id: "org-1", action: "update", actor: "admin", at: "2025-01-02T10:00:00Z" },
 ];
 
 beforeEach(() => {
@@ -59,6 +60,14 @@ describe("useAuditLog", () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.logs).toEqual(FAKE_LOGS);
     expect(result.current.error).toBeNull();
+  });
+
+  it("orders by the real timestamp column ('at', not 'created_at')", async () => {
+    // equipment_audit's timestamp column is named "at" — ordering by a
+    // nonexistent "created_at" throws at the DB and breaks History entirely.
+    const { result } = renderHook(() => useAuditLog("eq-1"), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(mockOrder).toHaveBeenCalledWith("at", { ascending: false });
   });
 
   it("sets error and returns empty logs when fetch fails", async () => {

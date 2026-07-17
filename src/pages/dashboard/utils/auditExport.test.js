@@ -11,11 +11,11 @@ describe("auditExport.js — auditToCsv", () => {
     vi.useRealTimers();
   });
 
-  // Rows with null created_at avoid locale-specific comma formatting in the timestamp
+  // Rows with null "at" avoid locale-specific comma formatting in the timestamp
   // so we can safely split on commas to inspect column values.
   const makeSimpleRow = (overrides = {}) => ({
     equipment_id: "eq-1",
-    created_at: null,       // → empty first cell, no commas in timestamp
+    at: null,               // → empty first cell, no commas in timestamp
     action: "move",
     actor: "alice",
     from_location: "A",
@@ -90,11 +90,11 @@ describe("auditExport.js — auditToCsv", () => {
   });
 
   it("handles invalid timestamp without throwing", () => {
-    expect(() => auditToCsv([makeSimpleRow({ created_at: "not-a-date" })], {})).not.toThrow();
+    expect(() => auditToCsv([makeSimpleRow({ at: "not-a-date" })], {})).not.toThrow();
   });
 
   it("falls back to raw string for unparseable timestamps", () => {
-    const csv = auditToCsv([makeSimpleRow({ created_at: "BAD_TS" })], {});
+    const csv = auditToCsv([makeSimpleRow({ at: "BAD_TS" })], {});
     expect(csv).toContain("BAD_TS");
   });
 

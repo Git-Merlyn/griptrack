@@ -47,7 +47,7 @@ const AuditLogEntry = ({ log }) => {
       <div className="flex items-center justify-between gap-2">
         <ActionBadge action={log.action} />
         <span className="text-xs text-gray-500 shrink-0">
-          {formatTimestamp(log.created_at)}
+          {formatTimestamp(log.at)}
         </span>
       </div>
 
