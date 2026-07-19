@@ -734,7 +734,10 @@ const DashboardPage = () => {
     hasTeamSelected = true,
     loadingEquipment = false,
   } = useContext(EquipmentContext);
-  const { user, orgId } = useUser();
+  const { profile, authUser, orgId } = useUser();
+  // Best-effort human-readable identity for equipment_audit.actor — used
+  // wherever this page writes an equipment change (create/edit/bulk-update/move).
+  const actorName = profile?.full_name || profile?.email || authUser?.email || "Unknown";
   const { loadingTeams } = useTeam();
 
   const { allLocations, addCustomLocation } = useLocation({
@@ -885,7 +888,7 @@ const DashboardPage = () => {
         ...newItem,
         quantity: qtyNum,
         reserveMin: Number(newItem.reserveMin) || 0,
-        updatedBy: user?.username || "admin",
+        updatedBy: actorName,
       });
       setEditingId(null);
     } else {
@@ -893,7 +896,7 @@ const DashboardPage = () => {
         ...newItem,
         quantity: qtyNum,
         reserveMin: Number(newItem.reserveMin) || 0,
-        updatedBy: user?.username || "admin",
+        updatedBy: actorName,
       }).then((result) => {
         if (result?.id) pinItem(result.id);
       }).catch(() => {});
@@ -1009,7 +1012,7 @@ const DashboardPage = () => {
             rentalEnd: row.rentalEnd || "",
             quantity: row.quantity || 1,
             reserveMin: Number(row.reserveMin) || 0,
-            updatedBy: user?.username || "admin",
+            updatedBy: actorName,
           }),
         );
       }
@@ -1050,7 +1053,7 @@ const DashboardPage = () => {
     if (!movingItem || moveData.qty <= 0 || !moveData.newLocation) return;
     try {
       const qtyToMove = Math.max(1, Number(moveData.qty) || 1);
-      await moveEquipment(movingItem.id, qtyToMove, moveData.newLocation);
+      await moveEquipment(movingItem.id, qtyToMove, moveData.newLocation, actorName);
       setMovingItem(null);
       setMoveData({ qty: 1, newLocation: "" });
     } catch (e) {
@@ -1097,7 +1100,7 @@ const DashboardPage = () => {
         rentalEnd: item.endDate || "",
         quantity: item.quantity || 1,
         reserveMin: Number(item.reserveMin) || 0,
-        updatedBy: user?.username || "admin",
+        updatedBy: actorName,
       });
     });
   };

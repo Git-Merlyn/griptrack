@@ -493,7 +493,7 @@ export const EquipmentProvider = ({ children }) => {
     return normalized;
   };
 
-  const moveEquipment = async (rowId, qty, newLocation) => {
+  const moveEquipment = async (rowId, qty, newLocation, actor) => {
     if (!rowId || !newLocation || !qty || qty <= 0) return;
 
     const id = String(rowId);
@@ -521,6 +521,7 @@ export const EquipmentProvider = ({ children }) => {
         await updateEquipment(existingDest.id, {
           ...existingDest,
           quantity: (Number(existingDest.quantity) || 0) + currentQty,
+          updatedBy: actor ?? existingDest.updatedBy,
         });
 
         // Explicit merge audit event (includes merged_from_id)
@@ -530,13 +531,17 @@ export const EquipmentProvider = ({ children }) => {
           movedQty: currentQty,
           fromLocation: current.location,
           toLocation: newLocation,
-          actor: current.updatedBy,
+          actor: actor ?? current.updatedBy,
         });
 
         await deleteEquipment(rowId);
       } else {
         // No destination row to merge into; just update location
-        await updateEquipment(rowId, { ...current, location: newLocation });
+        await updateEquipment(rowId, {
+          ...current,
+          location: newLocation,
+          updatedBy: actor ?? current.updatedBy,
+        });
       }
 
       window.toast?.success?.("Item moved");
@@ -548,6 +553,7 @@ export const EquipmentProvider = ({ children }) => {
     await updateEquipment(rowId, {
       ...current,
       quantity: currentQty - moveQty,
+      updatedBy: actor ?? current.updatedBy,
     });
 
     // 2) Merge into an existing destination row if it exists
@@ -555,6 +561,7 @@ export const EquipmentProvider = ({ children }) => {
       await updateEquipment(existingDest.id, {
         ...existingDest,
         quantity: (Number(existingDest.quantity) || 0) + moveQty,
+        updatedBy: actor ?? existingDest.updatedBy,
       });
 
       // Explicit merge audit event (includes merged_from_id)
@@ -564,7 +571,7 @@ export const EquipmentProvider = ({ children }) => {
         movedQty: moveQty,
         fromLocation: current.location,
         toLocation: newLocation,
-        actor: current.updatedBy,
+        actor: actor ?? current.updatedBy,
       });
     } else {
       // Otherwise insert a new destination row
@@ -579,7 +586,7 @@ export const EquipmentProvider = ({ children }) => {
         status: current.status ?? "Available",
         rentalStart: current.rentalStart ?? null,
         rentalEnd: current.rentalEnd ?? null,
-        updatedBy: current.updatedBy ?? "admin",
+        updatedBy: actor ?? current.updatedBy ?? "Unknown",
       });
     }
 
