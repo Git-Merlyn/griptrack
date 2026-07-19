@@ -44,6 +44,7 @@ export default function SettingsPage() {
 
   const [saving, setSaving] = useState(null); // key of the feature being saved
   const [errors, setErrors] = useState({});
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const handleToggle = async (key, value) => {
     setSaving(key);
@@ -103,7 +104,25 @@ export default function SettingsPage() {
       </section>
 
       {/* Full history — owners only */}
-      {isOwner && <OrgHistoryTable />}
+      {isOwner && (
+        <section className="bg-surface border border-text/10 rounded-xl px-5 py-4 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-semibold text-text">Full History</h2>
+            <p className="text-xs text-text/50 mt-0.5">
+              View every action across your entire inventory — additions, moves, edits, and deletions.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setHistoryOpen(true)}
+            className="btn-secondary-sm shrink-0"
+          >
+            View Full History
+          </button>
+        </section>
+      )}
+
+      {historyOpen && <OrgHistoryTable onClose={() => setHistoryOpen(false)} />}
     </div>
   );
 }

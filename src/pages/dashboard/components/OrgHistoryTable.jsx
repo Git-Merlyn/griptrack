@@ -58,7 +58,7 @@ const ActionBadge = ({ action }) => {
   );
 };
 
-export default function OrgHistoryTable() {
+export default function OrgHistoryTable({ onClose }) {
   const { orgId } = useUser();
   const { equipment } = useContext(EquipmentContext) || {};
 
@@ -96,126 +96,144 @@ export default function OrgHistoryTable() {
   };
 
   return (
-    <section className="bg-surface border border-text/10 rounded-xl px-5">
-      <div className="flex items-start justify-between gap-4 py-4 border-b border-text/10">
-        <div>
-          <h2 className="text-sm font-semibold text-text">Full History</h2>
-          <p className="text-xs text-text/50 mt-0.5">
-            Every action across your entire inventory — additions, moves, edits, and deletions.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={handleExport}
-          disabled={exporting}
-          className="btn-secondary-sm shrink-0"
-        >
-          {exporting ? "Exporting…" : "Export CSV"}
-        </button>
-      </div>
-
-      {/* Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-3 py-3 border-b border-text/10">
-        <div className="flex gap-1.5">
-          {ACTION_FILTERS.map((f) => (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-surface border border-text/10 rounded-xl w-full max-w-5xl max-h-[90dvh] shadow-lg flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4 px-5 py-4 border-b border-text/10 shrink-0">
+          <div>
+            <h2 className="text-lg font-bold text-accent">Full History</h2>
+            <p className="text-xs text-text/50 mt-0.5">
+              Every action across your entire inventory — additions, moves, edits, and deletions.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
             <button
-              key={f.value}
               type="button"
-              onClick={() => setActionFilter(f.value)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition ${
-                actionFilter === f.value
-                  ? "bg-accent/80 text-slate-900"
-                  : "bg-text/10 text-text/70 hover:text-text"
-              }`}
+              onClick={handleExport}
+              disabled={exporting}
+              className="btn-secondary-sm"
             >
-              {f.label}
+              {exporting ? "Exporting…" : "Export CSV"}
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-text/50 hover:text-text ml-1 transition"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
-        <select
-          value={range}
-          onChange={(e) => setRange(e.target.value)}
-          className="bg-background border border-text/20 rounded-lg px-2.5 py-1 text-xs text-text"
-        >
-          {RANGE_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </div>
+        {/* Controls */}
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-b border-text/10 shrink-0">
+          <div className="flex gap-1.5">
+            {ACTION_FILTERS.map((f) => (
+              <button
+                key={f.value}
+                type="button"
+                onClick={() => setActionFilter(f.value)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition ${
+                  actionFilter === f.value
+                    ? "bg-accent/80 text-slate-900"
+                    : "bg-text/10 text-text/70 hover:text-text"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
 
-      {/* Body */}
-      <div className="py-3">
-        {loading ? (
-          <div className="flex items-center justify-center py-10 text-text/60 text-sm">
-            Loading history…
-          </div>
-        ) : error ? (
-          <div className="flex flex-col items-center gap-3 py-10 text-sm">
-            <span className="text-danger">{error}</span>
-            <button type="button" onClick={refresh} className="btn-secondary-sm">
-              Retry
-            </button>
-          </div>
-        ) : logs.length === 0 ? (
-          <div className="flex items-center justify-center py-10 text-text/50 text-sm">
-            No matching events in this range.
-          </div>
-        ) : (
-          <div className="overflow-x-auto -mx-5 px-5">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-text/50 text-xs">
-                  <th className="pb-2 pr-3 font-medium">Date / Time</th>
-                  <th className="pb-2 pr-3 font-medium">Action</th>
-                  <th className="pb-2 pr-3 font-medium">Item</th>
-                  <th className="pb-2 pr-3 font-medium">Actor</th>
-                  <th className="pb-2 pr-3 font-medium">From → To</th>
-                  <th className="pb-2 font-medium">Qty Δ</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-text/5">
-                {logs.map((log) => (
-                  <tr key={log.id}>
-                    <td className="py-2 pr-3 text-text/70 whitespace-nowrap">
-                      {formatTimestamp(log.at)}
-                    </td>
-                    <td className="py-2 pr-3">
-                      <ActionBadge action={log.action} />
-                    </td>
-                    <td className="py-2 pr-3 text-text max-w-[220px] truncate">
-                      {resolveItemName(log, nameMap)}
-                    </td>
-                    <td className="py-2 pr-3 text-text/70">{log.actor || "—"}</td>
-                    <td className="py-2 pr-3 text-text/70 whitespace-nowrap">
-                      {log.from_location || log.to_location
-                        ? `${log.from_location || "—"} → ${log.to_location || "—"}`
-                        : "—"}
-                    </td>
-                    <td className="py-2 text-text/70">
-                      {log.delta_qty != null
-                        ? log.delta_qty > 0
-                          ? `+${log.delta_qty}`
-                          : log.delta_qty
-                        : "—"}
-                    </td>
+          <select
+            value={range}
+            onChange={(e) => setRange(e.target.value)}
+            className="bg-background border border-text/20 rounded-lg px-2.5 py-1 text-xs text-text"
+          >
+            {RANGE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-3 overflow-y-auto flex-1">
+          {loading ? (
+            <div className="flex items-center justify-center py-10 text-text/60 text-sm">
+              Loading history…
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center gap-3 py-10 text-sm">
+              <span className="text-danger">{error}</span>
+              <button type="button" onClick={refresh} className="btn-secondary-sm">
+                Retry
+              </button>
+            </div>
+          ) : logs.length === 0 ? (
+            <div className="flex items-center justify-center py-10 text-text/50 text-sm">
+              No matching events in this range.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-text/50 text-xs">
+                    <th className="pb-2 pr-3 font-medium">Date / Time</th>
+                    <th className="pb-2 pr-3 font-medium">Action</th>
+                    <th className="pb-2 pr-3 font-medium">Item</th>
+                    <th className="pb-2 pr-3 font-medium">Actor</th>
+                    <th className="pb-2 pr-3 font-medium">From → To</th>
+                    <th className="pb-2 font-medium">Qty Δ</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-text/5">
+                  {logs.map((log) => (
+                    <tr key={log.id}>
+                      <td className="py-2 pr-3 text-text/70 whitespace-nowrap">
+                        {formatTimestamp(log.at)}
+                      </td>
+                      <td className="py-2 pr-3">
+                        <ActionBadge action={log.action} />
+                      </td>
+                      <td className="py-2 pr-3 text-text max-w-[220px] truncate">
+                        {resolveItemName(log, nameMap)}
+                      </td>
+                      <td className="py-2 pr-3 text-text/70">{log.actor || "—"}</td>
+                      <td className="py-2 pr-3 text-text/70 whitespace-nowrap">
+                        {log.from_location || log.to_location
+                          ? `${log.from_location || "—"} → ${log.to_location || "—"}`
+                          : "—"}
+                      </td>
+                      <td className="py-2 text-text/70">
+                        {log.delta_qty != null
+                          ? log.delta_qty > 0
+                            ? `+${log.delta_qty}`
+                            : log.delta_qty
+                          : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {!loading && !error && logs.length > 0 && (
+          <div className="px-5 pb-4 text-xs text-text/40 shrink-0">
+            {truncated
+              ? `Showing the most recent ${logs.length} of ${total.toLocaleString()} matching events — narrow the range, or use "Export CSV" above for the full set.`
+              : `${total} event${total !== 1 ? "s" : ""}`}
           </div>
         )}
       </div>
-
-      {!loading && !error && logs.length > 0 && (
-        <div className="pb-4 text-xs text-text/40">
-          {truncated
-            ? `Showing the most recent ${logs.length} of ${total.toLocaleString()} matching events — narrow the range, or use "Export CSV" above for the full set.`
-            : `${total} event${total !== 1 ? "s" : ""}`}
-        </div>
-      )}
-    </section>
+    </div>
   );
 }
