@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { Navigate } from "react-router-dom";
 import useUser from "@/context/useUser";
+import OrgHistoryTable from "./dashboard/components/OrgHistoryTable";
 
 // ── FeatureToggle ─────────────────────────────────────────────────────────────
 function FeatureToggle({ label, description, enabled, onChange, disabled }) {
@@ -100,6 +101,9 @@ export default function SettingsPage() {
           <p className="text-danger text-xs pb-3">{errors.requests_enabled}</p>
         )}
       </section>
+
+      {/* Full history — owners only */}
+      {isOwner && <OrgHistoryTable />}
     </div>
   );
 }

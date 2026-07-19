@@ -1,19 +1,9 @@
 import React from "react";
 import useAuditLog from "../hooks/useAuditLog";
-
-// Badge color + label per action type
-const ACTION_META = {
-  create: { label: "Created", className: "bg-green-700/40 text-green-300" },
-  update: { label: "Updated", className: "bg-blue-700/40 text-blue-300" },
-  delete: { label: "Deleted", className: "bg-red-700/40 text-red-300" },
-  merge:  { label: "Merged",  className: "bg-purple-700/40 text-purple-300" },
-};
+import { getActionMeta } from "../utils/actionMeta";
 
 const ActionBadge = ({ action }) => {
-  const meta = ACTION_META[action] ?? {
-    label: action ?? "Unknown",
-    className: "bg-gray-700/40 text-gray-300",
-  };
+  const meta = getActionMeta(action);
   return (
     <span
       className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${meta.className}`}
