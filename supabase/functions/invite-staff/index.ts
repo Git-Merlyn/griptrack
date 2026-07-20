@@ -112,6 +112,32 @@ serve(async (req) => {
       }
     }
 
+    // Rate limit: cap invite emails per org per hour so a compromised or
+    // careless admin can't burn the email quota / spam inboxes. Counts sends
+    // (including re-invites to the same address), recorded in invite_sends
+    // after each successful send below.
+    const RATE_LIMIT_PER_HOUR = 20;
+    const windowStart = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { count: recentSends, error: rateErr } = await admin
+      .from("invite_sends")
+      .select("*", { count: "exact", head: true })
+      .eq("org_id", orgId)
+      .gte("at", windowStart);
+
+    if (rateErr) {
+      // Fail closed-ish: if we can't check, don't silently allow unlimited sends.
+      return new Response(JSON.stringify({ error: "Could not verify invite rate limit. Please try again." }), {
+        status: 502,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if ((recentSends ?? 0) >= RATE_LIMIT_PER_HOUR) {
+      return new Response(
+        JSON.stringify({ error: "Invite limit reached (20 per hour). Please try again later." }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     // Load org name for invite email metadata.
     const { data: orgRow } = await admin
       .from("organizations")
@@ -212,6 +238,14 @@ if (inviteRowError) {
     } else {
       invitedUserId = inviteData?.user?.id ?? null;
     }
+
+    // Record the send for rate limiting (both the email path and the
+    // magic-link path count — each is an outbound invite).
+    await admin.from("invite_sends").insert({
+      org_id: orgId,
+      user_id: user.id,
+      email,
+    });
 
     return new Response(
       JSON.stringify({

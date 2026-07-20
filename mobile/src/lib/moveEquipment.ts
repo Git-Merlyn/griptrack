@@ -28,7 +28,6 @@ import {
 } from './db';
 
 const EQUIPMENT_TABLE = 'equipment_items';
-const AUDIT_TABLE = process.env.EXPO_PUBLIC_EQUIPMENT_AUDIT_TABLE ?? 'equipment_audit';
 
 // ─── Merge detection ──────────────────────────────────────────────────────────
 
@@ -55,39 +54,38 @@ export function findMergeDestination(
   );
 }
 
-// ─── Audit log helper ─────────────────────────────────────────────────────────
+// ─── Audit logging ────────────────────────────────────────────────────────────
+//
+// Plain moves need no explicit audit write: the equipment_items trigger logs a
+// 'move' row whenever a location changes (the old hand-written rows doubled
+// it up, and direct client inserts to equipment_audit are now blocked).
+// Merges DO need one — the trigger can't know two rows were combined — and go
+// through the log_merge_event RPC, which derives the actor server-side.
 
-async function writeAuditLog(params: {
-  orgId: string;
-  equipmentId: string;
-  userId: string;
-  actor: string;
+async function logMergeEvent(params: {
+  intoId: string;
+  fromId: string;
+  qty: number;
   fromLocation: string;
   toLocation: string;
-  deltaQty: number;
-  action: 'move' | 'merge';
-  mergedFromId?: string;
+  at: string; // action time — preserved for offline replay
   isOnline: boolean;
 }): Promise<void> {
-  const payload = {
-    org_id: params.orgId,
-    equipment_id: params.equipmentId,
-    action: params.action,
-    user_id: params.userId,
-    actor: params.actor,
-    from_location: params.fromLocation,
-    to_location: params.toLocation,
-    delta_qty: params.deltaQty,
-    meta: params.mergedFromId ? { merged_from_id: params.mergedFromId } : null,
+  const args = {
+    p_into: params.intoId,
+    p_from: params.fromId,
+    p_qty: params.qty,
+    p_from_location: params.fromLocation,
+    p_to_location: params.toLocation,
+    p_at: params.at,
   };
 
   if (params.isOnline) {
-    // Supabase returns { error } rather than throwing — check it explicitly.
-    // Audit must never block a move, so log and continue.
-    const { error } = await supabase.from(AUDIT_TABLE).insert(payload);
-    if (error) console.warn('Failed to write audit event', error.message);
+    // Audit must never block a move — log and continue on failure.
+    const { error } = await supabase.rpc('log_merge_event', args);
+    if (error) console.warn('Failed to write merge audit event', error.message);
   } else {
-    enqueueOp({ table_name: 'audit', operation: 'insert', payload: JSON.stringify(payload) });
+    enqueueOp({ table_name: 'log_merge_event', operation: 'rpc', payload: JSON.stringify(args) });
   }
 }
 
@@ -161,16 +159,13 @@ export async function moveEquipment({
         enqueueOp({ table_name: EQUIPMENT_TABLE, operation: 'delete', payload: JSON.stringify({ id: sourceItem.id }) });
       }
 
-      await writeAuditLog({
-        orgId: sourceItem.org_id,
-        equipmentId: dest.id,
-        userId,
-        actor: updatedBy,
+      await logMergeEvent({
+        intoId: dest.id,
+        fromId: sourceItem.id,
+        qty,
         fromLocation: sourceItem.location,
         toLocation,
-        deltaQty: qty,
-        action: 'merge',
-        mergedFromId: sourceItem.id,
+        at: now,
         isOnline,
       });
 
@@ -192,17 +187,7 @@ export async function moveEquipment({
         })});
       }
 
-      await writeAuditLog({
-        orgId: sourceItem.org_id,
-        equipmentId: sourceItem.id,
-        userId,
-        actor: updatedBy,
-        fromLocation: sourceItem.location,
-        toLocation,
-        deltaQty: qty,
-        action: 'move',
-        isOnline,
-      });
+      // Trigger logs the 'move' from the location change — nothing to write.
 
     } else if (dest) {
       // ── Partial move with merge ───────────────────────────────────────────
@@ -240,16 +225,13 @@ export async function moveEquipment({
         })});
       }
 
-      await writeAuditLog({
-        orgId: sourceItem.org_id,
-        equipmentId: dest.id,
-        userId,
-        actor: updatedBy,
+      await logMergeEvent({
+        intoId: dest.id,
+        fromId: sourceItem.id,
+        qty,
         fromLocation: sourceItem.location,
         toLocation,
-        deltaQty: qty,
-        action: 'merge',
-        mergedFromId: sourceItem.id,
+        at: now,
         isOnline,
       });
 
@@ -291,17 +273,7 @@ export async function moveEquipment({
         enqueueOp({ table_name: EQUIPMENT_TABLE, operation: 'insert', payload: JSON.stringify(newItem) });
       }
 
-      await writeAuditLog({
-        orgId: sourceItem.org_id,
-        equipmentId: sourceItem.id,
-        userId,
-        actor: updatedBy,
-        fromLocation: sourceItem.location,
-        toLocation,
-        deltaQty: qty,
-        action: 'move',
-        isOnline,
-      });
+      // Trigger logs the source qty change + the create at the destination.
     }
 
     return { success: true };

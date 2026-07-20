@@ -15,7 +15,6 @@ import {
 } from '../lib/db';
 
 const EQUIPMENT_TABLE = 'equipment_items';
-const AUDIT_TABLE = process.env.EXPO_PUBLIC_EQUIPMENT_AUDIT_TABLE ?? 'equipment_audit';
 
 // Fields the user can set when adding or editing an item
 export interface ItemFields {
@@ -30,35 +29,33 @@ export interface ItemFields {
   end_date: string | null;
 }
 
-// ─── Audit log helper ─────────────────────────────────────────────────────────
+// ─── Audit logging ────────────────────────────────────────────────────────────
+//
+// Create/edit/move/delete history is generated automatically by the DB trigger
+// on equipment_items — this hook no longer hand-writes those rows (they were
+// duplicates, and direct client inserts to equipment_audit are now blocked to
+// prevent forgery). The one semantic event the trigger can't infer is damage
+// (it just sees a status change): that goes through the log_damage_event RPC,
+// which derives the actor server-side and carries the notes.
 
-interface AuditParams {
-  orgId: string;
+async function logDamageEvent(params: {
   equipmentId: string;
-  userId: string;
-  actor: string;
-  action: string;
   notes?: string;
+  at: string; // action time — preserved for offline replay
   isOnline: boolean;
-}
-
-async function writeAuditLog(params: AuditParams): Promise<void> {
-  const payload = {
-    org_id: params.orgId,
-    equipment_id: params.equipmentId,
-    action: params.action,
-    user_id: params.userId,
-    actor: params.actor,
-    meta: params.notes ? { notes: params.notes } : null,
+}): Promise<void> {
+  const args = {
+    p_equipment_id: params.equipmentId,
+    p_notes: params.notes ?? null,
+    p_at: params.at,
   };
 
   if (params.isOnline) {
-    // Supabase returns { error } rather than throwing — check it explicitly,
-    // otherwise failures vanish. Audit still must never block the mutation.
-    const { error } = await supabase.from(AUDIT_TABLE).insert(payload);
-    if (error) console.warn('Failed to write audit event', error.message);
+    // Audit must never block the mutation — log and continue on failure.
+    const { error } = await supabase.rpc('log_damage_event', args);
+    if (error) console.warn('Failed to write damage audit event', error.message);
   } else {
-    enqueueOp({ table_name: 'audit', operation: 'insert', payload: JSON.stringify(payload) });
+    enqueueOp({ table_name: 'log_damage_event', operation: 'rpc', payload: JSON.stringify(args) });
   }
 }
 
@@ -128,12 +125,10 @@ export function useEquipmentMutations(): UseMutationsReturn {
 
         // Overwrite local record with server's confirmed copy
         upsertEquipmentItem(data as EquipmentItem);
-        await writeAuditLog({ orgId: profile.org_id, equipmentId: data.id, userId, actor: updatedBy, action: 'create', isOnline: true });
         bumpLocalVersion();
         return data as EquipmentItem;
       } else {
         enqueueOp({ table_name: EQUIPMENT_TABLE, operation: 'insert', payload: JSON.stringify(localItem) });
-        await writeAuditLog({ orgId: profile.org_id, equipmentId: newId, userId, actor: updatedBy, action: 'create', isOnline: false });
         bumpLocalVersion();
         return localItem;
       }
@@ -172,7 +167,6 @@ export function useEquipmentMutations(): UseMutationsReturn {
         if (error) throw error;
 
         upsertEquipmentItem(data as EquipmentItem);
-        await writeAuditLog({ orgId: profile.org_id, equipmentId: id, userId, actor: updatedBy, action: 'edit', isOnline: true });
         bumpLocalVersion();
         return data as EquipmentItem;
       } else {
@@ -195,7 +189,6 @@ export function useEquipmentMutations(): UseMutationsReturn {
             patch,
           }),
         });
-        await writeAuditLog({ orgId: profile.org_id, equipmentId: id, userId, actor: updatedBy, action: 'edit', isOnline: false });
         bumpLocalVersion();
         return { ...(existing ?? {}), ...(patch as Partial<EquipmentItem>), id } as EquipmentItem;
       }
@@ -208,9 +201,6 @@ export function useEquipmentMutations(): UseMutationsReturn {
   const deleteItem = useCallback(
     async (id: string): Promise<void> => {
       if (!profile?.org_id) throw new Error('Not authenticated');
-
-      // Audit before delete so the equipment_id still exists server-side
-      await writeAuditLog({ orgId: profile.org_id, equipmentId: id, userId, actor: updatedBy, action: 'delete', isOnline });
 
       deleteEquipmentItemLocal(id);
 
@@ -294,7 +284,7 @@ export function useEquipmentMutations(): UseMutationsReturn {
         if (error) throw error;
 
         upsertEquipmentItem(data as EquipmentItem);
-        await writeAuditLog({ orgId: profile.org_id, equipmentId: item.id, userId, actor: updatedBy, action: 'damage', notes: notes.trim() || undefined, isOnline: true });
+        await logDamageEvent({ equipmentId: item.id, notes: notes.trim() || undefined, at: now, isOnline: true });
         bumpLocalVersion();
         return data as EquipmentItem;
       } else {
@@ -307,7 +297,7 @@ export function useEquipmentMutations(): UseMutationsReturn {
             patch,
           }),
         });
-        await writeAuditLog({ orgId: profile.org_id, equipmentId: item.id, userId, actor: updatedBy, action: 'damage', notes: notes.trim() || undefined, isOnline: false });
+        await logDamageEvent({ equipmentId: item.id, notes: notes.trim() || undefined, at: now, isOnline: false });
         bumpLocalVersion();
         return updated;
       }

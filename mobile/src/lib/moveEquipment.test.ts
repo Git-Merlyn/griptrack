@@ -158,7 +158,9 @@ describe('moveEquipment (offline)', () => {
     });
 
     expect(result.success).toBe(true);
-    expect(mockEnqueue).toHaveBeenCalledTimes(2); // equipment update + audit
+    // Plain moves queue ONLY the equipment update — the DB trigger generates
+    // the 'move' audit row from the location change (no hand-written audit).
+    expect(mockEnqueue).toHaveBeenCalledTimes(1);
 
     const equipmentCall = mockEnqueue.mock.calls.find(
       ([arg]: [{ table_name: string }]) => arg.table_name === 'equipment_items'
@@ -241,6 +243,13 @@ describe('moveEquipment (offline)', () => {
 
     expect(destUpdate!.payload.qty_delta).toBe(2);
     expect(destUpdate!.payload.snapshot_updated_at).toBe('2026-01-02T00:00:00Z');
+
+    // Merge audit goes through the log_merge_event RPC (queued as an rpc op)
+    const mergeRpc = calls.find((c) => c.op === 'rpc' && c.table === 'log_merge_event');
+    expect(mergeRpc).toBeDefined();
+    expect(mergeRpc!.payload.p_into).toBe('2');
+    expect(mergeRpc!.payload.p_from).toBe('1');
+    expect(mergeRpc!.payload.p_qty).toBe(2);
   });
 
   it('full move with merge: queues absolute quantity on dest + delete on source', async () => {
@@ -277,5 +286,11 @@ describe('moveEquipment (offline)', () => {
     expect(destUpdate!.payload.snapshot_updated_at).toBe('2026-01-02T00:00:00Z');
 
     expect(sourceDelete!.payload.id).toBe('1');
+
+    // Merge audit goes through the log_merge_event RPC (queued as an rpc op)
+    const mergeRpc = calls.find((c) => c.op === 'rpc' && c.table === 'log_merge_event');
+    expect(mergeRpc).toBeDefined();
+    expect(mergeRpc!.payload.p_from).toBe('1');
+    expect(mergeRpc!.payload.p_qty).toBe(5);
   });
 });

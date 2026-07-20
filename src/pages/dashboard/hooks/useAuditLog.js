@@ -2,8 +2,7 @@ import { useState, useEffect, useCallback, useContext } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import UserContext from "@/context/UserContext";
 
-const AUDIT_TABLE =
-  import.meta.env.VITE_EQUIPMENT_AUDIT_TABLE || "equipment_audit";
+const AUDIT_TABLE = "equipment_audit";
 
 /**
  * Fetches audit log events for a single equipment item.

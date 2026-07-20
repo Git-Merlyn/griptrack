@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../context/AuthContext';
 
-const AUDIT_TABLE = process.env.EXPO_PUBLIC_EQUIPMENT_AUDIT_TABLE ?? 'equipment_audit';
+const AUDIT_TABLE = 'equipment_audit';
 
 export interface AuditEvent {
   id: string;

@@ -3,7 +3,6 @@ import { supabase } from "@/lib/supabaseClient";
 import UserContext from "@/context/UserContext";
 
 const FeedbackForm = ({ onSubmitted }) => {
-  const table = import.meta.env.VITE_FEEDBACK_TABLE || "beta_feedback";
   const { orgId, loadingOrg } = useContext(UserContext) || {};
 
   const [type, setType] = useState("bug");
@@ -55,8 +54,9 @@ const FeedbackForm = ({ onSubmitted }) => {
 
     setSubmitting(true);
     try {
+      // org_id is stamped server-side by the beta_feedback_set_org trigger
+      // from the caller's actual membership — nothing client-supplied to trust.
       const payload = {
-        org_id: orgId,
         type,
         severity,
         title: title.trim() || null,
@@ -66,7 +66,7 @@ const FeedbackForm = ({ onSubmitted }) => {
         user_agent: navigator?.userAgent || null,
       };
 
-      const { error } = await supabase.from(table).insert([payload]);
+      const { error } = await supabase.from("beta_feedback").insert([payload]);
       if (error) throw error;
 
       toastSuccess("Feedback submitted — thank you!");

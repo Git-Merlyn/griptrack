@@ -53,7 +53,7 @@ import { useAuthContext } from './AuthContext';
 import { useTeamContext } from './TeamContext';
 import { useOrgContext } from './OrgContext';
 
-const AUDIT_TABLE = process.env.EXPO_PUBLIC_EQUIPMENT_AUDIT_TABLE ?? 'equipment_audit';
+const AUDIT_TABLE = 'equipment_audit';
 
 // ─── Context shape ────────────────────────────────────────────────────────────
 
@@ -182,6 +182,12 @@ async function drainQueue(auditTable: string): Promise<DrainStats> {
           if (error) throw error;
         }
 
+      } else if (entry.operation === 'rpc') {
+        // Queued audit RPCs (log_damage_event / log_merge_event) — table_name
+        // holds the function name, payload the args object.
+        const { error } = await supabase.rpc(entry.table_name, payload);
+        if (error) throw error;
+
       } else if (entry.operation === 'delete') {
         const { error } = await supabase.from(tableName).delete().eq('id', payload.id);
         if (error) throw error;
@@ -199,9 +205,14 @@ async function drainQueue(auditTable: string): Promise<DrainStats> {
         e?.message?.includes('not found') ||
         e?.message?.includes('does not exist');
 
+      // Legacy hand-written audit inserts queued by older builds are now
+      // permanently rejected by RLS (anti-forgery) — the equipment change
+      // itself still syncs and the trigger logs it, so just discard these.
+      const isLegacyAuditDenied = entry.table_name === 'audit' && e?.code === '42501';
+
       // entry.retries is the pre-increment value read from the queue, so add
       // 1 to compare against the intended max of 3 attempts.
-      if (isGone || entry.retries + 1 >= 3) {
+      if (isGone || isLegacyAuditDenied || entry.retries + 1 >= 3) {
         removeSyncEntry(entry.id);
         stats.failed++;
       }

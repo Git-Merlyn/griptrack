@@ -282,9 +282,10 @@ export function replaceRequestsForOrg(orgId: string, reqs: EquipmentRequest[]): 
 
 export interface SyncQueueEntry {
   id: string;
+  // For 'rpc' ops, table_name holds the Postgres function name instead.
   table_name: string;
-  operation: 'insert' | 'update' | 'delete';
-  payload: string; // JSON
+  operation: 'insert' | 'update' | 'delete' | 'rpc';
+  payload: string; // JSON (RPC ops: the args object)
   created_at: string;
   retries: number;
 }

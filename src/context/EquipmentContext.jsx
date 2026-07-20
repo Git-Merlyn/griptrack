@@ -11,12 +11,10 @@ import { findMergeDestination } from "./equipmentMoveUtils";
 import UserContext from "./UserContext";
 import TeamContext from "./TeamContext";
 
-// Allow dev/prod separation via env var
-const EQUIPMENT_TABLE =
-  import.meta.env.VITE_EQUIPMENT_TABLE || "equipment_items";
-
-const AUDIT_TABLE =
-  import.meta.env.VITE_EQUIPMENT_AUDIT_TABLE || "equipment_audit";
+// Table names are fixed — dev/prod separation comes from the local Supabase
+// stack, not env-swapped table names (the old VITE_EQUIPMENT_TABLE indirection
+// pointed at _dev tables that no migration creates, silently breaking dev).
+const EQUIPMENT_TABLE = "equipment_items";
 
 const EquipmentContext = createContext();
 
@@ -68,30 +66,27 @@ export const EquipmentProvider = ({ children }) => {
   const [assignAllLocation, setAssignAllLocation] = useState("");
   const [importSummaryMessage, setImportSummaryMessage] = useState("");
 
-  // --- Audit logging (DB trigger handles create/update/delete).
-  // We only write explicit MERGE events here so we can include meta.merged_from_id.
+  // --- Audit logging (DB trigger handles create/update/move/delete).
+  // Merge events go through the log_merge_event RPC: it derives the actor
+  // server-side from the caller's profile and is the only sanctioned way to
+  // write a merge row now that direct client inserts to equipment_audit are
+  // blocked (anti-forgery).
   const logMergeEvent = async ({
     mergedIntoId,
     mergedFromId,
     movedQty,
     fromLocation,
     toLocation,
-    actor,
   }) => {
     try {
-      await supabase.from(AUDIT_TABLE).insert({
-        org_id: orgId ?? null,
-        equipment_id: String(mergedIntoId),
-        action: "merge",
-        actor: String(actor || "admin"),
-        from_location: fromLocation ? String(fromLocation) : null,
-        to_location: toLocation ? String(toLocation) : null,
-        delta_qty: Number.isFinite(Number(movedQty)) ? Number(movedQty) : null,
-        meta: {
-          merged_from_id: String(mergedFromId),
-          merged_into_id: String(mergedIntoId),
-        },
+      const { error } = await supabase.rpc("log_merge_event", {
+        p_into: String(mergedIntoId),
+        p_from: String(mergedFromId),
+        p_qty: Number.isFinite(Number(movedQty)) ? Number(movedQty) : null,
+        p_from_location: fromLocation ? String(fromLocation) : null,
+        p_to_location: toLocation ? String(toLocation) : null,
       });
+      if (error) console.warn("Failed to write merge audit event", error.message);
     } catch (e) {
       // Audit should never block core inventory actions
       console.warn("Failed to write merge audit event", e);
@@ -531,7 +526,6 @@ export const EquipmentProvider = ({ children }) => {
           movedQty: currentQty,
           fromLocation: current.location,
           toLocation: newLocation,
-          actor: actor ?? current.updatedBy,
         });
 
         await deleteEquipment(rowId);
@@ -571,7 +565,6 @@ export const EquipmentProvider = ({ children }) => {
         movedQty: moveQty,
         fromLocation: current.location,
         toLocation: newLocation,
-        actor: actor ?? current.updatedBy,
       });
     } else {
       // Otherwise insert a new destination row

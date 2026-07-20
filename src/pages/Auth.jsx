@@ -39,6 +39,9 @@ export default function Auth({ mode: entryMode = "normal" }) {
         if (!trimmedName) {
           throw new Error("Full name is required");
         }
+        if (password.length < 8) {
+          throw new Error("Password must be at least 8 characters");
+        }
 
         // Pass the name through signup metadata so handle_new_user() can write
         // it straight to the profile. Without this the name is dropped and the

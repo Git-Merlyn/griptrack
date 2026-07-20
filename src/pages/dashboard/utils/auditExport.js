@@ -3,8 +3,7 @@
 
 import { csvEscape, downloadCsv } from "./export";
 
-const AUDIT_TABLE =
-  import.meta.env.VITE_EQUIPMENT_AUDIT_TABLE || "equipment_audit";
+const AUDIT_TABLE = "equipment_audit";
 
 /**
  * Build a CSV string from audit log rows.

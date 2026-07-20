@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-const AUDIT_TABLE =
-  import.meta.env.VITE_EQUIPMENT_AUDIT_TABLE || "equipment_audit";
+const AUDIT_TABLE = "equipment_audit";
 
 // Cap the on-screen table — owners wanting the full untruncated set should use
 // the CSV export (fetchAndDownloadAuditCsv), which already handles up to 10k rows.
