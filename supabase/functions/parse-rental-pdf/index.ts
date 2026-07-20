@@ -15,10 +15,9 @@
  * Notes:
  * - fileName is accepted for future use (logging, CSV detection) but not
  *   currently used in the parsing logic.
- * - Auth: supabase.functions.invoke automatically forwards the caller's JWT,
- *   so only authenticated sessions reach this function in practice. Explicit
- *   JWT verification is skipped for beta — add it before public launch to
- *   prevent unauthenticated callers from consuming Deno compute.
+ * - Auth: the handler verifies a real signed-in user via auth.getUser().
+ *   Gateway JWT verification alone is not enough — the public anon key
+ *   passes it, so without the in-handler check anyone could burn compute.
  * - Payload size: base64 inflates PDF size by ~33%. Typical rental PDFs are
  *   fine, but very large multi-page documents may approach Edge Function
  *   request limits. Consider streaming or chunking if this becomes an issue.
@@ -30,6 +29,7 @@
 // Use the inner module path to avoid pdf-parse's test scaffolding code, which
 // tries to read files from disk and throws in the Deno runtime.
 import pdfParse from 'npm:pdf-parse/lib/pdf-parse.js';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -261,6 +261,29 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    // Require a real signed-in user, not just the (public) anon key.
+    // Gateway JWT verification alone accepts the anon key, which ships in
+    // every client bundle — without this check anyone could burn compute here.
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const { fileBase64, fileName } = await req.json() as {
       fileBase64: string;
       fileName: string;

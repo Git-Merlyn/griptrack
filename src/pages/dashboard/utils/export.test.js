@@ -29,6 +29,20 @@ describe("export.js", () => {
     expect(csvEscape("plain")).toBe("plain");
   });
 
+  it("csvEscape neutralizes formula-injection prefixes (=, +, -, @)", () => {
+    // User-entered item names could smuggle Excel/Sheets formulas into exports.
+    expect(csvEscape('=HYPERLINK("http://evil","x")')).toBe("\"'=HYPERLINK(\"\"http://evil\"\",\"\"x\"\")\"");
+    expect(csvEscape("+cmd|foo")).toBe("'+cmd|foo");
+    expect(csvEscape("@SUM(A1)")).toBe("'@SUM(A1)");
+    expect(csvEscape("-2+3")).toBe("'-2+3");
+  });
+
+  it("csvEscape leaves plain negative numbers untouched", () => {
+    expect(csvEscape("-2")).toBe("-2");
+    expect(csvEscape(-2)).toBe("-2");
+    expect(csvEscape("-2.5")).toBe("-2.5");
+  });
+
   it("rowsToCsv includes UTF-8 BOM and correct header order (includes Item ID)", () => {
     const csv = rowsToCsv([]);
 

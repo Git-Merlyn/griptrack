@@ -2,7 +2,14 @@
 
 export function csvEscape(value) {
   if (value === null || value === undefined) return "";
-  const s = String(value);
+  let s = String(value);
+  // CSV formula injection: Excel/Sheets execute cells starting with = + - @
+  // (or tab/CR). Item names etc. are user-entered, so neutralize with a
+  // leading apostrophe — except plain numbers (e.g. a -2 qty delta), which
+  // are safe and should stay sortable.
+  if (/^[=+\-@\t\r]/.test(s) && !/^-?\d+(\.\d+)?$/.test(s)) {
+    s = `'${s}`;
+  }
   if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }
