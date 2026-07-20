@@ -1,9 +1,9 @@
 /**
  * parse-rental-pdf — Supabase Edge Function
  *
- * Accepts a base64-encoded PDF, extracts text via pdf-parse (no browser APIs
- * required), then runs the same regex passes as ImportFileModal.jsx to produce
- * structured rental line items.
+ * Accepts a base64-encoded PDF, extracts text via pdfjs-serverless (no browser
+ * APIs required), then runs the same regex passes as ImportFileModal.jsx to
+ * produce structured rental line items.
  *
  * Called by mobile (React Native/Hermes cannot run pdfjs-dist client-side).
  * Web continues to parse in-browser via pdfjs-dist — this function is available
@@ -26,9 +26,12 @@
  *   { id, name, category, quantity, source, location, start_date, end_date }
  */
 
-// Use the inner module path to avoid pdf-parse's test scaffolding code, which
-// tries to read files from disk and throws in the Deno runtime.
-import pdfParse from 'npm:pdf-parse/lib/pdf-parse.js';
+// pdfjs-serverless is a single slim pdf.js build for Deno/workers. The old
+// npm:pdf-parse dependency vendored FOUR full pdf.js copies selected by a
+// dynamic require, so the deploy bundle ballooned to ~31MB and the platform
+// rejected it with 413. extractPdfText() below reproduces pdf-parse's exact
+// line-reconstruction algorithm so the regex parsers see identical text.
+import { getDocument } from 'npm:pdfjs-serverless';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
@@ -252,6 +255,39 @@ function parseLinesIntoItems(lines: string[], fullText: string): ParsedPDFItem[]
   return items;
 }
 
+// ─── PDF → text ───────────────────────────────────────────────────────────────
+//
+// Mirrors pdf-parse's default render_page: text items on the same baseline
+// (transform[5], the Y coordinate) are concatenated; a Y change starts a new
+// line. Pages are separated by a newline. Identical output shape to what the
+// regex passes were written against.
+
+async function extractPdfText(bytes: Uint8Array): Promise<string> {
+  const doc = await getDocument({ data: bytes, useSystemFonts: true }).promise;
+  let fullText = '';
+
+  for (let i = 1; i <= doc.numPages; i++) {
+    const page = await doc.getPage(i);
+    const content = await page.getTextContent();
+
+    let lastY: number | undefined;
+    let pageText = '';
+    for (const item of content.items as Array<{ str?: string; transform?: number[] }>) {
+      if (typeof item.str !== 'string') continue;
+      const y = item.transform?.[5];
+      if (lastY === y || lastY === undefined) {
+        pageText += item.str;
+      } else {
+        pageText += '\n' + item.str;
+      }
+      lastY = y;
+    }
+    fullText += pageText + '\n';
+  }
+
+  return fullText;
+}
+
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
@@ -303,8 +339,7 @@ Deno.serve(async (req: Request) => {
       bytes[i] = binary.charCodeAt(i);
     }
 
-    const result = await pdfParse(bytes);
-    const fullText: string = result.text ?? '';
+    const fullText = await extractPdfText(bytes);
     const lines = textToLines(fullText);
 
     const items = parseLinesIntoItems(lines, fullText);
