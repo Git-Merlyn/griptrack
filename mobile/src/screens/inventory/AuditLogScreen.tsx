@@ -20,6 +20,8 @@ type Props = NativeStackScreenProps<InventoryStackParamList, 'AuditLog'>;
 const ACTION_META: Record<string, { label: string; color: string; bg: string }> = {
   create: { label: 'Created',  color: '#2ecc71', bg: 'rgba(46,204,113,0.15)' },
   edit:   { label: 'Edited',   color: '#4debf9', bg: 'rgba(77,235,249,0.12)' },
+  // The DB trigger writes 'update' (mobile used to hand-write 'edit'; old rows remain)
+  update: { label: 'Edited',   color: '#4debf9', bg: 'rgba(77,235,249,0.12)' },
   move:   { label: 'Moved',    color: '#a78bfa', bg: 'rgba(167,139,250,0.15)' },
   merge:  { label: 'Merged',   color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
   damage: { label: 'Damaged',  color: '#ff4d4d', bg: 'rgba(255,77,77,0.15)' },
