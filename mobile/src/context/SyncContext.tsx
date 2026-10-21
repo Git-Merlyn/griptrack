@@ -107,7 +107,7 @@ export interface DrainStats {
   failed: number;
 }
 
-async function drainQueue(auditTable: string): Promise<DrainStats> {
+export async function drainQueue(auditTable: string): Promise<DrainStats> {
   const entries = getSyncQueue();
   const stats: DrainStats = { applied: 0, discarded: 0, failed: 0 };
 
@@ -158,11 +158,16 @@ async function drainQueue(auditTable: string): Promise<DrainStats> {
         // overwrite each other's decrement. We use Postgres's increment RPC
         // for atomic application.
         if (payload.qty_delta !== undefined && tableName === 'equipment_items') {
+          // p_op_id = this queue entry's id → the 5-arg overload records it,
+          // so a retry after a lost response does not apply the delta twice.
+          // (Only entries queued by older builds still take this path; new
+          // builds queue moves as one move_equipment rpc entry.)
           const { error } = await supabase.rpc('increment_equipment_quantity', {
             item_id: payload.id,
             delta: payload.qty_delta,
             updated_by_val: payload.patch.updated_by,
             updated_at_val: payload.patch.updated_at,
+            p_op_id: entry.id,
           });
           if (error) throw error;
 
@@ -184,10 +189,25 @@ async function drainQueue(auditTable: string): Promise<DrainStats> {
         }
 
       } else if (entry.operation === 'rpc') {
-        // Queued audit RPCs (log_damage_event / log_merge_event) — table_name
-        // holds the function name, payload the args object.
-        const { error } = await supabase.rpc(entry.table_name, payload);
+        // Queued RPCs (move_equipment, log_damage_event, log_merge_event) —
+        // table_name holds the function name, payload the args object.
+        const { data, error } = await supabase.rpc(entry.table_name, payload);
         if (error) throw error;
+
+        // move_equipment moves at most what the source still holds. If the
+        // server moved less than this offline op asked for (someone changed
+        // the item meanwhile), tell the user like any other server-wins skip.
+        if (
+          entry.table_name === 'move_equipment' &&
+          payload.p_qty != null &&
+          typeof data?.moved_qty === 'number' &&
+          data.moved_qty < Number(payload.p_qty)
+        ) {
+          console.info(`[Sync] move ${payload.p_op_id} moved ${data.moved_qty} of ${payload.p_qty}`);
+          removeSyncEntry(entry.id);
+          stats.discarded++;
+          continue;
+        }
 
       } else if (entry.operation === 'delete') {
         // A delete RLS refuses comes back as 2xx with zero rows; it used to be
@@ -206,6 +226,33 @@ async function drainQueue(auditTable: string): Promise<DrainStats> {
       removeSyncEntry(entry.id);
       stats.applied++;
     } catch (e: any) {
+      // A replayed insert whose row already exists (same client-generated
+      // primary key) was applied by an earlier attempt whose response was
+      // lost — not a failure. Only a primary-key conflict means that: a
+      // conflict on another unique key (e.g. locations (org_id, name)) is a
+      // real rejection and takes the normal failure path below.
+      if (
+        entry.operation === 'insert' &&
+        e?.code === '23505' &&
+        /_pkey"/.test(String(e?.message ?? ''))
+      ) {
+        removeSyncEntry(entry.id);
+        stats.applied++;
+        continue;
+      }
+
+      // move_equipment 22023 = a move that can never succeed (bad args, or —
+      // D22 option C — a crew destination that is not an existing, active
+      // location, e.g. deactivated while this device was offline). Drop it
+      // now instead of retrying 3 times; it shows in the "couldn't be
+      // applied" notice and the pull restores the server's rows.
+      if (entry.table_name === 'move_equipment' && e?.code === '22023') {
+        console.warn(`[Sync] move ${entry.id} rejected:`, e?.message);
+        removeSyncEntry(entry.id);
+        stats.failed++;
+        continue;
+      }
+
       incrementSyncRetries(entry.id);
 
       // If the row was already deleted server-side, discard the entry rather

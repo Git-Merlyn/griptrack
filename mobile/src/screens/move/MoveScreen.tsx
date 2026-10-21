@@ -17,10 +17,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useInventory } from '../../hooks/useInventory';
 import { useLocations } from '../../hooks/useLocations';
 import { useAuthContext } from '../../context/AuthContext';
-import { useEquipmentMutations } from '../../hooks/useEquipmentMutations';
 import { useSyncContext } from '../../context/SyncContext';
 import { useBulkSelection } from '../../hooks/useBulkSelection';
-import { moveEquipment } from '../../lib/moveEquipment';
+import { moveEquipment, moveEquipmentBulk } from '../../lib/moveEquipment';
 import { EquipmentItem } from '../../lib/types';
 import { getQty, statusColor } from '../../lib/helpers';
 import BulkActionBar from '../../components/BulkActionBar';
@@ -29,8 +28,7 @@ export default function MoveScreen() {
   const { equipment, loading, refresh } = useInventory();
   const { locationNames } = useLocations();
   const { profile } = useAuthContext();
-  const { updateItem } = useEquipmentMutations();
-  const { isOnline, bumpLocalVersion } = useSyncContext();
+  const { isOnline, bumpLocalVersion, triggerSync } = useSyncContext();
 
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -68,14 +66,32 @@ export default function MoveScreen() {
 
   // ─── Bulk operations ──────────────────────────────────────────────────────
 
+  // Each selected row is moved whole through the same path as a single move
+  // (move_equipment RPC), so identical rows merge at the destination.
   const handleBulkMove = useCallback(
     async (location: string) => {
-      for (const id of selectedIds) {
-        await updateItem(id, { location });
+      const result = await moveEquipmentBulk({
+        ids: selectedIds,
+        toLocation: location,
+        allItems: equipment,
+        updatedBy: profile?.email ?? 'unknown',
+        isOnline,
+      });
+      bumpLocalVersion();
+
+      if (result.failed.length === 0) {
+        exitBulkMode();
+        return;
       }
-      exitBulkMode();
+
+      // Keep only the failed rows selected so the user can retry them.
+      selectAllVisible(result.failed.map((f) => f.id));
+      const total = result.moved + result.failed.length;
+      const names = result.failed.map((f) => `• ${f.name}: ${f.error}`).join('\n');
+      Alert.alert('Some items were not moved', `Moved ${result.moved} of ${total}.\n\n${names}`);
+      if (isOnline) triggerSync();
     },
-    [selectedIds, updateItem, exitBulkMode]
+    [selectedIds, equipment, profile?.email, isOnline, bumpLocalVersion, exitBulkMode, selectAllVisible, triggerSync]
   );
 
   const handleBulkDelete = useCallback(async () => {
@@ -235,6 +251,7 @@ export default function MoveScreen() {
         profile={profile}
         isOnline={isOnline}
         bumpLocalVersion={bumpLocalVersion}
+        triggerSync={triggerSync}
         onClose={() => setMoveTarget(null)}
       />
     </View>
@@ -312,6 +329,7 @@ interface MoveItemModalProps {
   profile: any;
   isOnline: boolean;
   bumpLocalVersion: () => void;
+  triggerSync: () => Promise<boolean>;
   onClose: () => void;
 }
 
@@ -322,6 +340,7 @@ function MoveItemModal({
   profile,
   isOnline,
   bumpLocalVersion,
+  triggerSync,
   onClose,
 }: MoveItemModalProps) {
   const [qtyInput, setQtyInput] = useState('');
@@ -377,10 +396,14 @@ function MoveItemModal({
     if (result.success) {
       bumpLocalVersion();
       onClose();
-      const suffix = isOnline ? '' : ' (will sync when reconnected)';
-      Alert.alert('Done', `Moved ${qty}× ${item.name} to ${toLocation}.${suffix}`);
+      const moved = result.movedQty ?? qty;
+      const suffix = result.queued ? ' (will sync when reconnected)' : '';
+      const short = moved < qty ? ` Only ${moved} were left to move.` : '';
+      Alert.alert('Done', `Moved ${moved}× ${item.name} to ${toLocation}.${short}${suffix}`);
     } else {
       Alert.alert('Move failed', result.error ?? 'Something went wrong.');
+      // The server is authoritative; re-pull so the list shows its truth.
+      if (isOnline) triggerSync();
     }
   }
 
