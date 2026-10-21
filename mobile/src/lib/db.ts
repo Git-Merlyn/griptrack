@@ -159,6 +159,11 @@ export function deleteEquipmentItemLocal(id: string): void {
   db.runSync('DELETE FROM equipment_items WHERE id = ?', [id]);
 }
 
+/** One cached row by primary key, or null when it isn't in SQLite. */
+export function getEquipmentById(id: string): EquipmentItem | null {
+  return (db.getFirstSync('SELECT * FROM equipment_items WHERE id = ?', [id]) as EquipmentItem | null) ?? null;
+}
+
 export function getEquipmentByTeam(orgId: string, teamId: string): EquipmentItem[] {
   return db.getAllSync(
     `SELECT * FROM equipment_items
@@ -168,14 +173,25 @@ export function getEquipmentByTeam(orgId: string, teamId: string): EquipmentItem
   ) as EquipmentItem[];
 }
 
+// replace* helpers: `keepIds` are rows that still have ops in sync_queue.
+// They are neither deleted nor overwritten by the server copy, so the
+// optimistic local state survives until the queue drains (lib/sync.ts).
+// json_each keeps it to one bound parameter however many ids there are.
+
 export function replaceEquipmentForTeam(
   orgId: string,
   teamId: string,
-  items: EquipmentItem[]
+  items: EquipmentItem[],
+  keepIds: readonly string[] = []
 ): void {
-  db.runSync('DELETE FROM equipment_items WHERE org_id = ? AND team_id = ?', [orgId, teamId]);
+  db.runSync(
+    `DELETE FROM equipment_items WHERE org_id = ? AND team_id = ?
+       AND id NOT IN (SELECT value FROM json_each(?))`,
+    [orgId, teamId, JSON.stringify(keepIds)]
+  );
+  const keep = new Set(keepIds);
   for (const item of items) {
-    upsertEquipmentItem(item);
+    if (!keep.has(item.id)) upsertEquipmentItem(item);
   }
 }
 
@@ -189,10 +205,19 @@ export function getEquipmentByOrg(orgId: string): EquipmentItem[] {
   ) as EquipmentItem[];
 }
 
-export function replaceEquipmentForOrg(orgId: string, items: EquipmentItem[]): void {
-  db.runSync('DELETE FROM equipment_items WHERE org_id = ?', [orgId]);
+export function replaceEquipmentForOrg(
+  orgId: string,
+  items: EquipmentItem[],
+  keepIds: readonly string[] = []
+): void {
+  db.runSync(
+    `DELETE FROM equipment_items WHERE org_id = ?
+       AND id NOT IN (SELECT value FROM json_each(?))`,
+    [orgId, JSON.stringify(keepIds)]
+  );
+  const keep = new Set(keepIds);
   for (const item of items) {
-    upsertEquipmentItem(item);
+    if (!keep.has(item.id)) upsertEquipmentItem(item);
   }
 }
 
@@ -234,10 +259,19 @@ export function deleteLocationLocal(id: string): void {
   db.runSync(`DELETE FROM locations WHERE id = ?`, [id]);
 }
 
-export function replaceLocationsForOrg(orgId: string, locs: Location[]): void {
-  db.runSync('DELETE FROM locations WHERE org_id = ?', [orgId]);
+export function replaceLocationsForOrg(
+  orgId: string,
+  locs: Location[],
+  keepIds: readonly string[] = []
+): void {
+  db.runSync(
+    `DELETE FROM locations WHERE org_id = ?
+       AND id NOT IN (SELECT value FROM json_each(?))`,
+    [orgId, JSON.stringify(keepIds)]
+  );
+  const keep = new Set(keepIds);
   for (const loc of locs) {
-    upsertLocation(loc);
+    if (!keep.has(loc.id)) upsertLocation(loc);
   }
 }
 
@@ -271,10 +305,19 @@ export function getRequestsForUser(orgId: string, userId: string): EquipmentRequ
   ) as EquipmentRequest[];
 }
 
-export function replaceRequestsForOrg(orgId: string, reqs: EquipmentRequest[]): void {
-  db.runSync('DELETE FROM equipment_requests WHERE org_id = ?', [orgId]);
+export function replaceRequestsForOrg(
+  orgId: string,
+  reqs: EquipmentRequest[],
+  keepIds: readonly string[] = []
+): void {
+  db.runSync(
+    `DELETE FROM equipment_requests WHERE org_id = ?
+       AND id NOT IN (SELECT value FROM json_each(?))`,
+    [orgId, JSON.stringify(keepIds)]
+  );
+  const keep = new Set(keepIds);
   for (const req of reqs) {
-    upsertRequest(req);
+    if (!keep.has(req.id)) upsertRequest(req);
   }
 }
 

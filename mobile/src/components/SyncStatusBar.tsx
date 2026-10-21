@@ -40,24 +40,26 @@ export default function SyncStatusBar() {
     );
   }
 
-  if (syncError) {
-    return (
-      <View style={topPad} className="bg-surface border-b border-white/10 px-4 pb-2 flex-row items-center gap-2">
-        <View className="w-2 h-2 rounded-full bg-danger" />
-        <Text className="text-danger text-xs flex-1" numberOfLines={1}>
-          Sync error — {syncError}
-        </Text>
-      </View>
-    );
-  }
-
-  // Transient conflict notice — some offline changes were skipped or dropped
+  // Transient conflict notice — some offline changes were skipped or dropped.
+  // Shown before syncError: it auto-clears after 8 s, while a sync error stays
+  // until the next sync, so the other order would hide the notice entirely.
   if (syncNotice) {
     return (
       <View style={topPad} className="bg-surface border-b border-white/10 px-4 pb-2 flex-row items-center gap-2">
         <View className="w-2 h-2 rounded-full bg-warning" />
         <Text className="text-warning text-xs flex-1" numberOfLines={2}>
           {syncNotice}
+        </Text>
+      </View>
+    );
+  }
+
+  if (syncError) {
+    return (
+      <View style={topPad} className="bg-surface border-b border-white/10 px-4 pb-2 flex-row items-center gap-2">
+        <View className="w-2 h-2 rounded-full bg-danger" />
+        <Text className="text-danger text-xs flex-1" numberOfLines={1}>
+          Sync error — {syncError}
         </Text>
       </View>
     );

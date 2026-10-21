@@ -38,7 +38,7 @@ import {
   upsertEquipmentItem,
   deleteEquipmentItemLocal,
 } from '../lib/db';
-import { drainQueue, pullFromSupabase, type SyncDeps } from '../lib/sync';
+import { drainNoticeText, drainQueue, pullFromSupabase, type SyncDeps } from '../lib/sync';
 import { EquipmentItem } from '../lib/types';
 import { useAuthContext } from './AuthContext';
 import { useTeamContext } from './TeamContext';
@@ -120,6 +120,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const isOnlineRef = useRef(true);
   const syncInProgressRef = useRef(false);
   const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Set when NetInfo reports a reconnect before it has confirmed the internet
+  // is reachable; the deferred sync runs once reachability turns true.
+  const reconnectSyncPendingRef = useRef(false);
   // Which team we last kicked off a sync for — re-syncs on team switch,
   // not just on first mount.
   const lastSyncedTeamRef = useRef<string | null>(null);
@@ -128,6 +131,13 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     initDB();
     setPendingOps(getSyncQueueCount());
+  }, []);
+
+  // Clear the pending notice timer on unmount.
+  useEffect(() => {
+    return () => {
+      if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+    };
   }, []);
 
   const bumpLocalVersion = useCallback(() => {
@@ -149,6 +159,26 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const stats = await drainQueue(SYNC_DEPS, AUDIT_TABLE);
+
+      // Tell the user when offline changes didn't make it: either someone
+      // else edited the same items while we were offline (server wins), or
+      // an op failed permanently. Shown before the pull so a failing pull
+      // can't hide it. Auto-clears after a few seconds.
+      const notice = drainNoticeText(stats);
+      if (notice) {
+        setSyncNotice(notice);
+        if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+        noticeTimerRef.current = setTimeout(() => setSyncNotice(null), 8000);
+      }
+
+      if (stats.interrupted) {
+        // Connection/auth dropped mid-drain: the rest of the queue is intact
+        // and retries on the next reconnect/foreground. Pulling now would
+        // fail the same way, so stop here.
+        setSyncError('connection lost — offline changes are saved and will retry');
+        return true;
+      }
+
       await pullFromSupabase(SYNC_DEPS, {
         orgId: profile.org_id,
         teamId: activeTeamId,
@@ -160,26 +190,13 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       const now = new Date();
       setLastSyncedAt(now);
       setSyncMeta('last_synced', now.toISOString());
-      setPendingOps(0);
       bumpLocalVersion();
-
-      // Tell the user when offline changes didn't make it: either someone
-      // else edited the same items while we were offline (server wins), or
-      // an op failed permanently. Auto-clears after a few seconds.
-      const lost = stats.discarded + stats.failed;
-      if (lost > 0) {
-        setSyncNotice(
-          stats.discarded > 0 && stats.failed === 0
-            ? `${stats.discarded} offline change${stats.discarded !== 1 ? 's' : ''} skipped — items were updated by someone else`
-            : `${lost} offline change${lost !== 1 ? 's' : ''} couldn't be applied`
-        );
-        if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
-        noticeTimerRef.current = setTimeout(() => setSyncNotice(null), 8000);
-      }
     } catch (e: any) {
       console.error('[Sync] sync failed', e);
       setSyncError(e?.message ?? 'Sync failed');
     } finally {
+      // Entries may have been applied or dropped even when the sync failed.
+      setPendingOps(getSyncQueueCount());
       setIsSyncing(false);
       syncInProgressRef.current = false;
     }
@@ -244,13 +261,24 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state: NetInfoState) => {
+      // `online` drives the UI and the mutation path: unknown reachability
+      // (null) counts as online, as before.
       const online = state.isConnected === true && state.isInternetReachable !== false;
       const wasOffline = !isOnlineRef.current;
       isOnlineRef.current = online;
       setIsOnline(online);
 
-      // Auto-sync when coming back online
-      if (online && wasOffline) {
+      // Auto-sync when coming back online — but only once NetInfo has
+      // confirmed the internet is reachable. The first event after a
+      // reconnect often has isInternetReachable === null while the link is
+      // still flapping; draining then just fails.
+      if (!online) {
+        reconnectSyncPendingRef.current = false;
+        return;
+      }
+      if (wasOffline) reconnectSyncPendingRef.current = true;
+      if (reconnectSyncPendingRef.current && state.isInternetReachable === true) {
+        reconnectSyncPendingRef.current = false;
         triggerSync();
       }
     });
