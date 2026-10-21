@@ -1,136 +1,213 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import Stripe from "https://esm.sh/stripe@14?target=deno";
+// stripe-webhook — mirrors Stripe subscription state into public.subscriptions.
+//
+// Auth: Stripe sends a stripe-signature header and no Supabase JWT, so this
+// function is deployed with verify_jwt = false ([functions.stripe-webhook] in
+// supabase/config.toml). The signature check below is the only authentication.
+//
+// Ordering and API versions: event payloads are used only as pointers. Every
+// handled event re-fetches the subscription through the pinned SDK and writes
+// that fresh state, so a late or retried event can never restore an older
+// state, and the payload shape (which follows the webhook endpoint's API
+// version in the Stripe dashboard, not the SDK's) does not matter.
 
-const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, {
-  apiVersion: "2023-10-16",
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import Stripe from "npm:stripe@23.0.0";
+import { buildPriceToPlan, decideWrite, idOf, subscriptionIdFromInvoice } from "./logic.ts";
+
+const STRIPE_API_VERSION = "2026-09-30.endive";
+
+const stripeKey = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
+const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET") ?? "";
+const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+// new Stripe("") throws, which would turn a missing secret into a boot error
+// with no useful log line. Build it only when the key exists.
+const stripe = stripeKey ? new Stripe(stripeKey, { apiVersion: STRIPE_API_VERSION }) : null;
+
+const { map: PRICE_TO_PLAN, missing: missingPriceEnv } = buildPriceToPlan({
+  STRIPE_PRO_PRICE_ID: Deno.env.get("STRIPE_PRO_PRICE_ID"),
+  STRIPE_TEAM_PRICE_ID: Deno.env.get("STRIPE_TEAM_PRICE_ID"),
 });
+if (missingPriceEnv.length > 0) {
+  console.error(
+    `stripe-webhook: ${missingPriceEnv.join(", ")} not set; subscriptions on those prices keep their stored plan`,
+  );
+}
 
-const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET")!;
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 
-// Map Stripe product/price IDs to plan names.
-// These are read from env so you don't have to redeploy to change them.
-const PRICE_TO_PLAN: Record<string, string> = {
-  [Deno.env.get("STRIPE_PRO_PRICE_ID") ?? ""]: "pro",
-  [Deno.env.get("STRIPE_TEAM_PRICE_ID") ?? ""]: "team",
+type SyncOptions = {
+  eventId: string;
+  eventType: string;
+  orgIdHint: string | null;
+  isCheckout: boolean;
 };
 
-serve(async (req) => {
-  const body = await req.text();
-  const sig = req.headers.get("stripe-signature");
+async function syncSubscription(
+  admin: SupabaseClient,
+  client: Stripe,
+  subscriptionId: string,
+  opts: SyncOptions,
+): Promise<void> {
+  const tag = `[${opts.eventType} ${opts.eventId}]`;
 
-  let event: Stripe.Event;
-
+  let fresh: Stripe.Subscription;
   try {
-    event = await stripe.webhooks.constructEventAsync(body, sig!, webhookSecret);
+    fresh = await client.subscriptions.retrieve(subscriptionId);
   } catch (err) {
-    console.error("Webhook signature verification failed:", err.message);
-    return new Response(`Webhook Error: ${err.message}`, { status: 400 });
+    // A subscription Stripe no longer has (e.g. test data deleted) will never
+    // become retrievable; acknowledge instead of letting Stripe retry for days.
+    if ((err as { code?: string }).code === "resource_missing") {
+      console.warn(`${tag} subscription ${subscriptionId} not found in Stripe; ignoring`);
+      return;
+    }
+    throw err;
   }
 
-  const adminClient = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  );
+  const orgId = fresh.metadata?.org_id || opts.orgIdHint;
+  if (!orgId) {
+    console.warn(`${tag} subscription ${fresh.id} has no org_id metadata; ignoring`);
+    return;
+  }
+
+  const { data: stored, error: readError } = await admin
+    .from("subscriptions")
+    .select("stripe_subscription_id, plan")
+    .eq("org_id", orgId)
+    .maybeSingle();
+  if (readError) throw new Error(`read subscriptions for org ${orgId}: ${readError.message}`);
+
+  const decision = decideWrite({
+    fresh,
+    stored,
+    priceToPlan: PRICE_TO_PLAN,
+    isCheckout: opts.isCheckout,
+  });
+
+  if (decision.kind === "skip") {
+    console.warn(`${tag} org ${orgId}: skipped superseded subscription (${decision.reason})`);
+    return;
+  }
+
+  if (decision.unmappedPriceId) {
+    console.error(
+      `${tag} org ${orgId}: price ${decision.unmappedPriceId} is not STRIPE_PRO_PRICE_ID or STRIPE_TEAM_PRICE_ID; ` +
+        (decision.plan ? `using plan "${decision.plan}"` : "keeping the stored plan"),
+    );
+  }
+
+  const row: Record<string, unknown> = {
+    org_id: orgId,
+    stripe_subscription_id: fresh.id,
+    status: decision.status,
+    cancel_at_period_end: decision.cancelAtPeriodEnd,
+    updated_at: new Date().toISOString(),
+  };
+  const customerId = idOf(fresh.customer);
+  if (customerId) row.stripe_customer_id = customerId;
+  if (decision.plan) row.plan = decision.plan;
+  // Never overwrite a known period end with null.
+  if (decision.currentPeriodEnd) row.current_period_end = decision.currentPeriodEnd;
+
+  const { error: writeError } = await admin.from("subscriptions").upsert(row, { onConflict: "org_id" });
+  if (writeError) {
+    // 23503 = foreign key violation: the org was deleted (account deletion
+    // cascades its subscriptions row). Nothing left to update.
+    if (writeError.code === "23503") {
+      console.warn(`${tag} org ${orgId} no longer exists; ignoring`);
+      return;
+    }
+    throw new Error(`upsert subscriptions for org ${orgId}: ${writeError.message}`);
+  }
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method !== "POST") {
+    return new Response("Method Not Allowed", { status: 405 });
+  }
+
+  if (!stripe || !webhookSecret || !supabaseUrl || !serviceRoleKey) {
+    console.error(
+      "stripe-webhook misconfigured: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are all required",
+    );
+    // 500 makes Stripe retry, so no event is lost once the secret is set.
+    return new Response("Server misconfigured", { status: 500 });
+  }
+
+  const sig = req.headers.get("stripe-signature");
+  if (!sig) {
+    return new Response("Webhook Error: missing stripe-signature header", { status: 400 });
+  }
+
+  const body = await req.text();
+  let event: Stripe.Event;
+  try {
+    event = await stripe.webhooks.constructEventAsync(body, sig, webhookSecret);
+  } catch (err) {
+    const message = (err as Error).message;
+    console.error("Webhook signature verification failed:", message);
+    return new Response(`Webhook Error: ${message}`, { status: 400 });
+  }
+
+  const admin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 
   try {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        const orgId = session.metadata?.org_id;
-        if (!orgId || session.mode !== "subscription") break;
-
-        const subscriptionId = session.subscription as string;
-        const sub = await stripe.subscriptions.retrieve(subscriptionId);
-        const priceId = sub.items.data[0]?.price?.id ?? "";
-        const plan = PRICE_TO_PLAN[priceId] ?? "pro";
-
-        await adminClient.from("subscriptions").upsert(
-          {
-            org_id: orgId,
-            stripe_customer_id: session.customer as string,
-            stripe_subscription_id: subscriptionId,
-            plan,
-            status: sub.status,
-            current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
-            cancel_at_period_end: sub.cancel_at_period_end,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "org_id" },
-        );
+        if (session.mode !== "subscription") break;
+        const subscriptionId = idOf(session.subscription);
+        if (!subscriptionId) break;
+        await syncSubscription(admin, stripe, subscriptionId, {
+          eventId: event.id,
+          eventType: event.type,
+          orgIdHint: session.metadata?.org_id ?? null,
+          isCheckout: true,
+        });
         break;
       }
 
-      case "customer.subscription.updated": {
-        const sub = event.data.object as Stripe.Subscription;
-        const orgId = sub.metadata?.org_id;
-        if (!orgId) break;
-
-        const priceId = sub.items.data[0]?.price?.id ?? "";
-        const plan = PRICE_TO_PLAN[priceId] ?? "pro";
-
-        await adminClient.from("subscriptions").upsert(
-          {
-            org_id: orgId,
-            stripe_subscription_id: sub.id,
-            plan,
-            status: sub.status,
-            current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
-            cancel_at_period_end: sub.cancel_at_period_end,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "org_id" },
-        );
-        break;
-      }
-
+      case "customer.subscription.updated":
       case "customer.subscription.deleted": {
-        const sub = event.data.object as Stripe.Subscription;
-        const orgId = sub.metadata?.org_id;
-        if (!orgId) break;
-
-        // Downgrade to free
-        await adminClient.from("subscriptions").upsert(
-          {
-            org_id: orgId,
-            stripe_subscription_id: sub.id,
-            plan: "free",
-            status: "canceled",
-            current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
-            cancel_at_period_end: false,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "org_id" },
-        );
+        const subscriptionId = idOf(event.data.object);
+        if (!subscriptionId) break;
+        await syncSubscription(admin, stripe, subscriptionId, {
+          eventId: event.id,
+          eventType: event.type,
+          orgIdHint: null,
+          isCheckout: false,
+        });
         break;
       }
 
       case "invoice.payment_failed": {
-        const invoice = event.data.object as Stripe.Invoice;
-        const subscriptionId = invoice.subscription as string;
-        if (!subscriptionId) break;
-
-        const sub = await stripe.subscriptions.retrieve(subscriptionId);
-        const orgId = sub.metadata?.org_id;
-        if (!orgId) break;
-
-        await adminClient
-          .from("subscriptions")
-          .update({ status: "past_due", updated_at: new Date().toISOString() })
-          .eq("org_id", orgId);
+        const subscriptionId = subscriptionIdFromInvoice(event.data.object);
+        if (!subscriptionId) break; // one-off invoice, not a subscription
+        await syncSubscription(admin, stripe, subscriptionId, {
+          eventId: event.id,
+          eventType: event.type,
+          orgIdHint: null,
+          isCheckout: false,
+        });
         break;
       }
 
       default:
-        // Unhandled event type — that's fine
+        // Unhandled event type: acknowledge.
         break;
     }
   } catch (err) {
-    console.error(`Error processing ${event.type}:`, err);
-    return new Response(`Handler error: ${err.message}`, { status: 500 });
+    // Transient (Stripe API or database) failure: 500 so Stripe retries.
+    console.error(`Error processing ${event.type} ${event.id}:`, err);
+    return new Response(`Handler error: ${(err as Error).message}`, { status: 500 });
   }
 
-  return new Response(JSON.stringify({ received: true }), {
-    headers: { "Content-Type": "application/json" },
-  });
+  return json({ received: true });
 });
