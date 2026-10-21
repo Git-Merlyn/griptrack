@@ -300,13 +300,23 @@ export default function TeamsPage() {
   };
 
   const handleArchive = async (id) => {
-    await archiveTeam(id);
-    window.toast?.success?.("Team archived");
+    try {
+      await archiveTeam(id);
+      window.toast?.success?.("Team archived");
+    } catch (e) {
+      console.error(e);
+      window.toast?.error?.(e?.message || "Failed to archive team");
+    }
   };
 
   const handleDelete = async (id) => {
-    await deleteTeam(id);
-    window.toast?.success?.("Team deleted");
+    try {
+      await deleteTeam(id);
+      window.toast?.success?.("Team deleted");
+    } catch (e) {
+      console.error(e);
+      window.toast?.error?.(e?.message || "Failed to delete team");
+    }
   };
 
   const toggleExpand = (id) => {

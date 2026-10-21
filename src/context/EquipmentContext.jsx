@@ -8,6 +8,7 @@ import {
 import { supabase } from "../lib/supabaseClient";
 import { canManageInventory, isOrgAdmin } from "@shared/roles";
 import { findMergeDestination } from "./equipmentMoveUtils";
+import { deleteByIds } from "../lib/deleteRows";
 import UserContext from "./UserContext";
 import TeamContext from "./TeamContext";
 
@@ -374,14 +375,16 @@ export const EquipmentProvider = ({ children }) => {
   // normalizeRowFromDb is a stable pure fn defined in this scope; omitting from deps is intentional.
 
   // Insert many items (used by PDF import). Duplicates are allowed.
-  const addMultipleItems = async (items) => {
+  // opts.silent: no toasts — the caller reports success/failure itself
+  // (used by moveEquipment so one move shows one toast, not three).
+  const addMultipleItems = async (items, { silent = false } = {}) => {
     // Org scoping: inserts must always include org_id.
     // If org bootstrap hasn't completed yet, block the insert.
     if (!orgId) {
       const msg = loadingOrg
         ? "Account setup is still loading. Try again in a moment."
         : "No organization found for this user.";
-      window.toast?.error?.(msg);
+      if (!silent) window.toast?.error?.(msg);
       throw new Error(msg);
     }
 
@@ -394,7 +397,7 @@ export const EquipmentProvider = ({ children }) => {
 
     if (error) {
       console.error("Supabase insert failed", error);
-      window.toast?.error?.(error.message || "Failed to add items");
+      if (!silent) window.toast?.error?.(error.message || "Failed to add items");
       throw error;
     }
 
@@ -403,41 +406,67 @@ export const EquipmentProvider = ({ children }) => {
     // Prepend newest items to match the load order (created_at desc)
     setEquipmentData((prev) => [...normalized, ...prev]);
 
-    window.toast?.success?.(`${normalized.length} items added`);
+    if (!silent) window.toast?.success?.(`${normalized.length} items added`);
     return normalized;
   };
 
-  const deleteItem = async (rowId) => {
+  // Delete one item. An RLS-refused DELETE returns 2xx with zero rows, so
+  // deleteByIds asks for the deleted id back and re-reads it when missing:
+  // "denied" (row still there) is an error; "gone" (already deleted
+  // elsewhere) is treated as success.
+  const deleteItem = async (rowId, { silent = false } = {}) => {
     if (!rowId) return;
 
-    const { error } = await supabase
-      .from(EQUIPMENT_TABLE)
-      .delete()
-      .eq("id", rowId);
+    const result = await deleteByIds(EQUIPMENT_TABLE, [rowId]);
 
-    if (error) {
-      console.error("Supabase delete failed", error);
-      window.toast?.error?.(error.message || "Failed to delete item");
-      throw error;
+    if (result.error) {
+      console.error("Supabase delete failed", result.error);
+      if (!silent) window.toast?.error?.(result.error.message || "Failed to delete item");
+      throw result.error;
+    }
+    if (result.denied.length > 0) {
+      const err = new Error("You don't have permission to delete this item.");
+      if (!silent) window.toast?.error?.(err.message);
+      throw err;
     }
 
     setEquipmentData((prev) =>
       prev.filter((x) => String(x.id) !== String(rowId)),
     );
-    window.toast?.success?.("Item deleted");
+    if (!silent) window.toast?.success?.("Item deleted");
+  };
+
+  // Bulk delete in as few requests as possible (chunks of 100 ids). Never
+  // throws for per-row outcomes: returns which ids are gone (deleted now or
+  // already gone) and which were not deleted, so the caller can prune its
+  // selection and report "Deleted X of Y". No toasts — the caller reports.
+  const deleteEquipmentMany = async (ids) => {
+    const result = await deleteByIds(EQUIPMENT_TABLE, ids);
+    const removedIds = [...result.deleted, ...result.gone];
+    if (removedIds.length > 0) {
+      const removed = new Set(removedIds);
+      setEquipmentData((prev) => prev.filter((x) => !removed.has(String(x.id))));
+    }
+    if (result.error) console.error("Supabase bulk delete failed", result.error);
+    return {
+      removedIds,
+      notDeletedIds: [...result.denied, ...result.failed],
+      error: result.error,
+    };
   };
 
   // --- Legacy API expected by Dashboard.jsx (Option B) ---
   const equipment = Array.isArray(equipmentData) ? equipmentData : [];
 
-  const addEquipment = async (item) => {
-    const inserted = await addMultipleItems([item]);
+  const addEquipment = async (item, opts) => {
+    const inserted = await addMultipleItems([item], opts);
     return inserted?.[0];
   };
 
-  const deleteEquipment = async (rowId) => deleteItem(rowId);
+  const deleteEquipment = async (rowId, opts) => deleteItem(rowId, opts);
 
-  const updateEquipment = async (rowId, patch) => {
+  // opts.silent: no toasts (see addMultipleItems).
+  const updateEquipment = async (rowId, patch, { silent = false } = {}) => {
     if (!rowId) return;
 
     const updatePayload = {
@@ -476,7 +505,7 @@ export const EquipmentProvider = ({ children }) => {
 
     if (error) {
       console.error("Supabase update failed", error);
-      window.toast?.error?.(error.message || "Failed to update item");
+      if (!silent) window.toast?.error?.(error.message || "Failed to update item");
       throw error;
     }
 
@@ -484,7 +513,7 @@ export const EquipmentProvider = ({ children }) => {
     setEquipmentData((prev) =>
       prev.map((x) => (String(x.id) === String(rowId) ? normalized : x)),
     );
-    window.toast?.success?.("Item updated");
+    if (!silent) window.toast?.success?.("Item updated");
     return normalized;
   };
 
@@ -509,6 +538,10 @@ export const EquipmentProvider = ({ children }) => {
     const moveQty = Math.min(Number(qty) || 0, currentQty);
     if (moveQty <= 0) return;
 
+    // Inner writes are silent: this function shows one "Item moved" toast,
+    // and failures propagate to the caller (DashboardPage.handleMoveSubmit).
+    const quiet = { silent: true };
+
     // If moving all quantity
     if (moveQty === currentQty) {
       if (existingDest) {
@@ -517,7 +550,7 @@ export const EquipmentProvider = ({ children }) => {
           ...existingDest,
           quantity: (Number(existingDest.quantity) || 0) + currentQty,
           updatedBy: actor ?? existingDest.updatedBy,
-        });
+        }, quiet);
 
         // Explicit merge audit event (includes merged_from_id)
         await logMergeEvent({
@@ -528,14 +561,14 @@ export const EquipmentProvider = ({ children }) => {
           toLocation: newLocation,
         });
 
-        await deleteEquipment(rowId);
+        await deleteEquipment(rowId, quiet);
       } else {
         // No destination row to merge into; just update location
         await updateEquipment(rowId, {
           ...current,
           location: newLocation,
           updatedBy: actor ?? current.updatedBy,
-        });
+        }, quiet);
       }
 
       window.toast?.success?.("Item moved");
@@ -548,7 +581,7 @@ export const EquipmentProvider = ({ children }) => {
       ...current,
       quantity: currentQty - moveQty,
       updatedBy: actor ?? current.updatedBy,
-    });
+    }, quiet);
 
     // 2) Merge into an existing destination row if it exists
     if (existingDest) {
@@ -556,7 +589,7 @@ export const EquipmentProvider = ({ children }) => {
         ...existingDest,
         quantity: (Number(existingDest.quantity) || 0) + moveQty,
         updatedBy: actor ?? existingDest.updatedBy,
-      });
+      }, quiet);
 
       // Explicit merge audit event (includes merged_from_id)
       await logMergeEvent({
@@ -580,7 +613,7 @@ export const EquipmentProvider = ({ children }) => {
         rentalStart: current.rentalStart ?? null,
         rentalEnd: current.rentalEnd ?? null,
         updatedBy: actor ?? current.updatedBy ?? "Unknown",
-      });
+      }, quiet);
     }
 
     window.toast?.success?.("Item moved");
@@ -622,6 +655,7 @@ export const EquipmentProvider = ({ children }) => {
         equipment,
         addEquipment,
         deleteEquipment,
+        deleteEquipmentMany,
         updateEquipment,
         moveEquipment,
         clearImportSummary,

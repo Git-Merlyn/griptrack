@@ -231,13 +231,16 @@ export default function Staff() {
   const handleChangeRole = async (userId, newRole) => {
     setError("");
     setSuccess("");
-    const { error: err } = await supabase
+    const { data: updated, error: err } = await supabase
       .from("organization_members")
       .update({ role: newRole })
       .eq("org_id", orgId)
-      .eq("user_id", userId);
+      .eq("user_id", userId)
+      .select("user_id");
 
     if (err) { setError(err.message || "Failed to update role"); return; }
+    // RLS-refused UPDATE: 2xx with zero rows (not an admin, or the owner's row).
+    if (!updated?.length) { setError("You don't have permission to change this member's role."); return; }
     setSuccess("Role updated.");
     await loadData();
   };
@@ -245,13 +248,15 @@ export default function Staff() {
   const handleChangeTeam = async (userId, newTeamId) => {
     setError("");
     setSuccess("");
-    const { error: err } = await supabase
+    const { data: updated, error: err } = await supabase
       .from("organization_members")
       .update({ team_id: newTeamId })
       .eq("org_id", orgId)
-      .eq("user_id", userId);
+      .eq("user_id", userId)
+      .select("user_id");
 
     if (err) { setError(err.message || "Failed to update team"); return; }
+    if (!updated?.length) { setError("You don't have permission to change this member's team."); return; }
     setSuccess("Team updated.");
     await loadData();
   };

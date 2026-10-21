@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useContext, useMemo, useRef } from "r
 import TeamContext from "./TeamContext";
 import UserContext from "./UserContext";
 import { supabase } from "../lib/supabaseClient";
+import { deleteByIds } from "../lib/deleteRows";
 
 const lsKey = (orgId) => `gt_active_team_${orgId}`;
 
@@ -113,6 +114,10 @@ export const TeamProvider = ({ children }) => {
         .select("id, name, status, max_seats, created_at")
         .single();
 
+      // PGRST116 = zero rows came back: RLS refused the UPDATE.
+      if (error?.code === "PGRST116") {
+        throw new Error("You don't have permission to archive this team.");
+      }
       if (error) throw error;
       setTeams((prev) => prev.map((t) => (t.id === teamId ? data : t)));
       if (activeTeamIdRef.current === teamId) setActiveTeamId(null);
@@ -122,8 +127,12 @@ export const TeamProvider = ({ children }) => {
 
   const deleteTeam = useCallback(
     async (teamId) => {
-      const { error } = await supabase.from("teams").delete().eq("id", teamId);
-      if (error) throw error;
+      // RLS-refused DELETEs return 2xx with zero rows — see deleteByIds.
+      const result = await deleteByIds("teams", [teamId]);
+      if (result.error) throw result.error;
+      if (result.denied.length > 0) {
+        throw new Error("You don't have permission to delete this team.");
+      }
       setTeams((prev) => prev.filter((t) => t.id !== teamId));
       if (activeTeamIdRef.current === teamId) setActiveTeamId(null);
     },

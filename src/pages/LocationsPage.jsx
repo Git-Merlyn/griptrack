@@ -1,5 +1,6 @@
 import { useState, useContext } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { deleteByIds } from "@/lib/deleteRows";
 import EquipmentContext from "@/context/EquipmentContext";
 import useUser from "@/context/useUser";
 
@@ -62,10 +63,17 @@ const LocationsPage = () => {
   };
 
   const handleToggleActive = async (loc) => {
-    await supabase
+    // An RLS-refused UPDATE returns 2xx with zero rows — ask for the row back.
+    const { data: changed, error } = await supabase
       .from("locations")
       .update({ is_active: !loc.is_active })
-      .eq("id", loc.id);
+      .eq("id", loc.id)
+      .select("id");
+    if (error || !changed?.length) {
+      window.toast?.error?.(
+        error?.message || "You don't have permission to change this location.",
+      );
+    }
     await loadLocations();
   };
 
@@ -99,14 +107,16 @@ const LocationsPage = () => {
     setRenameBusy(true);
     setRenameError("");
 
-    // Update the location record
-    const { error } = await supabase
+    // Update the location record. An RLS-refused UPDATE returns 2xx with zero
+    // rows, so ask for the row back before cascading the name to equipment.
+    const { data: renamed, error } = await supabase
       .from("locations")
       .update({ name })
-      .eq("id", loc.id);
+      .eq("id", loc.id)
+      .select("id");
 
-    if (error) {
-      setRenameError(error.message);
+    if (error || !renamed?.length) {
+      setRenameError(error?.message || "You don't have permission to rename this location.");
       setRenameBusy(false);
       return;
     }
@@ -128,8 +138,16 @@ const LocationsPage = () => {
     const itemCount = countByLocation[loc.name] ?? 0;
     if (itemCount > 0) return; // Guard — button is disabled, but just in case
 
-    await supabase.from("locations").delete().eq("id", loc.id);
+    // The result used to be ignored entirely; an RLS-refused DELETE also
+    // returns 2xx with zero rows — deleteByIds tells the cases apart.
+    const result = await deleteByIds("locations", [loc.id]);
     setConfirmDeleteId(null);
+    if (result.error || result.denied.length > 0) {
+      window.toast?.error?.(
+        result.error?.message || "You don't have permission to delete this location.",
+      );
+      return;
+    }
     await loadLocations();
   };
 

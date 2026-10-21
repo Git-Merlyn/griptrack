@@ -21,6 +21,7 @@ import SummaryReportModal from "./components/SummaryReportModal";
 import { fetchAndDownloadAuditCsv } from "./utils/auditExport";
 import { lowStockToCsv, downloadCsv } from "./utils/export";
 import useBulkSelection from "./hooks/useBulkSelection";
+import { bulkDeleteOutcome } from "./utils/bulkDelete";
 import useInventoryView from "./hooks/useInventoryView";
 import useEditFlow from "./hooks/useEditFlow";
 import useLocation from "./hooks/useLocation";
@@ -721,6 +722,7 @@ const DashboardPage = () => {
     allLocations: contextLocations,
     addEquipment,
     deleteEquipment,
+    deleteEquipmentMany,
     updateEquipment,
     moveEquipment,
     // importSummaryMessage and clearImportSummary are optional — if your EquipmentContext
@@ -925,7 +927,8 @@ const DashboardPage = () => {
     if (!deleteTarget?.id) return;
     setDeleteBusy(true);
     try {
-      await Promise.resolve(deleteEquipment(deleteTarget.id));
+      // silent: this handler shows the toasts (avoids a duplicate pair)
+      await deleteEquipment(deleteTarget.id, { silent: true });
       window.toast?.success?.("Item deleted");
       setDeleteTarget(null);
     } catch (e) {
@@ -947,12 +950,13 @@ const DashboardPage = () => {
 
     setDeleteBusy(true);
     try {
-      for (const id of ids) {
-        await Promise.resolve(deleteEquipment(id));
-      }
-      window.toast?.success?.(`Deleted ${ids.length} item(s)`);
+      // One request per 100 ids; rows RLS refused or that errored stay
+      // selected so a retry targets exactly those.
+      const result = await deleteEquipmentMany(ids);
+      const outcome = bulkDeleteOutcome(ids, result);
+      setSelectedIds(outcome.pruneSelection);
       setBulkDeleteTarget(null);
-      clearSelection();
+      window.toast?.[outcome.toastType]?.(outcome.message);
     } catch (e) {
       console.error(e);
       window.toast?.error?.(e?.message || "Bulk delete failed");
@@ -1013,7 +1017,7 @@ const DashboardPage = () => {
             quantity: row.quantity || 1,
             reserveMin: Number(row.reserveMin) || 0,
             updatedBy: actorName,
-          }),
+          }, { silent: true }),
         );
       }
 
