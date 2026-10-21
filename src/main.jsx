@@ -8,7 +8,13 @@ import { TeamProvider } from "./context/TeamProvider";
 import { EquipmentProvider } from "./context/EquipmentContext";
 import App from "./App";
 import ErrorBoundary from "./components/ErrorBoundary";
+import Toaster from "./components/Toaster";
+import { installGlobalToast } from "./lib/toast";
 import "./index.css";
+
+// window.toast backs ~50 `window.toast?.x?.()` call sites. Install it before
+// the first render so provider effects that report errors early are not lost.
+installGlobalToast();
 
 // Dev-only: permission testing panel.
 // import.meta.env.DEV is replaced with `false` at build time so Vite's
@@ -78,5 +84,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         </UserProvider>
       </ErrorBoundary>
     </BrowserRouter>
+    {/* Outside the ErrorBoundary so toasts still render on the crash screen */}
+    <Toaster />
   </React.StrictMode>,
 );

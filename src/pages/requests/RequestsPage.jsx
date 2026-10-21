@@ -201,6 +201,7 @@ const RequestsPage = () => {
       await reviewRequest(id, "approved");
       window.toast?.success?.("Request approved");
     } catch (e) {
+      console.error(e);
       window.toast?.error?.(e?.message || "Failed to approve");
     } finally {
       setReviewBusy(false);
@@ -213,6 +214,7 @@ const RequestsPage = () => {
       await reviewRequest(id, "denied");
       window.toast?.success?.("Request denied");
     } catch (e) {
+      console.error(e);
       window.toast?.error?.(e?.message || "Failed to deny");
     } finally {
       setReviewBusy(false);

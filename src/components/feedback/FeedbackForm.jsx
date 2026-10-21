@@ -1,9 +1,12 @@
-import React, { useMemo, useState, useContext } from "react";
+import { useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import UserContext from "@/context/UserContext";
+import { toast } from "@/lib/toast";
 
+// Deliberately independent of UserContext: the ErrorBoundary renders this form
+// while UserProvider is unmounted (context defaults: orgId null, loadingOrg
+// true). org_id is stamped server-side by the beta_feedback_set_org trigger,
+// so the client needs nothing from the provider.
 const FeedbackForm = ({ onSubmitted }) => {
-  const { orgId, loadingOrg } = useContext(UserContext) || {};
 
   const [type, setType] = useState("bug");
   const [severity, setSeverity] = useState("medium");
@@ -20,18 +23,6 @@ const FeedbackForm = ({ onSubmitted }) => {
     }
   }, []);
 
-  const toastSuccess = (msg) => {
-    if (window.toast?.success) return window.toast.success(msg);
-    if (window.toast) return window.toast(msg);
-    alert(msg);
-  };
-
-  const toastError = (msg) => {
-    if (window.toast?.error) return window.toast.error(msg);
-    if (window.toast) return window.toast(msg);
-    alert(msg);
-  };
-
   const reset = () => {
     setType("bug");
     setSeverity("medium");
@@ -43,14 +34,6 @@ const FeedbackForm = ({ onSubmitted }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!description.trim()) return;
-
-    if (!orgId) {
-      const msg = loadingOrg
-        ? "Account setup is still loading. Try again in a moment."
-        : "No organization found for this user.";
-      toastError(msg);
-      return;
-    }
 
     setSubmitting(true);
     try {
@@ -69,12 +52,17 @@ const FeedbackForm = ({ onSubmitted }) => {
       const { error } = await supabase.from("beta_feedback").insert([payload]);
       if (error) throw error;
 
-      toastSuccess("Feedback submitted — thank you!");
+      toast.success("Feedback submitted — thank you!");
       reset();
       onSubmitted?.();
     } catch (err) {
       console.error(err);
-      toastError(err?.message || "Failed to submit feedback");
+      // 42501 = RLS insert check failed: only signed-in users may submit.
+      toast.error(
+        err?.code === "42501"
+          ? "Please sign in to send feedback."
+          : err?.message || "Failed to submit feedback",
+      );
     } finally {
       setSubmitting(false);
     }
