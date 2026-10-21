@@ -320,6 +320,30 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // Plan gate (audit M9): PDF import is not on the Free plan. This text is
+    // shown inside the iOS/Android apps, so it stays neutral (no upgrade
+    // wording, prices or URLs); `code` is the machine-readable reason. Fails
+    // OPEN on a lookup error so a DB hiccup never blocks a paying org.
+    const admin = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    );
+    const { data: effectivePlan, error: planErr } = await admin.rpc(
+      'user_effective_plan',
+      { p_user: user.id },
+    );
+    if (planErr) {
+      console.error('parse-rental-pdf: plan lookup failed', planErr);
+    } else if (effectivePlan === 'free') {
+      return new Response(
+        JSON.stringify({
+          error: "Plan limit: PDF import is not included in this organization's plan.",
+          code: 'plan_limit:pdf_import',
+        }),
+        { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
     const { fileBase64, fileName } = await req.json() as {
       fileBase64: string;
       fileName: string;
