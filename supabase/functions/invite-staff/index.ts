@@ -182,80 +182,56 @@ if (inviteRowError) {
 }
 
     // Invite via Supabase Auth.
-    // - Brand new user: send the normal invite email.
-    // - Existing user: generate a magic link so the app can still give them a fresh join link.
-    let alreadyRegistered = false;
-    let invitedUserId: string | null = null;
-    let generatedLink: string | null = null;
-
-    const { data: inviteData, error: inviteErr } =
-      await admin.auth.admin.inviteUserByEmail(email, {
-        // IMPORTANT: land invited users on the dedicated invite-accept route.
-        redirectTo: `https://griptrack.app/invite-accept?email=${encodeURIComponent(email)}`,
-        data: {
-          org_name: orgName,
-          invited_by_name: inviterName,
-        },
-      });
+    // - New address: GoTrue creates the user and emails them an invite link.
+    // - Address that already has a confirmed account: GoTrue refuses with
+    //   "already registered". We deliberately do NOT mint a sign-in link for
+    //   them: handing the caller a magic link for someone else's account is an
+    //   account takeover (audit C1). The org_invites row upserted above is all
+    //   an existing user needs; accept_org_invite_for_user() attaches them the
+    //   next time they sign in.
+    // Both outcomes return the identical body, so the response never reveals
+    // whether an address has an account.
+    const { error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
+      // IMPORTANT: land invited users on the dedicated invite-accept route.
+      redirectTo: `https://griptrack.app/invite-accept?email=${encodeURIComponent(email)}`,
+      data: {
+        org_name: orgName,
+        invited_by_name: inviterName,
+      },
+    });
 
     if (inviteErr) {
       const msg = String(inviteErr.message || "").toLowerCase();
+      const code = String((inviteErr as { code?: string }).code || "");
       const isAlreadyRegistered =
+        code === "email_exists" ||
         (msg.includes("already") && msg.includes("registered")) ||
         (msg.includes("already") && msg.includes("exists")) ||
         msg.includes("already been registered");
 
-      if (isAlreadyRegistered) {
-        alreadyRegistered = true;
-
-        const { data: linkData, error: linkErr } =
-          await admin.auth.admin.generateLink({
-            type: "magiclink",
-            email,
-            options: {
-              redirectTo: `https://griptrack.app/invite-accept?email=${encodeURIComponent(email)}`,
-              data: {
-                org_name: orgName,
-                invited_by_name: inviterName,
-              },
-            },
-          });
-
-        if (linkErr) {
-          return new Response(JSON.stringify({ error: linkErr.message }), {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-
-        generatedLink = linkData?.properties?.action_link ?? null;
-      } else {
+      if (!isAlreadyRegistered) {
         return new Response(JSON.stringify({ error: inviteErr.message }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-    } else {
-      invitedUserId = inviteData?.user?.id ?? null;
+      // Existing account: nothing more to send (see comment above).
     }
 
-    // Record the send for rate limiting (both the email path and the
-    // magic-link path count — each is an outbound invite).
+    // Record the send for rate limiting. Both outcomes count, so the limit
+    // behaves the same whether or not the address has an account.
     await admin.from("invite_sends").insert({
       org_id: orgId,
       user_id: user.id,
       email,
     });
 
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        alreadyRegistered,
-        invitedUserId,
-        generatedLink,
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    // Shipped mobile builds (4/5) still look for the old "already registered"
+    // link fields in this body; with them absent they show their plain
+    // "Invite sent" alert. Never add a sign-in URL back to this response.
+    return new Response(JSON.stringify({ ok: true }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (e) {
     return new Response(JSON.stringify({ error: e?.message || "Unknown" }), {
       status: 500,
