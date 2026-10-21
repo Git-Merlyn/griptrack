@@ -27,11 +27,6 @@ export interface PendingInvite {
   created_at: string;
 }
 
-export interface InviteResult {
-  /** Set when the invitee already has an account — share this link with them */
-  generatedLink: string | null;
-}
-
 interface UseOrgMembersResult {
   members: OrgMemberProfile[];
   invites: PendingInvite[];
@@ -41,7 +36,11 @@ interface UseOrgMembersResult {
   changeRole: (userId: string, role: Role) => Promise<void>;
   changeTeam: (userId: string, teamId: string | null) => Promise<void>;
   removeMember: (userId: string) => Promise<void>;
-  inviteMember: (email: string, role: Role, teamId: string | null) => Promise<InviteResult>;
+  /**
+   * Resolves once the invite is recorded. The server never says whether the
+   * address already has an account (C1), so there is nothing to return.
+   */
+  inviteMember: (email: string, role: Role, teamId: string | null) => Promise<void>;
 }
 
 export function useOrgMembers(orgId: string | null): UseOrgMembersResult {
@@ -154,7 +153,7 @@ export function useOrgMembers(orgId: string | null): UseOrgMembersResult {
     setMembers((prev) => prev.filter((m) => m.user_id !== userId));
   }
 
-  async function inviteMember(email: string, role: Role, teamId: string | null): Promise<InviteResult> {
+  async function inviteMember(email: string, role: Role, teamId: string | null): Promise<void> {
     const { data, error: err } = await supabase.functions.invoke('invite-staff', {
       body: { email: email.trim(), orgId, role, teamId },
     });
@@ -162,9 +161,6 @@ export function useOrgMembers(orgId: string | null): UseOrgMembersResult {
     if (err) throw new Error(data?.error || err.message || 'Invite failed');
 
     await fetch();
-    return {
-      generatedLink: data?.alreadyRegistered && data?.generatedLink ? data.generatedLink : null,
-    };
   }
 
   return {

@@ -12,7 +12,6 @@ import {
   Platform,
   Pressable,
   RefreshControl,
-  Share,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useOrgMembers, OrgMemberProfile } from '../../hooks/useOrgMembers';
@@ -347,20 +346,14 @@ export default function ManageMembersScreen() {
       // Default the invitee to whatever team is active for the inviter. When
       // teams are off (or "all teams" is selected) activeTeamId is null, so
       // they join with no team and can be assigned from the member card.
-      const { generatedLink } = await inviteMember(email, role, activeTeamId);
+      await inviteMember(email, role, activeTeamId);
 
-      if (generatedLink) {
-        Alert.alert(
-          'User already registered',
-          'This person already has a GripTrack account. Share the sign-in link so they can join your org.',
-          [
-            { text: 'Done', style: 'cancel' },
-            { text: 'Share link', onPress: () => Share.share({ message: generatedLink }) },
-          ]
-        );
-      } else {
-        Alert.alert('Invite sent', `An invitation was emailed to ${email}.`);
-      }
+      // Same message whether or not the address already has an account: the
+      // server deliberately does not reveal which (C1).
+      Alert.alert(
+        'Invite sent',
+        `Invite sent to ${email}. If they already have a GripTrack account, they'll join the next time they sign in.`
+      );
     } catch (err: any) {
       Alert.alert('Invite failed', err?.message ?? 'Could not send the invite.');
       throw err; // keep modal open

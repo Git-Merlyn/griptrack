@@ -141,7 +141,6 @@ export default function Staff() {
 
   const [error, setError]               = useState("");
   const [success, setSuccess]           = useState("");
-  const [generatedLink, setGeneratedLink] = useState("");
 
   const isAdmin = role === "owner" || role === "admin";
 
@@ -199,13 +198,13 @@ export default function Staff() {
     e.preventDefault();
     setError("");
     setSuccess("");
-    setGeneratedLink("");
 
-    if (!email.trim()) { setError("Email is required"); return; }
+    const sentTo = email.trim();
+    if (!sentTo) { setError("Email is required"); return; }
 
     setInviting(true);
     const { data, error: inviteErr } = await supabase.functions.invoke("invite-staff", {
-      body: { email: email.trim(), orgId, role: inviteRole, teamId: inviteTeamId || null },
+      body: { email: sentTo, orgId, role: inviteRole, teamId: inviteTeamId || null },
     });
     setInviting(false);
 
@@ -214,12 +213,12 @@ export default function Staff() {
       return;
     }
 
-    if (data?.alreadyRegistered && data?.generatedLink) {
-      setSuccess("User already exists — share this sign-in link so they can join.");
-      setGeneratedLink(data.generatedLink);
-    } else {
-      setSuccess("Invite sent.");
-    }
+    // Same message whether or not the address already has an account: the
+    // server deliberately does not reveal which (C1). Existing users are
+    // attached by accept_org_invite_for_user() on their next sign-in.
+    setSuccess(
+      `Invite sent to ${sentTo}. If they already have a GripTrack account, they'll join the next time they sign in.`,
+    );
 
     setEmail("");
     await loadData();
@@ -355,15 +354,6 @@ export default function Staff() {
       {/* ── Feedback ── */}
       {error   && <div className="text-red-400 text-sm">{error}</div>}
       {success && <div className="text-green-400 text-sm">{success}</div>}
-      {generatedLink && (
-        <div className="bg-surface border border-gray-700 rounded-xl p-4">
-          <p className="text-sm text-gray-300 mb-2">Share this sign-in link with the existing user:</p>
-          <a href={generatedLink} target="_blank" rel="noreferrer"
-             className="text-accent underline underline-offset-2 break-all text-sm">
-            {generatedLink}
-          </a>
-        </div>
-      )}
 
       {/* ── Members grouped by team ── */}
       <div className="flex flex-col gap-6">
