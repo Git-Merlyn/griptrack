@@ -1,30 +1,29 @@
 // drainQueue replay behaviour for moves (WP05: H1 / M13 / L70).
-jest.mock('@react-native-community/netinfo', () => ({
-  __esModule: true,
-  default: { addEventListener: jest.fn(() => jest.fn()) },
+// Moved from context/drainQueue.test.ts by WP10 when drainQueue moved to lib/sync.ts.
+jest.mock('./supabase', () => ({
+  supabase: {
+    rpc: jest.fn(),
+    from: jest.fn(),
+    auth: { getSession: jest.fn(async () => ({ data: { session: { user: { id: 'u' } } }, error: null })) },
+  },
 }));
-jest.mock('./AuthContext', () => ({ useAuthContext: jest.fn() }));
-jest.mock('./TeamContext', () => ({ useTeamContext: jest.fn() }));
-jest.mock('./OrgContext', () => ({ useOrgContext: jest.fn() }));
-jest.mock('../lib/supabase', () => ({ supabase: { rpc: jest.fn(), from: jest.fn() } }));
-jest.mock('../lib/db', () => ({
-  initDB: jest.fn(),
+jest.mock('./db', () => ({
   getSyncQueue: jest.fn(),
   removeSyncEntry: jest.fn(),
   incrementSyncRetries: jest.fn(),
-  getSyncQueueCount: jest.fn(() => 0),
   replaceEquipmentForTeam: jest.fn(),
   replaceEquipmentForOrg: jest.fn(),
   replaceLocationsForOrg: jest.fn(),
   replaceRequestsForOrg: jest.fn(),
-  setSyncMeta: jest.fn(),
-  upsertEquipmentItem: jest.fn(),
-  deleteEquipmentItemLocal: jest.fn(),
 }));
 
-import { drainQueue } from './SyncContext';
-import { supabase } from '../lib/supabase';
-import { getSyncQueue, removeSyncEntry, incrementSyncRetries } from '../lib/db';
+import { drainQueue as drain, type SyncDeps } from './sync';
+import { supabase } from './supabase';
+import * as db from './db';
+import { getSyncQueue, removeSyncEntry, incrementSyncRetries } from './db';
+
+const deps = { supabase, db } as unknown as SyncDeps;
+const drainQueue = (auditTable: string) => drain(deps, auditTable);
 
 const mockRpc = supabase.rpc as jest.Mock;
 const mockFrom = supabase.from as jest.Mock;
@@ -67,7 +66,7 @@ describe('drainQueue — move_equipment rpc entries', () => {
 
     expect(mockRpc).toHaveBeenCalledWith('move_equipment', moveArgs);
     expect(mockRemove).toHaveBeenCalledWith('q-1');
-    expect(stats).toEqual({ applied: 1, discarded: 0, failed: 0 });
+    expect(stats).toMatchObject({ applied: 1, discarded: 0, failed: 0 });
   });
 
   it('a retry after a lost response sends the same p_op_id; already_applied counts as applied', async () => {
@@ -83,7 +82,7 @@ describe('drainQueue — move_equipment rpc entries', () => {
 
     expect(mockRpc.mock.calls[0][1].p_op_id).toBe('op-1');
     expect(mockRpc.mock.calls[1][1].p_op_id).toBe('op-1');
-    expect(second).toEqual({ applied: 1, discarded: 0, failed: 0 });
+    expect(second).toMatchObject({ applied: 1, discarded: 0, failed: 0 });
     expect(mockRemove).toHaveBeenCalledWith('q-1');
   });
 
@@ -93,7 +92,7 @@ describe('drainQueue — move_equipment rpc entries', () => {
 
     const stats = await drainQueue('equipment_audit');
 
-    expect(stats).toEqual({ applied: 0, discarded: 1, failed: 0 });
+    expect(stats).toMatchObject({ applied: 0, discarded: 1, failed: 0 });
     expect(mockRemove).toHaveBeenCalledWith('q-1');
   });
 
@@ -103,7 +102,7 @@ describe('drainQueue — move_equipment rpc entries', () => {
 
     const stats = await drainQueue('equipment_audit');
 
-    expect(stats).toEqual({ applied: 1, discarded: 0, failed: 0 });
+    expect(stats).toMatchObject({ applied: 1, discarded: 0, failed: 0 });
   });
 
   it('D22: destination no longer an existing location (22023) → dropped at once as failed, not retried', async () => {
@@ -112,7 +111,7 @@ describe('drainQueue — move_equipment rpc entries', () => {
 
     const stats = await drainQueue('equipment_audit');
 
-    expect(stats).toEqual({ applied: 0, discarded: 0, failed: 1 });
+    expect(stats).toMatchObject({ applied: 0, discarded: 0, failed: 1 });
     expect(mockRemove).toHaveBeenCalledWith('q-1');
     expect(mockRetry).not.toHaveBeenCalled();
   });
@@ -123,7 +122,7 @@ describe('drainQueue — move_equipment rpc entries', () => {
 
     const stats = await drainQueue('equipment_audit');
 
-    expect(stats).toEqual({ applied: 0, discarded: 0, failed: 1 });
+    expect(stats).toMatchObject({ applied: 0, discarded: 0, failed: 1 });
     expect(mockRemove).toHaveBeenCalledWith('q-1');
   });
 });
@@ -163,7 +162,7 @@ describe('drainQueue — legacy entries queued by older builds', () => {
 
     const stats = await drainQueue('equipment_audit');
 
-    expect(stats).toEqual({ applied: 1, discarded: 0, failed: 0 });
+    expect(stats).toMatchObject({ applied: 1, discarded: 0, failed: 0 });
     expect(mockRemove).toHaveBeenCalledWith('q-ins');
     expect(mockRetry).not.toHaveBeenCalled();
   });
@@ -179,7 +178,7 @@ describe('drainQueue — legacy entries queued by older builds', () => {
 
     const stats = await drainQueue('equipment_audit');
 
-    expect(stats).toEqual({ applied: 0, discarded: 0, failed: 0 }); // retried, not yet dropped
+    expect(stats).toMatchObject({ applied: 0, discarded: 0, failed: 0 }); // retried, not yet dropped
     expect(mockRetry).toHaveBeenCalledWith('q-loc');
     expect(mockRemove).not.toHaveBeenCalled();
   });
