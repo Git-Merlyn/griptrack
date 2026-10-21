@@ -55,11 +55,11 @@ export function useInventory(): UseInventoryReturn {
     loadFromDB();
   }, [loadFromDB, localVersion]);
 
-  // Show loading state while initial sync is in progress and DB is empty
+  // Spinner only while a sync runs on an empty cache. It clears when the sync
+  // ends even if it failed (a failed sync never bumps localVersion, so
+  // loadFromDB wouldn't run again to clear it), and as soon as rows show up.
   useEffect(() => {
-    if (isSyncing && equipment.length === 0) {
-      setLoading(true);
-    }
+    setLoading(isSyncing && equipment.length === 0);
   }, [isSyncing, equipment.length]);
 
   // Client-side search: name, category, location
