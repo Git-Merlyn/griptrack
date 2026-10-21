@@ -45,7 +45,8 @@ serve(async (req) => {
     const body = await req.json();
     const email = String(body?.email || "").trim().toLowerCase();
     const orgId = String(body?.orgId || "").trim();
-    const role = String(body?.role || "staff").trim();
+    // Mirrors shared/roles.ts ASSIGNABLE_ROLES — 'owner' is never grantable.
+    const role = String(body?.role || "crew").trim();
     // Optional target team. Empty string / missing => no team.
     const teamId = body?.teamId ? String(body.teamId).trim() : null;
 
@@ -61,7 +62,7 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (!["crew", "department_head", "admin", "owner"].includes(role)) {
+    if (!["crew", "department_head", "admin"].includes(role)) {
       return new Response(JSON.stringify({ error: "Invalid role" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -113,30 +114,66 @@ serve(async (req) => {
     }
 
     // Rate limit: cap invite emails per org per hour so a compromised or
-    // careless admin can't burn the email quota / spam inboxes. Counts sends
-    // (including re-invites to the same address), recorded in invite_sends
-    // after each successful send below.
+    // careless admin can't burn the email quota or spam inboxes.
+    // record_invite_send counts
+    // and records in one locked transaction, so concurrent requests cannot all
+    // slip under the cap, and it fails closed. Every attempt that passes the
+    // checks above counts — including re-invites and refusals.
     const RATE_LIMIT_PER_HOUR = 20;
-    const windowStart = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    const { count: recentSends, error: rateErr } = await admin
-      .from("invite_sends")
-      .select("*", { count: "exact", head: true })
-      .eq("org_id", orgId)
-      .gte("at", windowStart);
+    const { data: underLimit, error: rateErr } = await admin.rpc("record_invite_send", {
+      p_org: orgId,
+      p_user: user.id,
+      p_email: email,
+      p_limit: RATE_LIMIT_PER_HOUR,
+    });
 
     if (rateErr) {
-      // Fail closed-ish: if we can't check, don't silently allow unlimited sends.
+      // Fail closed: if we can't record the send, don't send.
       return new Response(JSON.stringify({ error: "Could not verify invite rate limit. Please try again." }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if ((recentSends ?? 0) >= RATE_LIMIT_PER_HOUR) {
+    if (underLimit !== true) {
       return new Response(
         JSON.stringify({ error: "Invite limit reached (20 per hour). Please try again later." }),
         { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+
+    // An invite must never touch an existing membership, and an account can
+    // belong to only one org (organization_members_one_org_per_user).
+    // invite_target_status: no_account | no_org | member | placeholder_org | other_org
+    // (placeholder_org = an untouched auto-created org that accepting will dissolve).
+    // Only `member` is reported back: the admin can already see their own
+    // member list, so it reveals nothing. Every other outcome — including
+    // `other_org` — deliberately gets the same { ok: true } and the same
+    // pending invite row, so the response never tells an admin whether an
+    // email has a GripTrack account (Decision 2, Chris 2026-10-21). An
+    // other_org invite simply stays pending (accept_org_invite_for_user leaves
+    // it alone) until the admin revokes it.
+    const { data: target, error: targetErr } = await admin.rpc("invite_target_status", {
+      p_org: orgId,
+      p_email: email,
+    });
+
+    if (targetErr) {
+      return new Response(JSON.stringify({ error: "Could not check this email. Please try again." }), {
+        status: 502,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (target === "member") {
+      return new Response(
+        JSON.stringify({
+          error: "This person is already a member of your organization. Change their role from the member list instead.",
+        }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    // No branch for `other_org` on purpose (see comment above): fall through,
+    // upsert the pending invite like any other, and let the existing-account
+    // path below return the uniform { ok: true } without sending an email.
 
     // Load org name for invite email metadata.
     const { data: orgRow } = await admin
@@ -159,27 +196,30 @@ serve(async (req) => {
       String(user.email || "").trim() ||
       "Someone";
 
-    // Create/refresh invite row (pending)
+    // Create/refresh the invite row. A revoked row, or an accepted row whose
+    // member has since been removed, goes back to pending. (Existing members
+    // were refused above, so this never reopens a live membership's invite.)
     const { error: inviteRowError } = await admin
-  .from("org_invites")
-  .upsert(
-    {
-      org_id: orgId,
-      email,
-      role: role === "owner" ? "admin" : role,
-      status: "pending",
-      invited_by: user.id,
-      team_id: teamId,
-    },
-    { onConflict: "org_id,email" }
-  );
+      .from("org_invites")
+      .upsert(
+        {
+          org_id: orgId,
+          email,
+          role,
+          status: "pending",
+          invited_by: user.id,
+          team_id: teamId,
+          accepted_at: null,
+        },
+        { onConflict: "org_id,email" },
+      );
 
-if (inviteRowError) {
-  return new Response(JSON.stringify({ error: inviteRowError.message }), {
-    status: 400,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
+    if (inviteRowError) {
+      return new Response(JSON.stringify({ error: inviteRowError.message }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Invite via Supabase Auth.
     // - New address: GoTrue creates the user and emails them an invite link.
@@ -217,14 +257,6 @@ if (inviteRowError) {
       }
       // Existing account: nothing more to send (see comment above).
     }
-
-    // Record the send for rate limiting. Both outcomes count, so the limit
-    // behaves the same whether or not the address has an account.
-    await admin.from("invite_sends").insert({
-      org_id: orgId,
-      user_id: user.id,
-      email,
-    });
 
     // Shipped mobile builds (4/5) still look for the old "already registered"
     // link fields in this body; with them absent they show their plain
