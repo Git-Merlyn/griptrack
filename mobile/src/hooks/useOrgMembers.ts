@@ -25,6 +25,7 @@ export interface PendingInvite {
   id: string;
   email: string;
   role: Role;
+  team_id: string | null;
   created_at: string;
 }
 
@@ -42,6 +43,8 @@ interface UseOrgMembersResult {
    * address already has an account (C1), so there is nothing to return.
    */
   inviteMember: (email: string, role: Role, teamId: string | null) => Promise<void>;
+  revokeInvite: (inviteId: string) => Promise<void>;
+  resendInvite: (invite: PendingInvite) => Promise<void>;
 }
 
 export function useOrgMembers(orgId: string | null): UseOrgMembersResult {
@@ -94,7 +97,7 @@ export function useOrgMembers(orgId: string | null): UseOrgMembersResult {
 
       const { data: inviteRows, error: invitesErr } = await supabase
         .from('org_invites')
-        .select('id, email, role, created_at')
+        .select('id, email, role, team_id, created_at')
         .eq('org_id', orgId)
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
@@ -162,6 +165,30 @@ export function useOrgMembers(orgId: string | null): UseOrgMembersResult {
     await fetch();
   }
 
+  async function revokeInvite(inviteId: string) {
+    // Clients may only flip a pending invite to 'revoked' (RLS + column grant).
+    // .select() so an RLS-filtered no-op is detected instead of reported as done.
+    const { data: revoked, error: err } = await supabase
+      .from('org_invites')
+      .update({ status: 'revoked' })
+      .eq('id', inviteId)
+      .eq('status', 'pending')
+      .select('id');
+
+    if (err) throw new Error(err.message);
+    if (!revoked?.length) {
+      await fetch();
+      throw new Error('This invite was already accepted or revoked.');
+    }
+
+    setInvites((prev) => prev.filter((i) => i.id !== inviteId));
+  }
+
+  async function resendInvite(invite: PendingInvite) {
+    // Same edge function as a new invite: refreshes the row and re-sends the email.
+    await inviteMember(invite.email, invite.role, invite.team_id ?? null);
+  }
+
   return {
     members,
     invites,
@@ -172,5 +199,7 @@ export function useOrgMembers(orgId: string | null): UseOrgMembersResult {
     changeTeam,
     removeMember,
     inviteMember,
+    revokeInvite,
+    resendInvite,
   };
 }

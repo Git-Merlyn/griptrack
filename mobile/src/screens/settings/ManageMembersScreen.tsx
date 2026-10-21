@@ -14,7 +14,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useOrgMembers, OrgMemberProfile } from '../../hooks/useOrgMembers';
+import { useOrgMembers, OrgMemberProfile, PendingInvite } from '../../hooks/useOrgMembers';
 import { useOrgContext } from '../../context/OrgContext';
 import { useAuthContext } from '../../context/AuthContext';
 import { useTeamContext } from '../../context/TeamContext';
@@ -251,6 +251,8 @@ export default function ManageMembersScreen() {
     changeTeam,
     removeMember,
     inviteMember,
+    revokeInvite,
+    resendInvite,
   } = useOrgMembers(orgId);
 
   const [refreshing, setRefreshing] = useState(false);
@@ -341,7 +343,41 @@ export default function ManageMembersScreen() {
     );
   }
 
+  function promptInviteAction(invite: PendingInvite) {
+    // Three buttons max so Android shows all of them.
+    Alert.alert(invite.email, 'This invite has not been accepted yet.', [
+      {
+        text: 'Resend',
+        onPress: async () => {
+          try {
+            await resendInvite(invite);
+            Alert.alert('Invite re-sent', `Invite re-sent to ${invite.email}.`);
+          } catch (err: any) {
+            Alert.alert('Resend failed', err?.message ?? 'Could not resend the invite.');
+          }
+        },
+      },
+      {
+        text: 'Revoke',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await revokeInvite(invite.id);
+          } catch (err: any) {
+            Alert.alert('Error', err?.message ?? 'Failed to revoke invite.');
+          }
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }
+
   async function handleInvite(email: string, role: Role) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (members.some((m) => m.email.toLowerCase() === normalizedEmail)) {
+      Alert.alert('Already a member', `${email} is already in your organization. Change their role from the member list.`);
+      throw new Error('already a member'); // keep modal open
+    }
     try {
       // Default the invitee to whatever team is active for the inviter. When
       // teams are off (or "all teams" is selected) activeTeamId is null, so
@@ -399,8 +435,13 @@ export default function ManageMembersScreen() {
                   Pending invites
                 </Text>
                 {invites.map((inv) => (
-                  <View
+                  <TouchableOpacity
                     key={inv.id}
+                    disabled={!canManage}
+                    onPress={() => promptInviteAction(inv)}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Pending invite for ${inv.email}`}
                     className="flex-row items-center justify-between bg-surface border border-white/10 rounded-xl px-4 py-3 mb-2"
                   >
                     <View className="flex-1 min-w-0 flex-row items-center gap-2">
@@ -409,8 +450,11 @@ export default function ManageMembersScreen() {
                       </Text>
                       <RoleBadge role={inv.role} />
                     </View>
-                    <Text className="text-text text-xs">Pending</Text>
-                  </View>
+                    <View className="flex-row items-center gap-1">
+                      <Text className="text-text text-xs">Pending</Text>
+                      {canManage && <Ionicons name="ellipsis-horizontal" size={14} color="#9ca3af" />}
+                    </View>
+                  </TouchableOpacity>
                 ))}
               </View>
             ) : null
