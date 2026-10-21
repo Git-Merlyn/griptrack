@@ -7,6 +7,7 @@ import { invokeFn } from "@/lib/invokeFn";
 import useUser from "@/context/useUser";
 import useTeam from "@/context/useTeam";
 import { ASSIGNABLE_ROLES as SHARED_ASSIGNABLE_ROLES } from "@shared/roles";
+import { revokeInvite, resendInviteBody } from "@/lib/orgInvites";
 
 // Role options available when inviting or changing an existing member.
 // The list itself is shared with mobile (owner is never assignable);
@@ -139,6 +140,7 @@ export default function Staff() {
     if (!inviteTeamTouched && activeTeamId) setInviteTeamId(activeTeamId);
   }, [activeTeamId, inviteTeamTouched]);
   const [inviting, setInviting]         = useState(false);
+  const [inviteBusyId, setInviteBusyId] = useState(null);
 
   const [error, setError]               = useState("");
   const [success, setSuccess]           = useState("");
@@ -202,6 +204,11 @@ export default function Staff() {
 
     const sentTo = email.trim();
     if (!sentTo) { setError("Email is required"); return; }
+    const normalizedEmail = sentTo.toLowerCase();
+    if (members.some((m) => m.profile?.email?.toLowerCase() === normalizedEmail)) {
+      setError("That person is already a member. Change their role from the list below.");
+      return;
+    }
 
     setInviting(true);
     try {
@@ -282,6 +289,38 @@ export default function Staff() {
       return;
     }
     setSuccess("Member removed.");
+    await loadData();
+  };
+
+  const handleRevokeInvite = async (inv) => {
+    if (!confirm(`Revoke the invite for ${inv.email}?`)) return;
+    setError("");
+    setSuccess("");
+    setInviteBusyId(inv.id);
+    try {
+      await revokeInvite(supabase, inv.id);
+      setSuccess("Invite revoked.");
+    } catch (err) {
+      setError(err?.message || "Failed to revoke invite.");
+    } finally {
+      setInviteBusyId(null);
+    }
+    await loadData();
+  };
+
+  const handleResendInvite = async (inv) => {
+    setError("");
+    setSuccess("");
+    setInviteBusyId(inv.id);
+    try {
+      await invokeFn("invite-staff", { body: resendInviteBody(inv, orgId) });
+    } catch (resendErr) {
+      setError(resendErr?.message || "Resend failed");
+      return;
+    } finally {
+      setInviteBusyId(null);
+    }
+    setSuccess(`Invite re-sent to ${inv.email}.`);
     await loadData();
   };
 
@@ -403,14 +442,35 @@ export default function Staff() {
           <div className="flex flex-col gap-2">
             {invites.map((inv) => (
               <div key={inv.id}
-                   className="flex items-center justify-between px-4 py-3 rounded-xl border border-gray-700 bg-surface">
-                <div>
-                  <span className="text-sm text-text">{inv.email}</span>
+                   className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 rounded-xl border border-gray-700 bg-surface">
+                <div className="min-w-0">
+                  <span className="text-sm text-text break-all">{inv.email}</span>
                   <span className={`ml-2 text-xs px-1.5 py-0.5 rounded-full font-semibold ${roleBadgeClass(inv.role)}`}>
                     {roleLabel(inv.role)}
                   </span>
                 </div>
-                <span className="text-xs text-gray-500">Pending</span>
+                {isAdmin ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="btn-secondary-sm"
+                      disabled={inviteBusyId === inv.id}
+                      onClick={() => handleResendInvite(inv)}
+                    >
+                      Resend
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary-sm text-danger border-danger/30 hover:bg-danger/10"
+                      disabled={inviteBusyId === inv.id}
+                      onClick={() => handleRevokeInvite(inv)}
+                    >
+                      Revoke
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-xs text-gray-500">Pending</span>
+                )}
               </div>
             ))}
           </div>
