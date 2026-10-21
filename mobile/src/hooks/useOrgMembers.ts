@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { invokeFn } from '../lib/invokeFn';
 import { Role } from '../lib/types';
 
 /**
@@ -154,11 +155,9 @@ export function useOrgMembers(orgId: string | null): UseOrgMembersResult {
   }
 
   async function inviteMember(email: string, role: Role, teamId: string | null): Promise<void> {
-    const { data, error: err } = await supabase.functions.invoke('invite-staff', {
-      body: { email: email.trim(), orgId, role, teamId },
-    });
-
-    if (err) throw new Error(data?.error || err.message || 'Invite failed');
+    // invokeFn throws with the function's own message ("Admins only",
+    // "Invite limit reached (20 per hour)") instead of the generic non-2xx text.
+    await invokeFn('invite-staff', { body: { email: email.trim(), orgId, role, teamId } });
 
     await fetch();
   }

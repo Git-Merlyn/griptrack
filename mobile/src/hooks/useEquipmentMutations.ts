@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { deleteById } from '../lib/deleteById';
 import { EquipmentItem, ParsedPDFItem } from '../lib/types';
 import { useAuthContext } from '../context/AuthContext';
 import { useTeamContext } from '../context/TeamContext';
@@ -202,12 +203,16 @@ export function useEquipmentMutations(): UseMutationsReturn {
     async (id: string): Promise<void> => {
       if (!profile?.org_id) throw new Error('Not authenticated');
 
-      deleteEquipmentItemLocal(id);
-
       if (isOnline) {
-        const { error } = await supabase.from(EQUIPMENT_TABLE).delete().eq('id', id);
-        if (error) throw error;
+        // Server first: an RLS-refused DELETE returns 2xx with zero rows, and
+        // the local row must survive that (it used to vanish until next pull).
+        const outcome = await deleteById(EQUIPMENT_TABLE, id);
+        if (outcome === 'denied') {
+          throw new Error("You don't have permission to delete this item.");
+        }
+        deleteEquipmentItemLocal(id);
       } else {
+        deleteEquipmentItemLocal(id);
         enqueueOp({ table_name: EQUIPMENT_TABLE, operation: 'delete', payload: JSON.stringify({ id }) });
       }
 

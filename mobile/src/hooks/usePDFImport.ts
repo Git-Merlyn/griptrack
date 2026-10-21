@@ -3,7 +3,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { ParsedPDFItem } from '../lib/types';
 import { parseCSV } from '../lib/parseRentalFile';
-import { supabase } from '../lib/supabase';
+import { invokeFn } from '../lib/invokeFn';
 
 export type PDFImportStatus = 'idle' | 'parsing' | 'done' | 'error';
 
@@ -48,12 +48,12 @@ export function usePDFImport(): UsePDFImportReturn {
           encoding: 'base64',
         });
 
-        const { data, error: fnError } = await supabase.functions.invoke(
-          'parse-rental-pdf',
-          { body: { fileBase64: base64, fileName: asset.name } }
-        );
+        // invokeFn surfaces the function's own error text (e.g. "Unauthorized",
+        // "fileBase64 is required") instead of the generic non-2xx message.
+        const data = await invokeFn<unknown>('parse-rental-pdf', {
+          body: { fileBase64: base64, fileName: asset.name },
+        });
 
-        if (fnError) throw fnError;
         if (!Array.isArray(data)) throw new Error('Unexpected response from parse-rental-pdf');
 
         items = data as ParsedPDFItem[];

@@ -33,6 +33,7 @@ import { AppState, AppStateStatus } from 'react-native';
 import NetInfo, { NetInfoState } from '@react-native-community/netinfo';
 
 import { supabase } from '../lib/supabase';
+import { deleteById } from '../lib/deleteById';
 import {
   initDB,
   getSyncQueue,
@@ -189,8 +190,17 @@ async function drainQueue(auditTable: string): Promise<DrainStats> {
         if (error) throw error;
 
       } else if (entry.operation === 'delete') {
-        const { error } = await supabase.from(tableName).delete().eq('id', payload.id);
-        if (error) throw error;
+        // A delete RLS refuses comes back as 2xx with zero rows; it used to be
+        // counted as applied. Report it (the "couldn't be applied" notice) and
+        // drop the entry — retrying can't succeed. The next pull restores the
+        // row locally because the server still has it.
+        const outcome = await deleteById(tableName, payload.id);
+        if (outcome === 'denied') {
+          console.info(`[Sync] delete of ${payload.id} on ${tableName} not permitted — server row kept`);
+          removeSyncEntry(entry.id);
+          stats.failed++;
+          continue;
+        }
       }
 
       removeSyncEntry(entry.id);

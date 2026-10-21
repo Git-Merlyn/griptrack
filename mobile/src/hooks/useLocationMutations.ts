@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { deleteById } from '../lib/deleteById';
 import { useAuthContext } from '../context/AuthContext';
 import { useSyncContext } from '../context/SyncContext';
 import {
@@ -80,8 +81,12 @@ export function useLocationMutations() {
 
   async function deleteLocation(id: string): Promise<void> {
     if (isOnline) {
-      const { error } = await supabase.from(LOCATIONS_TABLE).delete().eq('id', id);
-      if (error) throw new Error(error.message);
+      // An RLS-refused DELETE returns 2xx with zero rows (e.g. a department
+      // head: locations delete is owner/admin only) — don't drop the local row.
+      const outcome = await deleteById(LOCATIONS_TABLE, id);
+      if (outcome === 'denied') {
+        throw new Error("You don't have permission to delete this location.");
+      }
       deleteLocationLocal(id);
     } else {
       deleteLocationLocal(id);
