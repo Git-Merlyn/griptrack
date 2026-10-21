@@ -1,7 +1,12 @@
-// Badge label/color for every equipment_audit.action value written by either
-// platform: create/update/move/delete (DB trigger), merge (web merge flow),
-// edit/damage (mobile explicit writes — mobile uses "edit" where web's trigger
-// writes "update" for the same kind of change).
+// Badge label/color for every equipment_audit.action value:
+//   create/update/move/delete: the equipment_items trigger (both platforms;
+//     actor and user_id are derived server-side from the caller).
+//   merge/damage: the log_merge_event / log_damage_event RPCs (web merge flow
+//     and mobile; web has no damage flow, so marking an item "Damaged" on web
+//     shows only as "update").
+//   edit: legacy rows hand-written by older mobile builds; no longer written.
+// A mobile damage report intentionally produces two rows: the trigger's
+// "update" (status change + snapshots) and the RPC's "damage" (the notes).
 export const ACTION_META = {
   create: { label: "Created", className: "bg-green-700/40 text-green-300" },
   update: { label: "Updated", className: "bg-blue-700/40 text-blue-300" },

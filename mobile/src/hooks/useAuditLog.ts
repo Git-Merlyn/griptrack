@@ -8,9 +8,9 @@ export interface AuditEvent {
   id: string;
   org_id: string;
   equipment_id: string;
-  action: string;           // create | edit | delete | move | merge | damage
-  actor: string | null;     // display name / email (written by both platforms)
-  user_id: string | null;   // UUID (written by mobile, being added to web)
+  action: string;           // create | update | move | delete (trigger) | merge | damage (RPCs) | edit (legacy mobile rows)
+  actor: string | null;     // display name, derived server-side from the caller's profile (older rows: client text)
+  user_id: string | null;   // auth uid of the caller, stamped server-side
   from_location: string | null;
   to_location: string | null;
   delta_qty: number | null;
