@@ -6,6 +6,8 @@ import { supabase } from "@/lib/supabaseClient";
 import { invokeFn } from "@/lib/invokeFn";
 import useUser from "@/context/useUser";
 import useTeam from "@/context/useTeam";
+import PaywallGate from "@/components/PaywallGate";
+import { planLimitMessage } from "@/lib/plan";
 import { ASSIGNABLE_ROLES as SHARED_ASSIGNABLE_ROLES } from "@shared/roles";
 import { revokeInvite, resendInviteBody } from "@/lib/orgInvites";
 
@@ -218,7 +220,7 @@ export default function Staff() {
         body: { email: sentTo, orgId, role: inviteRole, teamId: inviteTeamId || null },
       });
     } catch (inviteErr) {
-      setError(inviteErr.message || "Invite failed");
+      setError(planLimitMessage(inviteErr) ?? (inviteErr.message || "Invite failed"));
       return;
     } finally {
       setInviting(false);
@@ -346,8 +348,9 @@ export default function Staff() {
     <div className="max-w-3xl mx-auto px-4 py-6 flex flex-col gap-6 text-text">
       <h1 className="text-2xl font-bold text-accent">Staff</h1>
 
-      {/* ── Invite form ── */}
+      {/* ── Invite form (Pro feature — audit M9) ── */}
       {isAdmin && (
+        <PaywallGate requiredPlan="pro" featureName="Staff invites">
         <div className="bg-surface border border-gray-700 rounded-xl p-5">
           <h2 className="text-base font-semibold text-text mb-4">Invite member</h2>
           <form onSubmit={sendInvite} className="flex flex-col gap-3">
@@ -397,6 +400,7 @@ export default function Staff() {
             </div>
           </form>
         </div>
+        </PaywallGate>
       )}
 
       {/* ── Feedback ── */}

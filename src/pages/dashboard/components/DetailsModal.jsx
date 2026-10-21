@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { statusClass, dateTextClass, getQty } from "../utils/helpers";
 import AuditLogPanel from "./AuditLogPanel";
+import PaywallGate from "@/components/PaywallGate";
 
 const TABS = [
   { id: "details", label: "Details" },
@@ -133,7 +134,9 @@ const DetailsModal = ({ isOpen, item, isMobile, onClose }) => {
           )}
 
           {activeTab === "history" && (
-            <AuditLogPanel equipmentId={item.id} />
+            <PaywallGate requiredPlan="pro" featureName="Item history">
+              <AuditLogPanel equipmentId={item.id} />
+            </PaywallGate>
           )}
         </div>
 

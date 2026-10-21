@@ -3,7 +3,7 @@
 import LegalLayout from "./LegalLayout";
 
 const TermsPage = () => (
-  <LegalLayout title="Terms of Service" updated="July 7, 2026">
+  <LegalLayout title="Terms of Service" updated="October 21, 2026">
     <p>
       These terms govern your use of GripTrack — the web application at
       griptrack.app and the GripTrack mobile app (together, the "Service").
@@ -35,7 +35,8 @@ const TermsPage = () => (
     <h2>Subscriptions &amp; billing</h2>
     <ul>
       <li>Paid plans are billed through Stripe on a recurring basis until cancelled. You can cancel any time from Billing; access continues to the end of the paid period.</li>
-      <li>Free trials convert or expire as described at signup. We'll notify you before a trial ends where practical.</li>
+      <li>The Free plan includes up to 50 equipment items and 1 active location, for the owner only: it does not include staff invites, PDF import or the audit log. If a paid subscription ends, your organization returns to the Free plan. Your existing data stays, but you can't add more than the Free plan allows.</li>
+      <li>Paid plans start with a 14-day free trial the first time your organization subscribes. A payment card is required to start the trial. Unless you cancel before the trial ends, it converts to a paid subscription and your card is charged at that time. We'll notify you before a trial ends where practical.</li>
       <li>Prices may change with reasonable advance notice; changes apply from your next billing cycle.</li>
       <li>Except where required by law, payments are non-refundable — though if something's gone wrong, contact us and we'll be reasonable.</li>
     </ul>

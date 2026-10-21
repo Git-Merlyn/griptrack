@@ -10,6 +10,7 @@ import { canManageInventory, isOrgAdmin } from "@shared/roles";
 import { deleteByIds } from "../lib/deleteRows";
 import UserContext from "./UserContext";
 import TeamContext from "./TeamContext";
+import { planLimitMessage } from "@/lib/plan";
 
 // Table names are fixed — dev/prod separation comes from the local Supabase
 // stack, not env-swapped table names (the old VITE_EQUIPMENT_TABLE indirection
@@ -372,7 +373,7 @@ export const EquipmentProvider = ({ children }) => {
 
     if (error) {
       console.error("Supabase insert failed", error);
-      if (!silent) window.toast?.error?.(error.message || "Failed to add items");
+      if (!silent) window.toast?.error?.(planLimitMessage(error) ?? (error.message || "Failed to add items"));
       throw error;
     }
 

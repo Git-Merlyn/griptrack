@@ -1,12 +1,12 @@
 // src/hooks/useTrial.js
-// Derives the organization's trial state from subscription data and the
-// org-level trial_ends_at date set at sign-up.
+// Derives the organization's trial state from the Stripe subscription row.
 //
-// Priority:
-//   1. If subscription.status === 'trialing' → Stripe-managed trial
-//      (ends at subscription.current_period_end)
-//   2. Else if plan === 'free' and trialEndsAt is in the future → org trial
-//   3. Otherwise → no trial UI shown
+// The only trial is Stripe's: the owner starts it at Checkout (card
+// required, 14 days, offered only to orgs that never subscribed) and Stripe
+// charges the card when it ends unless the owner cancels. The org-level
+// organizations.trial_ends_at date is NOT a trial and grants nothing
+// (audit M9, WP09 Option A), so there is no countdown and no "trial has
+// ended" state for it.
 
 import { useMemo } from "react";
 import useUser from "@/context/useUser";
@@ -25,57 +25,38 @@ function daysUntil(dateStr) {
 
 /**
  * @returns {{
- *   isTrialActive: boolean,   // trial is running and not expired
- *   isTrialExpired: boolean,  // trial window has closed and org is on free plan
- *   daysLeft: number|null,    // whole days remaining (may be ≤ 0 when expired)
- *   trialEndDate: string|null,// ISO string of trial end
- *   isStripeTrial: boolean,   // true when driven by Stripe 'trialing' status
+ *   isTrialActive: boolean,    // Stripe trial running (status 'trialing', end in the future)
+ *   daysLeft: number|null,     // whole days remaining (may be <= 0 once the end has passed)
+ *   trialEndDate: string|null, // ISO string of the trial end
+ *   isStripeTrial: boolean,    // true whenever the subscription is 'trialing'
+ *   willCancel: boolean,       // owner cancelled during the trial: it will not convert
  * }}
  */
 const useTrial = () => {
-  const { plan, subscription, trialEndsAt } = useUser();
+  const { subscription } = useUser();
 
   return useMemo(() => {
     const noop = {
       isTrialActive: false,
-      isTrialExpired: false,
       daysLeft: null,
       trialEndDate: null,
       isStripeTrial: false,
+      willCancel: false,
     };
 
-    // Orgs on a paid active plan have no trial UI.
-    // (plan === 'pro' | 'team' with status 'active' → they've already converted)
-    if (plan !== "free" && subscription?.status === "active") return noop;
+    if (subscription?.status !== "trialing") return noop;
 
-    // 1. Stripe-managed trial
-    if (subscription?.status === "trialing" && subscription?.current_period_end) {
-      const days = daysUntil(subscription.current_period_end);
-      return {
-        isTrialActive: days !== null && days > 0,
-        isTrialExpired: false, // Stripe handles expiry automatically
-        daysLeft: days,
-        trialEndDate: subscription.current_period_end,
-        isStripeTrial: true,
-      };
-    }
+    const days = daysUntil(subscription.current_period_end);
+    if (days === null) return noop;
 
-    // 2. Org-level trial (plan === 'free', using trial_ends_at from organizations)
-    if (plan === "free" && trialEndsAt) {
-      const days = daysUntil(trialEndsAt);
-      if (days === null) return noop;
-
-      return {
-        isTrialActive: days > 0,
-        isTrialExpired: days <= 0,
-        daysLeft: days,
-        trialEndDate: trialEndsAt,
-        isStripeTrial: false,
-      };
-    }
-
-    return noop;
-  }, [plan, subscription, trialEndsAt]);
+    return {
+      isTrialActive: days > 0,
+      daysLeft: days,
+      trialEndDate: subscription.current_period_end,
+      isStripeTrial: true,
+      willCancel: !!subscription.cancel_at_period_end,
+    };
+  }, [subscription]);
 };
 
 export default useTrial;

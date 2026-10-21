@@ -286,8 +286,9 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
   const location = useLocation();
   const { role, features } = useUser();
   const isAdmin = role === "owner" || role === "admin";
+  const isOwner = role === "owner";
 
-  const { isTrialActive, isTrialExpired, daysLeft } = useTrial();
+  const { isTrialActive, daysLeft } = useTrial();
   const { activeTeam, activeTeamId, canSwitchTeams } = useTeam();
 
   const [isMobile, setIsMobile] = useState(false);
@@ -422,20 +423,20 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
         {!navCollapsed && <span>Beta Feedback</span>}
       </button>
 
-      {/* Trial badge */}
-      {(isTrialActive || isTrialExpired) && (
+      {/* Trial badge — owner only, Stripe trial only (audit M9) */}
+      {isOwner && isTrialActive && (
         <button type="button" onClick={() => navTo("/billing")}
           style={{ touchAction: "manipulation" }}
-          title={isTrialExpired ? "Trial expired" : `Trial: ${daysLeft}d left`}
+          title={`Trial: ${daysLeft}d left`}
           className={`w-full flex items-center gap-3 ${navCollapsed ? "px-0 justify-center" : "px-4"} py-2 rounded-lg transition-colors ${location.pathname === "/billing" ? "bg-accent/15" : ""}`}>
           {navCollapsed ? (
-            <span className={`w-2 h-2 rounded-full ${isTrialExpired ? "bg-danger" : daysLeft <= 7 ? "bg-warning" : "bg-success"}`} />
+            <span className={`w-2 h-2 rounded-full ${daysLeft <= 7 ? "bg-warning" : "bg-success"}`} />
           ) : (
             <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-full ${
-              isTrialExpired ? "bg-danger/20 text-danger" : daysLeft <= 7 ? "bg-warning/20 text-warning" : "bg-success/20 text-success"
+              daysLeft <= 7 ? "bg-warning/20 text-warning" : "bg-success/20 text-success"
             }`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${isTrialExpired ? "bg-danger" : daysLeft <= 7 ? "bg-warning" : "bg-success"}`} />
-              {isTrialExpired ? "Trial expired" : `Trial: ${daysLeft}d left`}
+              <span className={`w-1.5 h-1.5 rounded-full ${daysLeft <= 7 ? "bg-warning" : "bg-success"}`} />
+              {`Trial: ${daysLeft}d left`}
             </span>
           )}
         </button>

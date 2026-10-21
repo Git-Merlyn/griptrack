@@ -1,40 +1,55 @@
 import { Link } from "react-router-dom";
 import useUser from "@/context/useUser";
+import { planAllows } from "@/lib/plan";
 
-const PLAN_RANK = { free: 0, pro: 1, team: 2 };
+const PLAN_LABELS = { pro: "Pro", team: "Team" };
 
 /**
- * Wraps a premium feature. Shows an upgrade prompt if the user's
- * current plan doesn't meet the required plan.
+ * Wraps a paid feature. Renders children when the org's effective plan
+ * (a pro/team subscription that is active, trialing or past_due) meets
+ * `requiredPlan`; otherwise renders an upgrade prompt. Only the owner gets
+ * the "View plans" link — other roles are told to ask the owner.
+ *
+ * Web only (the mobile apps show no upgrade prompts). The matching server
+ * checks live in public.enforce_plan_limits() and parse-rental-pdf (audit M9).
  *
  * Usage:
- *   <PaywallGate requiredPlan="pro" featureName="PDF Import">
+ *   <PaywallGate requiredPlan="pro" featureName="Staff invites">
  *     <YourFeature />
  *   </PaywallGate>
  */
 const PaywallGate = ({ requiredPlan = "pro", featureName, children }) => {
-  const { plan, loadingSubscription } = useUser();
+  const { effectivePlan, role, loadingSubscription } = useUser();
 
   if (loadingSubscription) return null;
 
-  const hasAccess = PLAN_RANK[plan] >= PLAN_RANK[requiredPlan];
-  if (hasAccess) return children;
+  if (planAllows(effectivePlan, requiredPlan)) return children;
+
+  const planLabel = PLAN_LABELS[requiredPlan] ?? requiredPlan;
 
   return (
     <div className="rounded-xl border border-accent/20 bg-accent/5 p-6 text-center">
-      <div className="text-2xl mb-3">🔒</div>
+      <div className="text-2xl mb-3" aria-hidden="true">🔒</div>
       <h3 className="font-semibold text-white mb-1">
-        {featureName ? `${featureName} is a ${requiredPlan} feature` : `${requiredPlan} plan required`}
+        {featureName ? `${featureName} is a ${planLabel} feature` : `${planLabel} plan required`}
       </h3>
-      <p className="text-sm text-gray-400 mb-4">
-        Upgrade your plan to unlock this feature.
-      </p>
-      <Link
-        to="/pricing"
-        className="inline-block bg-accent text-black text-sm font-semibold px-5 py-2 rounded-lg hover:bg-accent/90 transition-colors"
-      >
-        View plans
-      </Link>
+      {role === "owner" ? (
+        <>
+          <p className="text-sm text-gray-400 mb-4">
+            Upgrade your plan to unlock this feature.
+          </p>
+          <Link
+            to="/pricing"
+            className="inline-block bg-accent text-black text-sm font-semibold px-5 py-2 rounded-lg hover:bg-accent/90 transition-colors"
+          >
+            View plans
+          </Link>
+        </>
+      ) : (
+        <p className="text-sm text-gray-400">
+          Ask your organization&apos;s owner to upgrade to unlock this feature.
+        </p>
+      )}
     </div>
   );
 };

@@ -74,3 +74,33 @@ describe("PricingPage", () => {
     expect(await screen.findByText("BILLING PAGE")).toBeInTheDocument();
   });
 });
+
+describe("PricingPage plan and trial copy (audit M9, WP09)", () => {
+  beforeEach(() => {
+    vi.mocked(useUser).mockReturnValue({ authUser: null, plan: "free", subscription: null });
+  });
+
+  it("never promises a card-free trial", () => {
+    renderPricing();
+    expect(screen.queryByText(/no credit card/i)).toBeNull();
+    expect(screen.queryByText(/no card/i)).toBeNull();
+  });
+
+  it("states the real Stripe trial terms", () => {
+    renderPricing();
+    const note = screen.getByTestId("trial-terms");
+    expect(note).toHaveTextContent(/14-day free trial the first time your organization subscribes/);
+    expect(note).toHaveTextContent(/A card is required to start the trial/);
+    expect(note).toHaveTextContent(/charged automatically when the trial ends unless you cancel before then/);
+  });
+
+  it("still lists what the Free plan does not include", () => {
+    renderPricing();
+    for (const missing of ["PDF import", "Audit log", "Staff invites"]) {
+      expect(screen.getByText(missing)).toBeInTheDocument();
+    }
+    expect(screen.getByText("Up to 50 equipment items")).toBeInTheDocument();
+    expect(screen.getByText("1 active location")).toBeInTheDocument();
+    expect(screen.getByText("Up to 5 staff members")).toBeInTheDocument();
+  });
+});

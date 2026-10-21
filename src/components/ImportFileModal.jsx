@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useContext } from "react";
 import Modal from "./Modal";
 import EquipmentContext from "../context/EquipmentContext";
+import useUser from "@/context/useUser";
+import { planAllows, PDF_IMPORT_PRO_MESSAGE } from "@/lib/plan";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker?url";
 
@@ -16,6 +18,8 @@ const ImportFileModal = ({
 }) => {
   const { pdfParsingStatus, setPdfParsingStatus, registerLocation } =
     useContext(EquipmentContext);
+  // PDF import is a Pro feature (audit M9); CSV import and select-from-file stay free.
+  const { effectivePlan } = useUser();
 
   // keep a local copy so we can optimistically add new locations inline
   useEffect(() => {
@@ -645,6 +649,11 @@ const ImportFileModal = ({
     const isCsv = file.type === "text/csv" || name.endsWith(".csv");
 
     if (isCsv) return extractDataFromCSV(file);
+    if (mode === "import" && !planAllows(effectivePlan, "pro")) {
+      setErrorMessage(PDF_IMPORT_PRO_MESSAGE);
+      event.target.value = "";
+      return;
+    }
     return extractDataFromPDF(file);
   };
 

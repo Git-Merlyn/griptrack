@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { deleteByIds } from "@/lib/deleteRows";
 import EquipmentContext from "@/context/EquipmentContext";
 import useUser from "@/context/useUser";
+import { planLimitMessage } from "@/lib/plan";
 
 const LocationsPage = () => {
   const { orgId, role } = useUser();
@@ -52,7 +53,7 @@ const LocationsPage = () => {
       .insert({ org_id: orgId, name, description: newDesc.trim() || null });
 
     if (error) {
-      setCreateError(error.message);
+      setCreateError(planLimitMessage(error) ?? error.message);
     } else {
       setNewName("");
       setNewDesc("");
@@ -71,7 +72,8 @@ const LocationsPage = () => {
       .select("id");
     if (error || !changed?.length) {
       window.toast?.error?.(
-        error?.message || "You don't have permission to change this location.",
+        planLimitMessage(error) ??
+          (error?.message || "You don't have permission to change this location."),
       );
     }
     await loadLocations();

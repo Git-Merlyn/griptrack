@@ -169,8 +169,10 @@ const LandingPage = () => {
             Start free, upgrade when you're ready
           </h2>
           <p className="text-gray-400 mb-8">
-            The free plan gets you up and running. Upgrade for unlimited items,
-            PDF import, and full team access.
+            The free plan gets you up and running with up to 50 items. Upgrade for
+            unlimited items, PDF import, and full team access. Paid plans start with a
+            14-day free trial; a card is required to start, and you&apos;re charged when
+            the trial ends unless you cancel before then.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link

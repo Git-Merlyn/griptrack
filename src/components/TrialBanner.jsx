@@ -1,8 +1,9 @@
 // src/components/TrialBanner.jsx
-// Displays a full-width trial status banner when a trial is active or expired.
-// – Active trial with > 7 days left : no banner (sidebar indicator is enough)
-// – Active trial with ≤ 7 days left : yellow/amber warning
-// – Trial expired (free plan, no paid sub): red alert
+// Owner-only banner for a Stripe trial (subscription status 'trialing')
+// with 7 or fewer days left. Dismissible for the browser session.
+// – Crew, department heads and admins never see it: only the owner can act on billing.
+// – There is no "trial expired" banner: there is no org-level trial (audit M9,
+//   WP09 Option A), and a Stripe trial converts to paid (or cancels) on its own.
 
 import { useState } from "react";
 import { Link } from "react-router-dom";
@@ -11,12 +12,15 @@ import useUser from "@/context/useUser";
 
 const SESSION_DISMISS_KEY = "gt_trial_banner_dismissed";
 
-const TrialBanner = () => {
-  const { role } = useUser();
-  const { isTrialActive, isTrialExpired, daysLeft } = useTrial();
+const PLAN_LABELS = { pro: "Pro", team: "Team" };
 
-  // Allow owners to dismiss the warning-level banner for the current session.
-  // The expired banner is never dismissible — it needs action.
+const formatDate = (iso) =>
+  new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric" });
+
+const TrialBanner = () => {
+  const { role, plan } = useUser();
+  const { isTrialActive, daysLeft, trialEndDate, willCancel } = useTrial();
+
   const [dismissed, setDismissed] = useState(() => {
     try {
       return sessionStorage.getItem(SESSION_DISMISS_KEY) === "1";
@@ -24,8 +28,6 @@ const TrialBanner = () => {
       return false;
     }
   });
-
-  const isOwner = role === "owner";
 
   const dismiss = () => {
     try {
@@ -36,59 +38,37 @@ const TrialBanner = () => {
     setDismissed(true);
   };
 
-  // Expired banner — always shown to owner, no dismiss
-  if (isTrialExpired) {
-    return (
-      <div className="bg-danger/10 border-b border-danger/30 px-4 py-2.5 flex items-center justify-between gap-3 flex-wrap">
-        <span className="text-sm text-danger font-medium">
-          Your free trial has ended. Upgrade to keep full access.
-        </span>
-        {isOwner && (
-          <Link
-            to="/billing"
-            className="shrink-0 text-xs font-semibold bg-danger text-white px-3 py-1 rounded-lg hover:bg-danger/80 transition-colors"
-          >
-            Upgrade now
-          </Link>
-        )}
+  if (role !== "owner") return null;
+  if (!isTrialActive || daysLeft === null || daysLeft > 7 || dismissed) return null;
+
+  const dayLabel = daysLeft === 1 ? "1 day" : `${daysLeft} days`;
+  const planLabel = PLAN_LABELS[plan] ?? "Pro";
+  const message = willCancel
+    ? `Your ${planLabel} trial ends in ${dayLabel} and won't renew.`
+    : `Your ${planLabel} trial ends in ${dayLabel}. Your card will be charged on ${formatDate(trialEndDate)} unless you cancel.`;
+
+  return (
+    <div className="bg-warning/10 border-b border-warning/30 px-4 py-2.5 flex items-center justify-between gap-3 flex-wrap">
+      <span className="text-sm text-warning font-medium">{message}</span>
+
+      <div className="flex items-center gap-3 shrink-0">
+        <Link
+          to="/billing"
+          className="text-xs font-semibold bg-warning text-black px-3 py-1 rounded-lg hover:bg-warning/80 transition-colors"
+        >
+          Manage billing
+        </Link>
+        <button
+          type="button"
+          onClick={dismiss}
+          aria-label="Dismiss trial banner"
+          className="text-warning/60 hover:text-warning text-xs transition-colors"
+        >
+          ✕
+        </button>
       </div>
-    );
-  }
-
-  // Warning banner — shown when ≤ 7 days remain and not dismissed
-  if (isTrialActive && daysLeft !== null && daysLeft <= 7 && !dismissed) {
-    const dayLabel = daysLeft === 1 ? "1 day" : `${daysLeft} days`;
-
-    return (
-      <div className="bg-warning/10 border-b border-warning/30 px-4 py-2.5 flex items-center justify-between gap-3 flex-wrap">
-        <span className="text-sm text-warning font-medium">
-          Your free trial ends in {dayLabel}.
-          {isOwner ? " Upgrade to keep PDF import, audit logs, and staff invites." : ""}
-        </span>
-
-        <div className="flex items-center gap-3 shrink-0">
-          {isOwner && (
-            <Link
-              to="/billing"
-              className="text-xs font-semibold bg-warning text-black px-3 py-1 rounded-lg hover:bg-warning/80 transition-colors"
-            >
-              Upgrade
-            </Link>
-          )}
-          <button
-            type="button"
-            onClick={dismiss}
-            aria-label="Dismiss trial banner"
-            className="text-warning/60 hover:text-warning text-xs transition-colors"
-          >
-            ✕
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return null;
+    </div>
+  );
 };
 
 export default TrialBanner;

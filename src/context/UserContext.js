@@ -24,7 +24,8 @@ const UserContext = createContext({
 
   // Subscription
   subscription: null,   // { plan, status, current_period_end, cancel_at_period_end }
-  plan: "free",         // derived: 'free' | 'pro' | 'team'
+  plan: "free",         // derived: 'free' | 'pro' | 'team' (billed plan)
+  effectivePlan: "free", // plan used for gating: pro/team while active, trialing or past_due
   loadingSubscription: false,
   refreshSubscription: async () => null, // (opts?: { silent?: boolean }) => row | null
 

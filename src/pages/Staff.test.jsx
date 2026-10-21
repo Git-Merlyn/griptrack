@@ -30,7 +30,7 @@ vi.mock("@/lib/supabaseClient", () => {
 });
 
 vi.mock("@/context/useUser", () => ({
-  default: () => ({ orgId: "org-1", role: "admin", authUser: { id: "user-1" } }),
+  default: () => ({ orgId: "org-1", role: "admin", authUser: { id: "user-1" }, effectivePlan: "pro", loadingSubscription: false }),
 }));
 
 vi.mock("@/context/useTeam", () => ({

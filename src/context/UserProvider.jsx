@@ -3,6 +3,7 @@ import UserContext from "./UserContext";
 import { supabase } from "@/lib/supabaseClient";
 import { isPlaceholderOrgName } from "@/lib/orgName";
 import { canSwitchTeams as roleCanSwitchTeams, isOrgAdmin } from "@shared/roles";
+import { computeEffectivePlan } from "@/lib/plan";
 
 const UserProvider = ({ children }) => {
   // Supabase auth identity
@@ -268,6 +269,16 @@ const UserProvider = ({ children }) => {
     return "free";
   }, [subscription]);
 
+  // Plan used for feature gating (PaywallGate, plan-limit UI): the paid plan
+  // while its subscription is active, trialing or past_due, else "free".
+  // organizations.trial_ends_at grants nothing (there is no org trial).
+  // `plan` above stays the billed plan — BillingPage/PricingPage rely on it.
+  // Mirrors public.org_effective_plan() server-side (audit M9).
+  const effectivePlan = useMemo(
+    () => computeEffectivePlan({ subscription }),
+    [subscription],
+  );
+
   const value = useMemo(
     () => ({
       authUser,
@@ -287,6 +298,7 @@ const UserProvider = ({ children }) => {
       // Subscription
       subscription,
       plan,
+      effectivePlan,
       loadingSubscription,
       trialEndsAt,
       refreshSubscription: (opts) => loadSubscription(orgId, opts),
@@ -315,6 +327,7 @@ const UserProvider = ({ children }) => {
       canSwitchTeams,
       subscription,
       plan,
+      effectivePlan,
       loadingSubscription,
       trialEndsAt,
       features,

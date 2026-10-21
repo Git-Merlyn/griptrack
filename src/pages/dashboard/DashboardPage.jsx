@@ -27,6 +27,7 @@ import useEditFlow from "./hooks/useEditFlow";
 import useLocation from "./hooks/useLocation";
 import useExport from "./hooks/useExport";
 import { matchFileItemsToEquipment } from "./utils/pdfSelect";
+import { planAllows, proFeatureMessage } from "@/lib/plan";
 import { bulkMoveToLocation } from "./utils/bulkMove";
 import useFilterPresets from "./hooks/useFilterPresets";
 import { PAGE_SIZE_OPTIONS } from "./hooks/useInventoryView";
@@ -737,7 +738,9 @@ const DashboardPage = () => {
     hasTeamSelected = true,
     loadingEquipment = false,
   } = useContext(EquipmentContext);
-  const { profile, authUser, orgId } = useUser();
+  const { profile, authUser, orgId, effectivePlan } = useUser();
+  // Pro features on this page: the audit-history export and PDF export (audit M9).
+  const canUsePro = planAllows(effectivePlan, "pro");
   // Best-effort human-readable identity for equipment_audit.actor — used
   // wherever this page writes an equipment change (create/edit/bulk-update/move).
   const actorName = profile?.full_name || profile?.email || authUser?.email || "Unknown";
@@ -1032,6 +1035,11 @@ const DashboardPage = () => {
   // Export full org audit log as a CSV for wrap reports.
   const handleExportHistory = async () => {
     if (!orgId) return;
+    if (!canUsePro) {
+      setShowExportModal(false);
+      window.toast?.error?.(proFeatureMessage("Audit history export"));
+      return;
+    }
     setExportingHistory(true);
     try {
       // Build equipment_id → name lookup from the current equipment array
@@ -1616,6 +1624,11 @@ const DashboardPage = () => {
         allLocations={allLocations}
         getExportRows={getExportRows}
         onDoExport={() => {
+          if (exportFormat === "pdf" && !canUsePro) {
+            // The dialog stays open so the user can switch to CSV.
+            window.toast?.error?.(proFeatureMessage("PDF export"));
+            return;
+          }
           const result = doExport();
           if (!result?.count) return;
           window.toast?.success?.(`Exported ${result.count} item(s)`);

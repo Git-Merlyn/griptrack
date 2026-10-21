@@ -224,8 +224,10 @@ const PricingPage = () => {
           })}
         </div>
 
-        <p className="text-center text-gray-600 text-sm mt-10">
-          All plans include a 14-day free trial of Pro features. No credit card required to start.
+        <p data-testid="trial-terms" className="text-center text-gray-600 text-sm mt-10">
+          Pro and Team start with a 14-day free trial the first time your organization subscribes.
+          A card is required to start the trial, and it is charged automatically when the trial
+          ends unless you cancel before then.
         </p>
       </section>
 

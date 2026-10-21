@@ -7,6 +7,7 @@ import { useState } from "react";
 import { Navigate } from "react-router-dom";
 import useUser from "@/context/useUser";
 import OrgHistoryTable from "./dashboard/components/OrgHistoryTable";
+import PaywallGate from "@/components/PaywallGate";
 
 // ── FeatureToggle ─────────────────────────────────────────────────────────────
 function FeatureToggle({ label, description, enabled, onChange, disabled }) {
@@ -103,8 +104,9 @@ export default function SettingsPage() {
         )}
       </section>
 
-      {/* Full history — owners only */}
+      {/* Full history — owners only, Pro feature (audit M9) */}
       {isOwner && (
+        <PaywallGate requiredPlan="pro" featureName="Full history">
         <section className="bg-surface border border-text/10 rounded-xl px-5 py-4 flex items-center justify-between gap-4">
           <div>
             <h2 className="text-sm font-semibold text-text">Full History</h2>
@@ -120,6 +122,7 @@ export default function SettingsPage() {
             View Full History
           </button>
         </section>
+        </PaywallGate>
       )}
 
       {historyOpen && <OrgHistoryTable onClose={() => setHistoryOpen(false)} />}
