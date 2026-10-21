@@ -11,8 +11,7 @@ import {
   deleteEquipmentItemLocal,
   enqueueOp,
   generateId,
-  getEquipmentByTeam,
-  getEquipmentByOrg,
+  getEquipmentById,
 } from '../lib/db';
 
 const EQUIPMENT_TABLE = 'equipment_items';
@@ -171,30 +170,29 @@ export function useEquipmentMutations(): UseMutationsReturn {
         bumpLocalVersion();
         return data as EquipmentItem;
       } else {
-        // Find the current local record so we can snapshot its updated_at for
-        // conflict detection on drain, and apply the patch locally.
-        const localRows = teamsEnabled
-          ? getEquipmentByTeam(profile.org_id, activeTeamId ?? '')
-          : getEquipmentByOrg(profile.org_id);
-        const existing = localRows.find((i) => i.id === id);
-        if (existing) {
-          upsertEquipmentItem({ ...existing, ...(patch as Partial<EquipmentItem>) });
-        }
+        // The current local row supplies the snapshot_updated_at that drain
+        // uses for conflict detection. Without it the queued patch would
+        // blindly overwrite the server row, so refuse instead of enqueueing.
+        const existing = getEquipmentById(id);
+        if (!existing) throw new Error('Item not available offline');
+
+        const updated: EquipmentItem = { ...existing, ...(patch as Partial<EquipmentItem>) };
+        upsertEquipmentItem(updated);
 
         enqueueOp({
           table_name: EQUIPMENT_TABLE,
           operation: 'update',
           payload: JSON.stringify({
             id,
-            snapshot_updated_at: existing?.updated_at,
+            snapshot_updated_at: existing.updated_at,
             patch,
           }),
         });
         bumpLocalVersion();
-        return { ...(existing ?? {}), ...(patch as Partial<EquipmentItem>), id } as EquipmentItem;
+        return updated;
       }
     },
-    [profile, activeTeamId, teamsEnabled, userId, updatedBy, isOnline, bumpLocalVersion]
+    [profile, userId, updatedBy, isOnline, bumpLocalVersion]
   );
 
   // ─── deleteItem ───────────────────────────────────────────────────────────
@@ -272,9 +270,15 @@ export function useEquipmentMutations(): UseMutationsReturn {
     async (item: EquipmentItem, notes: string): Promise<EquipmentItem> => {
       if (!profile?.org_id) throw new Error('Not authenticated');
 
+      // The caller's copy can be stale (a screen's snapshot). The current
+      // local row is the base for the optimistic write and, offline, the
+      // snapshot_updated_at — a stale one causes a false "updated by someone
+      // else" discard on drain.
+      const current = getEquipmentById(item.id) ?? item;
+
       const now = new Date().toISOString();
       const patch = { status: 'Damaged', updated_by: updatedBy, updated_at: now };
-      const updated: EquipmentItem = { ...item, ...patch };
+      const updated: EquipmentItem = { ...current, ...patch };
 
       upsertEquipmentItem(updated);
 
@@ -298,7 +302,7 @@ export function useEquipmentMutations(): UseMutationsReturn {
           operation: 'update',
           payload: JSON.stringify({
             id: item.id,
-            snapshot_updated_at: item.updated_at,
+            snapshot_updated_at: current.updated_at,
             patch,
           }),
         });

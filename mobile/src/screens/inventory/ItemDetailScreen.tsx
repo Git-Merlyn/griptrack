@@ -3,9 +3,10 @@ import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator } fr
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
-import { InventoryStackParamList, EquipmentItem, canManageInventory, isOrgAdmin } from '../../lib/types';
+import { InventoryStackParamList, canManageInventory, isOrgAdmin } from '../../lib/types';
 import { useAuthContext } from '../../context/AuthContext';
 import { useEquipmentMutations } from '../../hooks/useEquipmentMutations';
+import { useEquipmentItem } from '../../hooks/useEquipmentItem';
 import DamageReportModal from '../../components/DamageReportModal';
 import { statusColor, getQty, qtyColor, formatDate, formatDateTime } from '../../lib/helpers';
 
@@ -15,8 +16,9 @@ export default function ItemDetailScreen({ route, navigation }: Props) {
   const { profile } = useAuthContext();
   const { deleteItem } = useEquipmentMutations();
 
-  // Keep a local copy so the screen updates after damage is reported
-  const [item, setItem] = useState<EquipmentItem>(route.params.item);
+  // Live row from SQLite: reflects edits (ItemForm), damage reports, sync
+  // pulls and realtime updates. Falls back to the snapshot the list passed in.
+  const item = useEquipmentItem(route.params.item.id, route.params.item);
   const [damageModalVisible, setDamageModalVisible] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -175,7 +177,9 @@ export default function ItemDetailScreen({ route, navigation }: Props) {
         visible={damageModalVisible}
         item={item}
         onClose={() => setDamageModalVisible(false)}
-        onDamageReported={(updated) => setItem(updated)}
+        // reportDamage writes SQLite and bumps localVersion; useEquipmentItem
+        // re-reads the row, so nothing to do here.
+        onDamageReported={() => {}}
       />
     </>
   );
