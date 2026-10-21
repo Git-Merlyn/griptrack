@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { invokeFn } from "@/lib/invokeFn";
 import useUser from "@/context/useUser";
 import useTeam from "@/context/useTeam";
 import { ASSIGNABLE_ROLES as SHARED_ASSIGNABLE_ROLES } from "@shared/roles";
@@ -203,14 +204,17 @@ export default function Staff() {
     if (!sentTo) { setError("Email is required"); return; }
 
     setInviting(true);
-    const { data, error: inviteErr } = await supabase.functions.invoke("invite-staff", {
-      body: { email: sentTo, orgId, role: inviteRole, teamId: inviteTeamId || null },
-    });
-    setInviting(false);
-
-    if (inviteErr) {
-      setError(data?.error || inviteErr.message || "Invite failed");
+    try {
+      // invokeFn surfaces the function's own message ("Admins only",
+      // "Invite limit reached (20 per hour)", "Team not found ...").
+      await invokeFn("invite-staff", {
+        body: { email: sentTo, orgId, role: inviteRole, teamId: inviteTeamId || null },
+      });
+    } catch (inviteErr) {
+      setError(inviteErr.message || "Invite failed");
       return;
+    } finally {
+      setInviting(false);
     }
 
     // Same message whether or not the address already has an account: the

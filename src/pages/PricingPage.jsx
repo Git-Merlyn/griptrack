@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import useUser from "@/context/useUser";
 import { redirectToCheckout } from "@/lib/stripe";
+import { toast } from "@/lib/toast";
 
 // Pricing per billing cycle.
 // annualMonthly = displayed monthly equivalent when billed annually.
@@ -152,7 +153,7 @@ const PricingPage = () => {
       await redirectToCheckout(planKey, billing);
     } catch (e) {
       console.error("Checkout error", e);
-      alert("Unable to start checkout. Please try again.");
+      toast.error(e?.message || "Unable to start checkout. Please try again.");
     }
   };
 

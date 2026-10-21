@@ -26,8 +26,8 @@ const BillingPage = () => {
     setUpgrading(true);
     try {
       await redirectToCheckout(targetPlan);
-    } catch {
-      setError("Unable to start checkout. Please try again.");
+    } catch (e) {
+      setError(e?.message || "Unable to start checkout. Please try again.");
     } finally {
       setUpgrading(false);
     }
@@ -38,8 +38,8 @@ const BillingPage = () => {
     setPortalLoading(true);
     try {
       await redirectToCustomerPortal();
-    } catch {
-      setError("Unable to open billing portal. Please try again.");
+    } catch (e) {
+      setError(e?.message || "Unable to open billing portal. Please try again.");
     } finally {
       setPortalLoading(false);
     }

@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseClient";
+import { invokeFn } from "@/lib/invokeFn";
 
 // Internal: loads Stripe.js from CDN idempotently.
 let _stripePromise = null;
@@ -28,11 +28,12 @@ const _loadStripe = () => {
  * the user to the hosted payment page.
  */
 export const redirectToCheckout = async (plan) => {
-  const { data, error } = await supabase.functions.invoke("create-checkout-session", {
+  // invokeFn throws with the function's own message, e.g. 403
+  // "Only the org owner can manage billing".
+  const data = await invokeFn("create-checkout-session", {
     body: { plan },
   });
 
-  if (error) throw error;
   if (!data?.url) throw new Error("No checkout URL returned");
 
   window.location.href = data.url;
@@ -42,11 +43,10 @@ export const redirectToCheckout = async (plan) => {
  * Opens the Stripe Customer Portal so users can manage/cancel their subscription.
  */
 export const redirectToCustomerPortal = async () => {
-  const { data, error } = await supabase.functions.invoke("create-portal-session", {
+  const data = await invokeFn("create-portal-session", {
     body: {},
   });
 
-  if (error) throw error;
   if (!data?.url) throw new Error("No portal URL returned");
 
   window.location.href = data.url;
