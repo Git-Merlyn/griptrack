@@ -1,13 +1,17 @@
-// delete-account — cancels any active Stripe subscription, then deletes the
-// caller's account via the delete_my_account() RPC.
+// delete-account — stops all Stripe billing for the caller's org (owners
+// only), then deletes the caller's account via the delete_my_account() RPC.
 //
 // Why a function instead of calling the RPC directly: SQL can't talk to
-// Stripe. The RPC deliberately blocks deletion while a paid subscription is
-// active (so a direct RPC call can never leave Stripe charging a deleted
-// customer); this function satisfies that check by canceling the
-// subscription and syncing its status BEFORE invoking the RPC. The RPC's
-// other guard (owner with remaining members) still applies and surfaces as
-// an error message to the client.
+// Stripe. The RPC refuses deletion while the org still has a non-terminal
+// Stripe subscription recorded (so a direct RPC call can never leave Stripe
+// billing a deleted org); this function satisfies that check by deleting the
+// org's Stripe customer (which cancels every subscription on it) and syncing
+// the subscriptions row BEFORE invoking the RPC.
+//
+// Order matters (audit M22): every guard that can refuse the deletion must
+// run BEFORE any irreversible Stripe call. The RPC's remaining-members guard
+// is therefore mirrored below; keep its count and message identical to
+// public.delete_my_account() in supabase/migrations.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -51,7 +55,7 @@ serve(async (req) => {
     // row can ever match — .single() is safe. PGRST116 = no membership row
     // (valid: not every account has an org); any other error means we can't
     // confirm the caller's org/role, so fail closed rather than silently
-    // skipping the billing-cancellation check below.
+    // skipping the billing-cancellation step below.
     const { data: memberRow, error: memberError } = await supabase
       .from("organization_members")
       .select("org_id, role")
@@ -66,16 +70,41 @@ serve(async (req) => {
       );
     }
 
-    // Owners: auto-cancel any live paid subscription before deletion.
+    // Owners: refuse early if the RPC would refuse, then stop all billing.
     if (memberRow?.org_id && memberRow.role === "owner") {
       const adminClient = createClient(
         Deno.env.get("SUPABASE_URL")!,
         Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
       );
 
+      // Mirror of the RPC's remaining-members guard (same count, same
+      // message). It must run before Stripe: an immediate cancel cannot be
+      // undone, and the RPC would otherwise refuse AFTER billing was gone.
+      const { count: otherMembers, error: countError } = await adminClient
+        .from("organization_members")
+        .select("user_id", { count: "exact", head: true })
+        .eq("org_id", memberRow.org_id)
+        .neq("user_id", user.id);
+
+      if (countError) {
+        console.error("Failed to count org members before deletion", countError.message);
+        return json(
+          { error: "We couldn't verify your organization before deletion. Please try again." },
+          502,
+        );
+      }
+      if ((otherMembers ?? 0) > 0) {
+        return json(
+          {
+            error: `Your organization still has ${otherMembers} other member(s). Remove them from Staff (or transfer ownership) before deleting your account.`,
+          },
+          400,
+        );
+      }
+
       const { data: sub, error: subError } = await adminClient
         .from("subscriptions")
-        .select("stripe_subscription_id, status, plan")
+        .select("stripe_customer_id, stripe_subscription_id, status")
         .eq("org_id", memberRow.org_id)
         .single();
 
@@ -90,21 +119,30 @@ serve(async (req) => {
         );
       }
 
-      const hasLivePaidSub =
-        sub?.stripe_subscription_id &&
-        ["active", "trialing"].includes(sub.status ?? "") &&
-        (sub.plan ?? "free") !== "free";
-
-      if (hasLivePaidSub) {
+      // Any Stripe linkage at all — regardless of the stored status, which
+      // can be stale or past_due/unpaid (audit M21) — gets shut down.
+      if (sub?.stripe_customer_id || sub?.stripe_subscription_id) {
         try {
-          // Immediate cancellation — the account is about to cease existing,
-          // so there is nothing to keep access alive until period end for.
-          await stripe.subscriptions.cancel(sub.stripe_subscription_id);
+          if (sub.stripe_customer_id) {
+            // Deleting the customer immediately cancels EVERY subscription on
+            // it (including any untracked duplicate) and removes the stored
+            // payment method. Invoices stay in Stripe for accounting.
+            await stripe.customers.del(sub.stripe_customer_id);
+          } else {
+            // No customer id recorded (should not happen): cancel the one
+            // subscription we know about.
+            await stripe.subscriptions.cancel(sub.stripe_subscription_id!);
+          }
         } catch (e) {
-          const msg = (e as { message?: string })?.message ?? "";
-          // Already-canceled subscriptions are fine; anything else must stop
-          // the deletion — never delete an account Stripe may still charge.
-          if (!/No such subscription|canceled/i.test(msg)) {
+          const err = e as { code?: string; message?: string };
+          const msg = err?.message ?? "";
+          // Already-deleted customers / already-canceled subscriptions are
+          // fine; anything else must stop the deletion — never delete an
+          // account Stripe may still charge.
+          const alreadyGone =
+            err?.code === "resource_missing" ||
+            /No such (customer|subscription)|canceled/i.test(msg);
+          if (!alreadyGone) {
             console.error("Stripe cancellation failed", msg);
             return json(
               { error: "We couldn't cancel your subscription automatically. Please try again or cancel it from Billing first." },
@@ -114,16 +152,34 @@ serve(async (req) => {
         }
 
         // Sync the row so the RPC's billing guard passes without waiting for
-        // the Stripe webhook round trip.
-        await adminClient
+        // the Stripe webhook round trip. The Stripe ids are cleared because
+        // the customer no longer exists; if the RPC then fails for an
+        // unrelated reason, the org is left consistently on Free and a later
+        // checkout creates a fresh customer.
+        const { error: syncError } = await adminClient
           .from("subscriptions")
-          .update({ status: "canceled", cancel_at_period_end: false })
+          .update({
+            status: "canceled",
+            plan: "free",
+            cancel_at_period_end: false,
+            stripe_customer_id: null,
+            stripe_subscription_id: null,
+            updated_at: new Date().toISOString(),
+          })
           .eq("org_id", memberRow.org_id);
+
+        if (syncError) {
+          console.error("Failed to sync subscription after Stripe cancellation", syncError.message);
+          return json(
+            { error: "Your subscription was cancelled, but we couldn't finish updating your account. Please try again in a moment." },
+            502,
+          );
+        }
       }
     }
 
-    // Run the deletion as the user. The remaining-members guard (and every
-    // other rule) is enforced inside the RPC.
+    // Run the deletion as the user. Every rule (including the members and
+    // billing guards above) is enforced again inside the RPC.
     const { error: rpcError } = await supabase.rpc("delete_my_account");
     if (rpcError) return json({ error: rpcError.message }, 400);
 
