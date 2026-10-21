@@ -20,5 +20,9 @@ export default defineConfig({
     globals: true,
     // The mobile app under mobile/ has its own jest suite — keep vitest out
     exclude: ["**/node_modules/**", "mobile/**"],
+    // Node >= 25 ships a built-in globalThis.localStorage (undefined without
+    // --localstorage-file) that shadows jsdom's. Turn it off in test workers.
+    // Flag exists on Node >= 22.4; harmless no-op on 22/24.
+    execArgv: ["--no-experimental-webstorage"],
   },
 });

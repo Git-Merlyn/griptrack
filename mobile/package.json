@@ -2,6 +2,9 @@
   "name": "griptrack-mobile",
   "version": "1.0.0",
   "main": "index.ts",
+  "engines": {
+    "node": ">=20.19.4"
+  },
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
