@@ -65,27 +65,32 @@ const UserProvider = ({ children }) => {
     window.location.href = "/auth";
   };
 
-  const loadSubscription = async (currentOrgId) => {
-    if (!currentOrgId) return;
+  // Re-reads the org's subscriptions row and returns it (null on error).
+  // { silent: true } skips the loadingSubscription flag so BillingPage can
+  // poll after a Stripe redirect without blanking the page on each poll.
+  const loadSubscription = async (currentOrgId, { silent = false } = {}) => {
+    if (!currentOrgId) return null;
 
-    setLoadingSubscription(true);
+    if (!silent) setLoadingSubscription(true);
     try {
       const { data, error } = await supabase
         .from("subscriptions")
         .select("plan, status, current_period_end, cancel_at_period_end")
         .eq("org_id", currentOrgId)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== "PGRST116") {
-        // PGRST116 = no rows found — that's fine, org is on free plan
+      if (error) {
         console.warn("Failed to load subscription", error);
+        return null;
       }
 
       setSubscription(data ?? null);
+      return data ?? null;
     } catch (e) {
       console.warn("Subscription load error", e);
+      return null;
     } finally {
-      setLoadingSubscription(false);
+      if (!silent) setLoadingSubscription(false);
     }
   };
 
@@ -284,7 +289,7 @@ const UserProvider = ({ children }) => {
       plan,
       loadingSubscription,
       trialEndsAt,
-      refreshSubscription: () => loadSubscription(orgId),
+      refreshSubscription: (opts) => loadSubscription(orgId, opts),
       // Features
       features,
       updateFeature,

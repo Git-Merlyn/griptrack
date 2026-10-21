@@ -26,6 +26,7 @@ const UserContext = createContext({
   subscription: null,   // { plan, status, current_period_end, cancel_at_period_end }
   plan: "free",         // derived: 'free' | 'pro' | 'team'
   loadingSubscription: false,
+  refreshSubscription: async () => null, // (opts?: { silent?: boolean }) => row | null
 
   // Trial
   trialEndsAt: null,    // ISO string from organizations.trial_ends_at
