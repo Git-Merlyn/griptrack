@@ -27,6 +27,7 @@ import useEditFlow from "./hooks/useEditFlow";
 import useLocation from "./hooks/useLocation";
 import useExport from "./hooks/useExport";
 import { matchFileItemsToEquipment } from "./utils/pdfSelect";
+import { bulkMoveToLocation } from "./utils/bulkMove";
 import useFilterPresets from "./hooks/useFilterPresets";
 import { PAGE_SIZE_OPTIONS } from "./hooks/useInventoryView";
 
@@ -995,41 +996,37 @@ const DashboardPage = () => {
     setPdfModalMode("import");
   };
 
+  // Bulk "Apply location": each selected row is moved whole through the same
+  // move_equipment RPC as a single move (merges at the destination, no other
+  // field rewritten). Failed rows stay selected so the user can retry them.
   const handleBulkSetLocation = async () => {
     if (selectedIds.length === 0) return;
     if (!bulkLocation) return;
 
-    try {
-      for (const id of selectedIds) {
-        const row = equipment.find((e) => String(e.id) === String(id));
-        if (!row) continue;
+    const { moved, skipped, failed } = await bulkMoveToLocation({
+      ids: selectedIds,
+      equipment,
+      location: bulkLocation,
+      actor: actorName,
+      moveEquipment,
+    });
 
-        await Promise.resolve(
-          updateEquipment(row.id, {
-            itemId: row.itemId || "",
-            name: row.name,
-            category: row.category || "",
-            source: row.source || "",
-            location: bulkLocation,
-            status: row.status || "Available",
-            rentalStart: row.rentalStart || "",
-            rentalEnd: row.rentalEnd || "",
-            quantity: row.quantity || 1,
-            reserveMin: Number(row.reserveMin) || 0,
-            updatedBy: actorName,
-          }, { silent: true }),
-        );
-      }
-
+    if (failed.length === 0) {
       window.toast?.success?.(
-        `Updated location for ${selectedIds.length} item(s)`,
+        `Moved ${moved} item(s) to ${bulkLocation}` +
+          (skipped ? ` (${skipped} already there)` : ""),
       );
       setBulkLocation("");
       clearSelection();
-    } catch (e) {
-      console.error(e);
-      window.toast?.error?.(e?.message || "Bulk location update failed");
+      return;
     }
+
+    failed.forEach((f) => console.error("Bulk move failed", f));
+    window.toast?.error?.(
+      `Moved ${moved} of ${moved + failed.length}. Not moved: ` +
+        failed.map((f) => `${f.name} (${f.message})`).join(", "),
+    );
+    setSelectedIds(failed.map((f) => f.id));
   };
 
   // Export full org audit log as a CSV for wrap reports.

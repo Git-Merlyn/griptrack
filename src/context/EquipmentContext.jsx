@@ -7,7 +7,6 @@ import {
 } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { canManageInventory, isOrgAdmin } from "@shared/roles";
-import { findMergeDestination } from "./equipmentMoveUtils";
 import { deleteByIds } from "../lib/deleteRows";
 import UserContext from "./UserContext";
 import TeamContext from "./TeamContext";
@@ -33,7 +32,7 @@ export const EquipmentProvider = ({ children }) => {
   const isCoordinator = !!role && isOrgAdmin(role);
   const canAdd    = !!role && canManageInventory(role); // crew cannot add items
   const canDelete = isCoordinator;                      // admin/owner only
-  const canMove   = true;                               // all roles can move items
+  const canMove   = true;                               // any role that can edit a row may move it (move_equipment RPC enforces team scope)
   const canEdit   = !!role && canManageInventory(role); // crew cannot edit metadata
 
   // The effective team scope for queries:
@@ -67,32 +66,8 @@ export const EquipmentProvider = ({ children }) => {
   const [assignAllLocation, setAssignAllLocation] = useState("");
   const [importSummaryMessage, setImportSummaryMessage] = useState("");
 
-  // --- Audit logging (DB trigger handles create/update/move/delete).
-  // Merge events go through the log_merge_event RPC: it derives the actor
-  // server-side from the caller's profile and is the only sanctioned way to
-  // write a merge row now that direct client inserts to equipment_audit are
-  // blocked (anti-forgery).
-  const logMergeEvent = async ({
-    mergedIntoId,
-    mergedFromId,
-    movedQty,
-    fromLocation,
-    toLocation,
-  }) => {
-    try {
-      const { error } = await supabase.rpc("log_merge_event", {
-        p_into: String(mergedIntoId),
-        p_from: String(mergedFromId),
-        p_qty: Number.isFinite(Number(movedQty)) ? Number(movedQty) : null,
-        p_from_location: fromLocation ? String(fromLocation) : null,
-        p_to_location: toLocation ? String(toLocation) : null,
-      });
-      if (error) console.warn("Failed to write merge audit event", error.message);
-    } catch (e) {
-      // Audit should never block core inventory actions
-      console.warn("Failed to write merge audit event", e);
-    }
-  };
+  // --- Audit logging: the equipment_items trigger logs create/update/move/
+  // delete; merges are logged inside the move_equipment RPC.
 
   // Saves a new location to the DB and refreshes the list.
   // Returns the new location row or null if it already exists.
@@ -517,106 +492,75 @@ export const EquipmentProvider = ({ children }) => {
     return normalized;
   };
 
-  const moveEquipment = async (rowId, qty, newLocation, actor) => {
-    if (!rowId || !newLocation || !qty || qty <= 0) return;
+  // Folds a move_equipment result into local state. The returned rows are the
+  // server's post-move truth; realtime echoes of the same rows are idempotent.
+  const applyMoveResult = (res) => {
+    if (!res) return;
+    setEquipmentData((prev) => {
+      let next = prev;
+      if (res.kind === "merge") {
+        next = next.filter((x) => String(x.id) !== String(res.source_id));
+      }
+      for (const row of [res.source, res.dest]) {
+        if (!row) continue;
+        const n = normalizeRowFromDb(row);
+        next = next.some((x) => String(x.id) === String(n.id))
+          ? next.map((x) => (String(x.id) === String(n.id) ? n : x))
+          : [n, ...next];
+      }
+      return next;
+    });
+  };
 
-    const id = String(rowId);
-    const current = equipment.find((x) => String(x.id) === id);
-    if (!current) {
-      window.toast?.error?.("Item not found");
-      return;
+  // Moves `qty` units of a row to `newLocation` (qty === null → the whole row,
+  // used by bulk "Apply location"). One move_equipment RPC call: the server
+  // checks the caller may edit the row, finds an identical row at the
+  // destination to merge into, and does decrement/insert or increment/delete
+  // plus the merge audit row in a single transaction — so a move can never
+  // half-apply. Throws on failure (callers show the error); returns the result.
+  const moveEquipment = async (rowId, qty, newLocation, actor, { silent = false } = {}) => {
+    const location = String(newLocation ?? "").trim();
+    if (!rowId || !location) throw new Error("Choose a destination location");
+
+    const wholeRow = qty === null;
+    const qtyNum = Math.floor(Number(qty));
+    if (!wholeRow && (!Number.isFinite(qtyNum) || qtyNum <= 0)) {
+      throw new Error("Quantity must be at least 1");
     }
 
-    const existingDest = findMergeDestination({
-      equipment,
-      currentId: id,
-      newLocation,
-      current,
+    const { data, error } = await supabase.rpc("move_equipment", {
+      p_source: String(rowId),
+      p_qty: wholeRow ? null : qtyNum,
+      p_to_location: location,
+      p_updated_by: actor ? String(actor) : null,
     });
 
-    const currentQty = Number(current.quantity) || 0;
-    const moveQty = Math.min(Number(qty) || 0, currentQty);
-    if (moveQty <= 0) return;
-
-    // Inner writes are silent: this function shows one "Item moved" toast,
-    // and failures propagate to the caller (DashboardPage.handleMoveSubmit).
-    const quiet = { silent: true };
-
-    // If moving all quantity
-    if (moveQty === currentQty) {
-      if (existingDest) {
-        // Merge into destination and delete source row
-        await updateEquipment(existingDest.id, {
-          ...existingDest,
-          quantity: (Number(existingDest.quantity) || 0) + currentQty,
-          updatedBy: actor ?? existingDest.updatedBy,
-        }, quiet);
-
-        // Explicit merge audit event (includes merged_from_id)
-        await logMergeEvent({
-          mergedIntoId: existingDest.id,
-          mergedFromId: id,
-          movedQty: currentQty,
-          fromLocation: current.location,
-          toLocation: newLocation,
-        });
-
-        await deleteEquipment(rowId, quiet);
-      } else {
-        // No destination row to merge into; just update location
-        await updateEquipment(rowId, {
-          ...current,
-          location: newLocation,
-          updatedBy: actor ?? current.updatedBy,
-        }, quiet);
+    if (error) {
+      console.error("move_equipment failed", error);
+      // D22 option C: a caller who may not add locations (crew) may move only
+      // to an existing, active location. Say so instead of the raw message.
+      if (error.code === "22023" && /existing location/.test(String(error.message ?? ""))) {
+        throw new Error(
+          `"${location}" is not one of your organization's locations. Pick a location from the list — only owners, admins and department heads can add new ones.`,
+        );
       }
-
-      window.toast?.success?.("Item moved");
-      return;
+      throw error;
     }
 
-    // Partial move:
-    // 1) Decrement source row
-    await updateEquipment(rowId, {
-      ...current,
-      quantity: currentQty - moveQty,
-      updatedBy: actor ?? current.updatedBy,
-    }, quiet);
+    applyMoveResult(data);
 
-    // 2) Merge into an existing destination row if it exists
-    if (existingDest) {
-      await updateEquipment(existingDest.id, {
-        ...existingDest,
-        quantity: (Number(existingDest.quantity) || 0) + moveQty,
-        updatedBy: actor ?? existingDest.updatedBy,
-      }, quiet);
-
-      // Explicit merge audit event (includes merged_from_id)
-      await logMergeEvent({
-        mergedIntoId: existingDest.id,
-        mergedFromId: id,
-        movedQty: moveQty,
-        fromLocation: current.location,
-        toLocation: newLocation,
-      });
-    } else {
-      // Otherwise insert a new destination row
-      await addEquipment({
-        itemId: current.itemId,
-        name: current.name,
-        category: current.category ?? "",
-        source: current.source ?? "",
-        quantity: moveQty,
-        reserveMin: Number(current.reserveMin) || 0,
-        location: newLocation,
-        status: current.status ?? "Available",
-        rentalStart: current.rentalStart ?? null,
-        rentalEnd: current.rentalEnd ?? null,
-        updatedBy: actor ?? current.updatedBy ?? "Unknown",
-      }, quiet);
+    if (data?.kind === "noop") {
+      throw new Error("Item is already at that location");
     }
 
-    window.toast?.success?.("Item moved");
+    if (!silent) {
+      if (!wholeRow && Number(data?.moved_qty) < qtyNum) {
+        window.toast?.success?.(`Moved ${data.moved_qty} — only ${data.moved_qty} were left`);
+      } else {
+        window.toast?.success?.("Item moved");
+      }
+    }
+    return data;
   };
 
   const clearImportSummary = () => setImportSummaryMessage("");
