@@ -393,3 +393,11 @@ entrypoint = "./functions/invite-staff/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/invite-staff/*.html" ]
+
+[functions.stripe-webhook]
+enabled = true
+# Stripe calls this endpoint with a stripe-signature header and no Supabase
+# JWT. JWT verification MUST stay off or the gateway answers every delivery
+# with 401. The function authenticates requests by verifying the signature.
+verify_jwt = false
+entrypoint = "./functions/stripe-webhook/index.ts"
