@@ -27,6 +27,10 @@ insert into public.organizations (id, name) values
   ('0000000c-0000-0000-0000-000000000000', 'New Company'),
   ('0000000d-0000-0000-0000-000000000000', 'New Company');
 
+-- WP09 plan limits: org A sends invites, which Free orgs cannot.
+update public.subscriptions set plan = 'team', status = 'active'
+ where org_id = '0000000a-0000-0000-0000-000000000000';
+
 insert into public.teams (id, org_id, name) values
   ('000000a7-0000-0000-0000-000000000000', '0000000a-0000-0000-0000-000000000000', 'Grip');
 
