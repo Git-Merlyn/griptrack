@@ -4,10 +4,8 @@ import {
   Route,
   Navigate,
   useLocation,
-  useNavigate,
 } from "react-router-dom";
-import { useEffect, useState, lazy, Suspense } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { lazy, Suspense } from "react";
 
 // Always-eager: these are entry points — every session hits one of them immediately
 import MainLayout from "./components/layout/MainLayout";
@@ -21,6 +19,7 @@ import LandingPage from "./pages/LandingPage";
 const Staff           = lazy(() => import("./pages/Staff"));
 const NotFound        = lazy(() => import("./pages/NotFound"));
 const CompleteProfile = lazy(() => import("./pages/CompleteProfile"));
+const OrgSetup        = lazy(() => import("./pages/OrgSetup"));
 const InviteAccept    = lazy(() => import("./pages/InviteAccept"));
 const PricingPage     = lazy(() => import("./pages/PricingPage"));
 const BillingPage     = lazy(() => import("./pages/BillingPage"));
@@ -43,99 +42,17 @@ const PageLoader = () => (
   </div>
 );
 
-const OrgSetup = ({ orgId, initialName, onSaved }) => {
-  const navigate = useNavigate();
-  const [name, setName] = useState(initialName || "");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-
-  useEffect(() => {
-    setName(initialName || "");
-  }, [initialName]);
-
-  const save = async (e) => {
-    e.preventDefault();
-    setErr("");
-
-    const trimmed = String(name || "").trim();
-    if (!trimmed) {
-      setErr("Company name is required.");
-      return;
-    }
-
-    setBusy(true);
-    try {
-      const { error } = await supabase
-        .from("organizations")
-        .update({ name: trimmed })
-        .eq("id", orgId);
-
-      if (error) throw error;
-
-      if (typeof onSaved === "function") onSaved(trimmed);
-      navigate("/", { replace: true });
-    } catch (e2) {
-      setErr(e2?.message || "Failed to save.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-black">
-      <div className="bg-surface rounded-2xl p-6 w-[92%] max-w-md shadow-lg">
-        <h1 className="text-2xl font-bold text-accent mb-1">
-          Organization setup
-        </h1>
-        <p className="text-gray-300 mb-6">Set your company name to continue.</p>
-
-        <form onSubmit={save} className="flex flex-col gap-3">
-          <div>
-            <label className="text-sm text-gray-300">Company name</label>
-            <input
-              className="w-full mt-1 px-3 py-2 rounded bg-white text-black"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Polaris Grip"
-              autoFocus
-            />
-          </div>
-
-          {err ? <div className="text-red-400 text-sm">{err}</div> : null}
-
-          <button
-            type="submit"
-            disabled={busy || !orgId}
-            className={busy || !orgId ? "btn-disabled" : "btn-accent"}
-          >
-            {busy ? "Saving…" : "Save & Continue"}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-};
-
 const App = () => {
   const location = useLocation();
+  // needsOrgSetup / needsProfileSetup update in place after OrgSetup /
+  // CompleteProfile save (UserProvider.applyOrgName / applyProfile).
   const {
     authUser,
     loadingOrg,
-    orgId,
-    orgName,
     needsOrgSetup,
     needsProfileSetup,
     features,
   } = useUser();
-
-  const [orgNameLocal, setOrgNameLocal] = useState(null);
-  const effectiveOrgName = orgNameLocal ?? orgName;
-  const effectiveNeedsOrgSetup = orgNameLocal ? false : needsOrgSetup;
-
-  const [profileCompletedLocal, setProfileCompletedLocal] = useState(false);
-  const effectiveNeedsProfileSetup = profileCompletedLocal
-    ? false
-    : needsProfileSetup;
 
   return (
     <>
@@ -170,12 +87,12 @@ const App = () => {
         // Authenticated
         <>
           <GhostBar />
-          {effectiveNeedsOrgSetup &&
+          {needsOrgSetup &&
           location.pathname !== "/org-setup" &&
           location.pathname !== "/invite-accept" ? (
             <Navigate to="/org-setup" replace />
-          ) : !effectiveNeedsOrgSetup &&
-            effectiveNeedsProfileSetup &&
+          ) : !needsOrgSetup &&
+            needsProfileSetup &&
             location.pathname !== "/complete-profile" &&
             location.pathname !== "/invite-accept" ? (
             <Navigate to="/complete-profile" replace />
@@ -196,24 +113,8 @@ const App = () => {
               <Route path="/terms" element={<TermsPage />} />
 
               {/* Onboarding */}
-              <Route
-                path="/org-setup"
-                element={
-                  <OrgSetup
-                    orgId={orgId}
-                    initialName={effectiveOrgName}
-                    onSaved={(name) => setOrgNameLocal(name)}
-                  />
-                }
-              />
-              <Route
-                path="/complete-profile"
-                element={
-                  <CompleteProfile
-                    onSaved={() => setProfileCompletedLocal(true)}
-                  />
-                }
-              />
+              <Route path="/org-setup" element={<OrgSetup />} />
+              <Route path="/complete-profile" element={<CompleteProfile />} />
               <Route path="/invite-accept" element={<InviteAccept />} />
 
               {/* Main app */}

@@ -35,6 +35,11 @@ const UserContext = createContext({
   features: { teams_enabled: false, requests_enabled: false },
   updateFeature: async () => ({ error: null }),
 
+  // Apply a saved org name / profile row to provider state (OrgSetup,
+  // CompleteProfile, InviteAccept) so onboarding gates update without reload.
+  applyOrgName: () => {},
+  applyProfile: () => {},
+
   // Dev-only: override the real role for testing permission levels.
   // Always null in production (the setter is a no-op outside of DEV mode).
   devRoleOverride: null,

@@ -3,9 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 import useUser from "@/context/useUser";
 
-export default function CompleteProfile({ onSaved }) {
+export default function CompleteProfile() {
   const navigate = useNavigate();
-  const { authUser, profile } = useUser();
+  const { authUser, profile, applyProfile } = useUser();
 
   const [fullName, setFullName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -33,15 +33,21 @@ export default function CompleteProfile({ onSaved }) {
 
     setBusy(true);
     try {
-      const { error } = await supabase.from("profiles").upsert({
-        id: authUser.id,
-        email: authUser.email?.trim().toLowerCase() || null,
-        full_name: trimmedName,
-      });
+      // Ask for the stored row back and hand it to the provider, so
+      // needsProfileSetup clears and actorName uses the new name right away.
+      const { data, error } = await supabase
+        .from("profiles")
+        .upsert({
+          id: authUser.id,
+          email: authUser.email?.trim().toLowerCase() || null,
+          full_name: trimmedName,
+        })
+        .select("id, email, full_name, phone")
+        .single();
 
       if (error) throw error;
 
-      if (typeof onSaved === "function") onSaved();
+      applyProfile(data);
       navigate("/", { replace: true });
     } catch (e2) {
       if (e2?.name === "AbortError" || e2?.message?.includes("aborted")) {

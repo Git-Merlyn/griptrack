@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import UserContext from "./UserContext";
 import { supabase } from "@/lib/supabaseClient";
+import { isPlaceholderOrgName } from "@/lib/orgName";
 import { canSwitchTeams as roleCanSwitchTeams, isOrgAdmin } from "@shared/roles";
 
 const UserProvider = ({ children }) => {
@@ -41,11 +42,6 @@ const UserProvider = ({ children }) => {
   // User id whose org/profile bootstrap has fully completed. Lets the auth
   // listener ignore repeat events for the same user (see below).
   const bootstrappedUserIdRef = useRef(null);
-
-  const isPlaceholderOrgName = (name) => {
-    const n = String(name || "").trim().toLowerCase();
-    return !n || ["default org", "new company", "organization", "company"].includes(n);
-  };
 
   const logout = async () => {
     setAuthUser(null);
@@ -221,17 +217,42 @@ const UserProvider = ({ children }) => {
   // admin/owner can browse any team; crew/dept_head are locked to their assigned team
   const canSwitchTeams = !!effectiveRole && roleCanSwitchTeams(effectiveRole);
 
-  // Toggle an org-level feature flag. Owner-only in the UI, but no server-side
-  // enforcement here — RLS on the organizations table handles that.
+  // Toggle an org-level feature flag. Owner-only: RLS ("owners can update
+  // their organization") enforces it, but an RLS-refused UPDATE returns 2xx
+  // with ZERO rows and no error — so ask for the row back and only change
+  // local state from what the server actually stored.
   const updateFeature = async (key, enabled) => {
     const newFeatures = { ...features, [key]: enabled };
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("organizations")
       .update({ features: newFeatures })
-      .eq("id", orgId);
-    if (!error) setFeatures(newFeatures);
-    return { error };
+      .eq("id", orgId)
+      .select("id, features");
+    if (error) return { error };
+    const row = Array.isArray(data) ? data[0] : null;
+    if (!row) {
+      return { error: new Error("Only the organization owner can change features.") };
+    }
+    setFeatures({
+      teams_enabled:    row.features?.teams_enabled    ?? false,
+      requests_enabled: row.features?.requests_enabled ?? false,
+    });
+    return { error: null };
   };
+
+  // Called after OrgSetup / CompleteProfile / InviteAccept save, with the row
+  // the server returned, so the onboarding redirects in App.jsx see the new
+  // state immediately (previously App kept its own shadow flags).
+  const applyOrgName = useCallback((name) => {
+    const trimmed = String(name || "").trim();
+    setOrgName(trimmed);
+    setNeedsOrgSetup(isPlaceholderOrgName(trimmed));
+  }, []);
+
+  const applyProfile = useCallback((row) => {
+    setProfile(row ?? null);
+    setNeedsProfileSetup(!String(row?.full_name || "").trim());
+  }, []);
 
   // Derive the active plan — treat any non-active subscription as free
   const plan = useMemo(() => {
@@ -267,6 +288,9 @@ const UserProvider = ({ children }) => {
       // Features
       features,
       updateFeature,
+      // Onboarding
+      applyOrgName,
+      applyProfile,
       // Dev only
       devRoleOverride,
       setDevRoleOverride,
@@ -289,6 +313,8 @@ const UserProvider = ({ children }) => {
       loadingSubscription,
       trialEndsAt,
       features,
+      applyOrgName,
+      applyProfile,
       devRoleOverride,
     ],
   );

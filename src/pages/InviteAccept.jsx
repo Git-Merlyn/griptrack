@@ -6,7 +6,7 @@ import useUser from "@/context/useUser";
 export default function InviteAccept() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { authUser, loadingOrg, needsOrgSetup, needsProfileSetup, profile } =
+  const { authUser, loadingOrg, needsOrgSetup, needsProfileSetup, profile, applyProfile } =
     useUser();
 
   const invitedEmail = String(searchParams.get("email") || "").trim();
@@ -150,13 +150,20 @@ export default function InviteAccept() {
       });
       if (passwordError) throw passwordError;
 
-      const { error: profileError } = await supabase.from("profiles").upsert({
-        id: authUser.id,
-        email: authUser.email?.trim().toLowerCase() || null,
-        full_name: trimmedName,
-      });
+      const { data: savedProfile, error: profileError } = await supabase
+        .from("profiles")
+        .upsert({
+          id: authUser.id,
+          email: authUser.email?.trim().toLowerCase() || null,
+          full_name: trimmedName,
+        })
+        .select("id, email, full_name, phone")
+        .single();
       if (profileError) throw profileError;
 
+      // Without this the provider still says needsProfileSetup and App
+      // bounces the new member from "/" to /complete-profile.
+      applyProfile(savedProfile);
       navigate("/", { replace: true });
     } catch (e2) {
       setFormError(e2?.message || "Failed to finish invite setup.");
