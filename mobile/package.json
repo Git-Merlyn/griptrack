@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.ts",
   "engines": {
-    "node": ">=20.19.4"
+    "node": ">=22.0.0"
   },
   "scripts": {
     "start": "expo start",
@@ -17,10 +17,10 @@
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/netinfo": "11.5.2",
-    "@react-navigation/bottom-tabs": "^7.2.0",
-    "@react-navigation/native": "^7.0.14",
-    "@react-navigation/native-stack": "^7.2.0",
-    "@supabase/supabase-js": "^2.49.4",
+    "@react-navigation/bottom-tabs": "^7.21.0",
+    "@react-navigation/native": "^7.5.1",
+    "@react-navigation/native-stack": "^7.21.0",
+    "@supabase/supabase-js": "^2.118.0",
     "expo": "~55.0.32",
     "expo-build-properties": "~55.0.18",
     "expo-document-picker": "~55.0.17",
@@ -31,7 +31,7 @@
     "expo-sqlite": "~55.0.20",
     "expo-status-bar": "~55.0.6",
     "jest-expo": "~55.0.17",
-    "nativewind": "^4.1.23",
+    "nativewind": "^4.2.7",
     "react": "19.2.0",
     "react-native": "0.83.10",
     "react-native-reanimated": "4.2.1",

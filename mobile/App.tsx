@@ -1,5 +1,4 @@
 import './global.css';
-import 'react-native-url-polyfill/auto';
 
 import React from 'react';
 import { LogBox } from 'react-native';
