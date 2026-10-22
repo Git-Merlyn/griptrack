@@ -1,13 +1,27 @@
-import { useState, useContext } from "react";
+import { useState, useContext, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { deleteByIds } from "@/lib/deleteRows";
 import EquipmentContext from "@/context/EquipmentContext";
 import useUser from "@/context/useUser";
 import { planLimitMessage } from "@/lib/plan";
 
+// Server-side count of equipment rows at a location across the WHOLE org
+// (audit L23). The equipment list in EquipmentContext is scoped to the active
+// team when Teams is on, and PostgREST pages at 1000 rows, so counting it
+// client-side under-counts. head:true returns only the count, no rows.
+async function countItemsAt(orgId, locationName) {
+  const { count, error } = await supabase
+    .from("equipment_items")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", orgId)
+    .eq("location", locationName);
+  if (error) throw error;
+  return count ?? 0;
+}
+
 const LocationsPage = () => {
   const { orgId, isCoordinator, ghostReadOnly } = useUser();
-  const { locations, loadLocations, equipment } = useContext(EquipmentContext);
+  const { locations, loadLocations } = useContext(EquipmentContext);
   // Write controls: owner/admin, never a read-only ghost. RLS also lets
   // department heads add/rename locations; they do that in the mobile app,
   // and this page (and its sidebar link) stays owner/admin.
@@ -28,12 +42,30 @@ const LocationsPage = () => {
   // Delete confirmation
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
-  // Count equipment items per location name
-  const countByLocation = (equipment ?? []).reduce((acc, item) => {
-    const loc = item.location ?? "";
-    acc[loc] = (acc[loc] ?? 0) + 1;
-    return acc;
-  }, {});
+  // Org-wide item count per location name (L23). null = still counting;
+  // a null entry = that count failed (Delete stays hidden).
+  const [orgCounts, setOrgCounts] = useState(null);
+
+  useEffect(() => {
+    if (!orgId) return undefined;
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(
+        locations.map(async (l) => {
+          try {
+            return [l.name, await countItemsAt(orgId, l.name)];
+          } catch (err) {
+            console.warn("Failed to count items for location", l.name, err);
+            return [l.name, null];
+          }
+        }),
+      );
+      if (!cancelled) setOrgCounts(Object.fromEntries(entries));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, locations]);
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -140,8 +172,26 @@ const LocationsPage = () => {
   };
 
   const handleDelete = async (loc) => {
-    const itemCount = countByLocation[loc.name] ?? 0;
-    if (itemCount > 0) return; // Guard — button is disabled, but just in case
+    // Re-count on the server right before deleting: another team's gear, or
+    // an item added since the page loaded, must block the delete (L23).
+    let itemCount;
+    try {
+      itemCount = await countItemsAt(orgId, loc.name);
+    } catch (err) {
+      setConfirmDeleteId(null);
+      window.toast?.error?.(
+        err?.message || "Couldn't check whether this location is in use.",
+      );
+      return;
+    }
+    if (itemCount > 0) {
+      setConfirmDeleteId(null);
+      setOrgCounts((prev) => ({ ...(prev ?? {}), [loc.name]: itemCount }));
+      window.toast?.error?.(
+        `${itemCount} ${itemCount === 1 ? "item" : "items"} across your organization still use "${loc.name}". Move them first.`,
+      );
+      return;
+    }
 
     // The result used to be ignored entirely; an RLS-refused DELETE also
     // returns 2xx with zero rows — deleteByIds tells the cases apart.
@@ -210,7 +260,8 @@ const LocationsPage = () => {
         )}
 
         {locations.map((loc) => {
-          const itemCount = countByLocation[loc.name] ?? 0;
+          const itemCount = orgCounts?.[loc.name];
+          const countKnown = typeof itemCount === "number";
           const isRenaming = renamingId === loc.id;
           const isConfirmingDelete = confirmDeleteId === loc.id;
 
@@ -275,7 +326,11 @@ const LocationsPage = () => {
                         </p>
                       )}
                       <p className="text-xs text-gray-500 mt-1">
-                        {itemCount} {itemCount === 1 ? "item" : "items"}
+                        {countKnown
+                          ? `${itemCount} ${itemCount === 1 ? "item" : "items"}`
+                          : orgCounts === null
+                            ? "Counting items…"
+                            : "Item count unavailable"}
                       </p>
                     </>
                   )}
@@ -300,7 +355,7 @@ const LocationsPage = () => {
                       {loc.is_active ? "Deactivate" : "Reactivate"}
                     </button>
 
-                    {itemCount === 0 && (
+                    {countKnown && itemCount === 0 && (
                       isConfirmingDelete ? (
                         <div className="flex items-center gap-1">
                           <span className="text-xs text-red-400">Sure?</span>
