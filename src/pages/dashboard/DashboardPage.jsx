@@ -27,6 +27,7 @@ import useEditFlow from "./hooks/useEditFlow";
 import useLocation from "./hooks/useLocation";
 import useExport from "./hooks/useExport";
 import { matchFileItemsToEquipment } from "./utils/pdfSelect";
+import { validateItemForm } from "./utils/itemValidation";
 import { planAllows, proFeatureMessage } from "@/lib/plan";
 import { bulkMoveToLocation } from "./utils/bulkMove";
 import useFilterPresets from "./hooks/useFilterPresets";
@@ -55,7 +56,7 @@ const DashboardHeader = ({
     <div className="flex items-center justify-between gap-3">
       <h2 className="text-3xl font-bold text-accent">Dashboard</h2>
 
-      {/* hidden sm:flex: CSS-level guard so buttons never flash on mobile
+      {/* hidden md:flex: CSS-level guard so buttons never flash on mobile
           during the brief window before isMobile state resolves in JS.
           hideActions={isMobile} is the JS-driven equivalent once it runs. */}
       {!hideActions && (
@@ -837,6 +838,8 @@ const DashboardPage = () => {
   const [showToast, setShowToast] = useState(false);
 
   const [showSummaryModal, setShowSummaryModal] = useState(false);
+  // True while the Add/Edit modal's save request is in flight
+  const [savingEdit, setSavingEdit] = useState(false);
   const [exportingHistory, setExportingHistory] = useState(false);
 
   // Welcome banner — shown once when org has no equipment, dismissed via localStorage
@@ -872,14 +875,12 @@ const DashboardPage = () => {
   // Edit flow modal state and handlers (centralized)
   const {
     editingId,
-    setEditingId,
     newItem,
     setNewItem,
     showMobileEditModal,
     showDesktopEditModal,
     openAdd,
     openEditForItem,
-    closeEdit,
     cancelEdit,
     setField,
   } = useEditFlow({
@@ -912,45 +913,38 @@ const DashboardPage = () => {
     }
   }, [importSummaryMessage, clearImportSummary]);
 
-  const handleAddOrUpdate = () => {
-    const qtyNum = newItem.quantity === "" ? 0 : Number(newItem.quantity) || 0;
-    const reserveNum = Number(newItem.reserveMin) || 0;
-    if (!newItem.name || !newItem.location) return;
-    // Allow qty 0 only when reserveMin > 0
-    if (qtyNum <= 0 && reserveNum <= 0) return;
-    if (newItem.rentalEnd && newItem.rentalStart > newItem.rentalEnd) return;
-
-    if (editingId !== null) {
-      updateEquipment(editingId, {
-        ...newItem,
-        quantity: qtyNum,
-        reserveMin: Number(newItem.reserveMin) || 0,
-        updatedBy: actorName,
-      });
-      setEditingId(null);
-    } else {
-      addEquipment({
-        ...newItem,
-        quantity: qtyNum,
-        reserveMin: Number(newItem.reserveMin) || 0,
-        updatedBy: actorName,
-      }).then((result) => {
-        if (result?.id) pinItem(result.id);
-      }).catch(() => {});
+  // Saves the Add/Edit form. Returns true when saved; false keeps the modal
+  // open with the user's input. Validation problems are toasted here;
+  // updateEquipment/addEquipment toast their own DB errors.
+  const handleAddOrUpdate = async () => {
+    const check = validateItemForm(newItem);
+    if (!check.ok) {
+      window.toast?.error?.(check.error);
+      return false;
     }
 
-    setNewItem({
-      itemId: "",
-      name: "",
-      category: "",
-      source: "",
-      location: "",
-      status: "Available",
-      rentalStart: "",
-      rentalEnd: "",
-      quantity: 1,
-      reserveMin: 0,
-    });
+    const payload = {
+      ...newItem,
+      quantity: check.quantity,
+      reserveMin: check.reserveMin,
+      updatedBy: actorName,
+    };
+
+    setSavingEdit(true);
+    try {
+      if (editingId !== null) {
+        await updateEquipment(editingId, payload);
+      } else {
+        const result = await addEquipment(payload);
+        if (result?.id) pinItem(result.id);
+      }
+      return true;
+    } catch (e) {
+      console.error("Save item failed", e);
+      return false;
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const confirmAndDelete = (id, name) => {
@@ -965,6 +959,8 @@ const DashboardPage = () => {
       // silent: this handler shows the toasts (avoids a duplicate pair)
       await deleteEquipment(deleteTarget.id, { silent: true });
       window.toast?.success?.("Item deleted");
+      // Deleted from inside the Edit modal: close it too
+      if (String(deleteTarget.id) === String(editingId)) cancelEdit();
       setDeleteTarget(null);
     } catch (e) {
       console.error(e);
@@ -1381,7 +1377,6 @@ const DashboardPage = () => {
               toggleSelected={toggleSelected}
               selectAllVisible={selectAllVisible}
               clearSelection={clearSelection}
-              editingId={editingId}
               canEdit={canEdit}
               onOpenDetails={(item) => {
                 setMobileDetailsItem(item);
@@ -1408,7 +1403,6 @@ const DashboardPage = () => {
               sortArrow={sortArrow}
               sortKey={sortKey}
               sortDir={sortDir}
-              editingId={editingId}
               canEdit={canEdit}
               onOpenDetails={(item) => {
                 setMobileDetailsItem(item);
@@ -1481,65 +1475,27 @@ const DashboardPage = () => {
         )}
       </InventoryCard>}
 
-      {/* Desktop inline Add/Edit form removed */}
-
-      {/* Quick Edit Section removed */}
-
-      {/* Edit Modals */}
+      {/* Add/Edit modal — one instance for mobile and desktop */}
       <EditModal
-        isOpen={isMobile && showMobileEditModal}
-        variant="mobile"
+        isOpen={isMobile ? showMobileEditModal : showDesktopEditModal}
         title={editingId ? "Edit Item" : "Add Item"}
+        editingId={editingId}
         newItem={newItem}
+        saving={savingEdit}
         onChangeField={setField}
-        handleInlineChange={setField}
         allLocations={allLocations}
         statusOptions={statusOptions}
         onRequestAddLocation={() => {
           setIsAddingLocationTo("new");
           setShowAddLocationModal(true);
         }}
-        onCancel={() => {
-          cancelEdit();
+        onCancel={cancelEdit}
+        onSave={async () => {
+          if (savingEdit) return;
+          if (await handleAddOrUpdate()) cancelEdit();
         }}
-        onSave={() => {
-          handleAddOrUpdate();
-          closeEdit();
-        }}
-        onDelete={canDelete ? () => {
-          const id = editingId;
-          const name = newItem?.name;
-          if (!id) return;
-          confirmAndDelete(id, name);
-        } : undefined}
-      />
-
-      <EditModal
-        isOpen={!isMobile && showDesktopEditModal}
-        variant="desktop"
-        title={editingId ? "Edit Item" : "Add Item"}
-        newItem={newItem}
-        onChangeField={setField}
-        handleInlineChange={setField}
-        allLocations={allLocations}
-        statusOptions={statusOptions}
-        onRequestAddLocation={() => {
-          setIsAddingLocationTo("new");
-          setShowAddLocationModal(true);
-        }}
-        onCancel={() => {
-          cancelEdit();
-        }}
-        onSave={() => {
-          handleAddOrUpdate();
-          closeEdit();
-        }}
-        onDelete={canDelete ? () => {
-          const id = editingId;
-          const name = newItem?.name;
-          if (!id) return;
-          confirmAndDelete(id, name);
-        } : undefined}
+        // Delete only exists for a saved item (never in Add mode)
+        onDelete={canDelete && editingId ? confirmAndDelete : undefined}
       />
 
       {/* Details Modal */}

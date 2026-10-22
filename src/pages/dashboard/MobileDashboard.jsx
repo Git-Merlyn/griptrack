@@ -11,8 +11,6 @@ const MobileDashboard = ({
   selectAllVisible,
   clearSelection,
 
-  editingId,
-
   onOpenDetails,
   onOpenEdit,
   onOpenMove,
@@ -107,10 +105,7 @@ const MobileDashboard = ({
                   <button
                     type="button"
                     onClick={() => onOpenEdit(item)}
-                    disabled={editingId !== null}
-                    className={
-                      editingId !== null ? "btn-disabled-sm" : "btn-edit-sm"
-                    }
+                    className="btn-edit-sm"
                   >
                     Edit
                   </button>
