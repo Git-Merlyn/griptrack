@@ -24,12 +24,12 @@ function FeatureToggle({ label, description, enabled, onChange, disabled }) {
         aria-checked={enabled}
         disabled={disabled}
         onClick={() => onChange(!enabled)}
-        className={`relative shrink-0 w-11 h-6 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-accent/40 ${
+        className={`relative shrink-0 w-11 h-6 rounded-full transition-colors focus:outline-hidden focus:ring-2 focus:ring-accent/40 ${
           disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"
         } ${enabled ? "bg-accent/80" : "bg-text/20"}`}
       >
         <span
-          className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${
+          className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${
             enabled ? "left-6" : "left-1"
           }`}
         />

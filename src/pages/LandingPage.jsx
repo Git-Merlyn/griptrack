@@ -49,7 +49,7 @@ const LandingPage = () => {
   return (
     <div className="min-h-screen bg-background text-heading">
       {/* Nav */}
-      <header className="border-b border-gray-800 sticky top-0 z-50 bg-background/95 backdrop-blur">
+      <header className="border-b border-gray-800 sticky top-0 z-50 bg-background/95 backdrop-blur-sm">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <span className="text-xl font-bold text-accent">GripTrack</span>
 
@@ -83,7 +83,7 @@ const LandingPage = () => {
           Built for grip &amp; electric departments
         </div>
 
-        <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-tight mb-6 text-heading">
+        <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-tight sm:leading-none mb-6 text-heading">
           Inventory management that keeps up{" "}
           <span className="text-accent">with your shoot</span>
         </h1>

@@ -1,61 +1,116 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss" source(none);
+
+/* Scan exactly what the v3 `content` globs scanned. source(none) turns off
+   v4's automatic scan of the whole repo (mobile/, supabase/, docs). */
+@source "../index.html";
+@source "../src";
 
 /*
- * Theme tokens — comma-separated RGB channels so rgba() opacity modifiers work.
- * e.g. bg-accent/20 → rgba(var(--color-accent), 0.2)
+ * Theme tokens (Tailwind v4). Each --color-* is a full colour; v4 builds
+ * opacity modifiers with color-mix(), e.g. bg-accent/20 →
+ * color-mix(in oklab, var(--color-accent) 20%, transparent).
  *
- * Dark mode is the default. Light mode is activated by adding the `.light`
- * class to <html> (see useTheme hook + flash-prevention script in index.html).
+ * Dark mode is the default (values in @theme). Light mode is activated by
+ * adding the `.light` class to <html> (see useTheme hook + flash-prevention
+ * script in index.html); :root.light overrides the same variables.
  */
-:root {
-  --color-background: 15, 17, 23;
-  --color-surface:    26, 29, 35;
-  --color-accent:     77, 235, 249;
-  --color-text:       156, 163, 175;
-  --color-warning:    255, 214, 0;
-  --color-danger:     255, 77, 77;
-  --color-success:    46, 204, 113;
+@theme {
+  --color-background: rgb(15 17 23);
+  --color-surface:    rgb(26 29 35);
+  --color-accent:     rgb(77 235 249);
+  --color-text:       rgb(156 163 175);
+  --color-warning:    rgb(255 214 0);
+  --color-danger:     rgb(255 77 77);
+  --color-success:    rgb(46 204 113);
   /* Headings and primary text on surfaces (replaces hard-coded text-white) */
-  --color-heading:    255, 255, 255;
+  --color-heading:    rgb(255 255 255);
 
-  /* Themed gray ramp (see tailwind.config.js). Dark = Tailwind's defaults. */
-  --gray-50:  249, 250, 251;
-  --gray-100: 243, 244, 246;
-  --gray-200: 229, 231, 235;
-  --gray-300: 209, 213, 219;
-  --gray-400: 156, 163, 175;
-  --gray-500: 107, 114, 128;
-  --gray-600: 75, 85, 99;
-  --gray-700: 55, 65, 81;
-  --gray-800: 31, 41, 55;
-  --gray-900: 17, 24, 39;
-  --gray-950: 3, 7, 18;
+  /* Themed gray ramp (audit M11). Dark = Tailwind v3's default grays, so dark
+     mode looks the same; :root.light inverts the ramp. Consequence: in light
+     mode gray-900 is LIGHT. For new UI prefer the semantic tokens
+     (text-heading, text-text, bg-surface, bg-background). */
+  --color-gray-50:  rgb(249 250 251);
+  --color-gray-100: rgb(243 244 246);
+  --color-gray-200: rgb(229 231 235);
+  --color-gray-300: rgb(209 213 219);
+  --color-gray-400: rgb(156 163 175);
+  --color-gray-500: rgb(107 114 128);
+  --color-gray-600: rgb(75 85 99);
+  --color-gray-700: rgb(55 65 81);
+  --color-gray-800: rgb(31 41 55);
+  --color-gray-900: rgb(17 24 39);
+  --color-gray-950: rgb(3 7 18);
+
+  --font-sans: Inter, sans-serif;
 }
 
 :root.light {
-  --color-background: 241, 245, 249;
-  --color-surface:    255, 255, 255;
-  --color-accent:     8, 145, 178;
-  --color-text:       51, 65, 85;
-  --color-warning:    180, 83, 9;
-  --color-danger:     220, 38, 38;
-  --color-success:    22, 163, 74;
-  --color-heading:    15, 23, 42;
+  --color-background: rgb(241 245 249);
+  --color-surface:    rgb(255 255 255);
+  --color-accent:     rgb(8 145 178);
+  --color-text:       rgb(51 65 85);
+  --color-warning:    rgb(180 83 9);
+  --color-danger:     rgb(220 38 38);
+  --color-success:    rgb(22 163 74);
+  --color-heading:    rgb(15 23 42);
 
   /* Inverted slate ramp: low numbers dark, high numbers light (M11). */
-  --gray-50:  2, 6, 23;
-  --gray-100: 15, 23, 42;
-  --gray-200: 30, 41, 59;
-  --gray-300: 51, 65, 85;
-  --gray-400: 71, 85, 105;
-  --gray-500: 100, 116, 139;
-  --gray-600: 148, 163, 184;
-  --gray-700: 203, 213, 225;
-  --gray-800: 226, 232, 240;
-  --gray-900: 241, 245, 249;
-  --gray-950: 248, 250, 252;
+  --color-gray-50:  rgb(2 6 23);
+  --color-gray-100: rgb(15 23 42);
+  --color-gray-200: rgb(30 41 59);
+  --color-gray-300: rgb(51 65 85);
+  --color-gray-400: rgb(71 85 105);
+  --color-gray-500: rgb(100 116 139);
+  --color-gray-600: rgb(148 163 184);
+  --color-gray-700: rgb(203 213 225);
+  --color-gray-800: rgb(226 232 240);
+  --color-gray-900: rgb(241 245 249);
+  --color-gray-950: rgb(248 250 252);
+}
+
+/*
+ * Tailwind v3 behaviour kept on purpose (v4 changed these preflight defaults):
+ * - a bare `border` / `divide-y` was gray-200; v4 uses currentColor
+ *   (ImportFileModal and ImportReviewTable rely on the old default);
+ * - input/textarea placeholders were gray-400; v4 uses the text colour at 50%;
+ * - buttons had cursor: pointer; v4 uses the browser default (arrow);
+ * - text fields/selects without a bg-* class kept the browser's background
+ *   and the file-picker button kept its native look; v4 makes both
+ *   transparent (ImportFileModal relies on the old look). `revert` = browser
+ *   default; any bg-* utility still wins (utilities layer comes later).
+ * gray-* is themed above, so these follow the light/dark theme as they did.
+ */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-gray-400);
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  input,
+  select,
+  textarea {
+    background-color: revert;
+  }
+
+  ::file-selector-button {
+    background-color: revert;
+    border: revert;
+    border-radius: revert;
+    padding: revert;
+  }
 }
 
 body {
@@ -67,38 +122,38 @@ body {
   .btn-accent {
     @apply px-4 py-2 bg-accent text-slate-900 font-medium rounded-md border border-white/10
       hover:brightness-95 transition
-      focus:outline-none focus:ring-2 focus:ring-accent/40;
+      focus:outline-hidden focus:ring-2 focus:ring-accent/40;
   }
   .btn-accent-sm {
     @apply px-3 py-2 bg-accent text-slate-900 font-medium rounded-md border border-white/10
       hover:brightness-95 transition
-      focus:outline-none focus:ring-2 focus:ring-accent/40;
+      focus:outline-hidden focus:ring-2 focus:ring-accent/40;
   }
 
   .btn-secondary {
     @apply px-4 py-2 bg-transparent text-text font-medium rounded-md
       border border-text/20
       hover:bg-text/10 transition
-      focus:outline-none focus:ring-2 focus:ring-accent/30;
+      focus:outline-hidden focus:ring-2 focus:ring-accent/30;
   }
   .btn-secondary-sm {
     @apply px-3 py-2 bg-transparent text-text font-medium rounded-md
       border border-text/20
       hover:bg-text/10 transition
-      focus:outline-none focus:ring-2 focus:ring-accent/30;
+      focus:outline-hidden focus:ring-2 focus:ring-accent/30;
   }
 
   .btn-danger {
     @apply px-4 py-2 bg-transparent text-red-200 font-medium rounded-md
       border border-red-400/25
       hover:bg-red-400/10 hover:text-red-100 transition
-      focus:outline-none focus:ring-2 focus:ring-red-400/30;
+      focus:outline-hidden focus:ring-2 focus:ring-red-400/30;
   }
   .btn-danger-sm {
     @apply px-3 py-2 bg-transparent text-red-200 font-medium rounded-md
       border border-red-400/25
       hover:bg-red-400/10 hover:text-red-100 transition
-      focus:outline-none focus:ring-2 focus:ring-red-400/30;
+      focus:outline-hidden focus:ring-2 focus:ring-red-400/30;
   }
 
   .btn-disabled {
@@ -115,13 +170,13 @@ body {
     @apply px-4 py-2 bg-transparent text-blue-200 font-medium rounded-md
       border border-blue-400/25
       hover:bg-blue-400/10 hover:text-blue-100 transition
-      focus:outline-none focus:ring-2 focus:ring-blue-300/30;
+      focus:outline-hidden focus:ring-2 focus:ring-blue-300/30;
   }
   .btn-edit-sm {
     @apply px-3 py-2 bg-transparent text-blue-200 font-medium rounded-md
       border border-blue-400/25
       hover:bg-blue-400/10 hover:text-blue-100 transition
-      focus:outline-none focus:ring-2 focus:ring-blue-300/30;
+      focus:outline-hidden focus:ring-2 focus:ring-blue-300/30;
   }
 
   /* Yellow action button (Move) */
@@ -129,13 +184,13 @@ body {
     @apply px-4 py-2 bg-transparent text-amber-200 font-medium rounded-md
       border border-amber-300/25
       hover:bg-amber-300/10 hover:text-amber-100 transition
-      focus:outline-none focus:ring-2 focus:ring-amber-200/30;
+      focus:outline-hidden focus:ring-2 focus:ring-amber-200/30;
   }
   .btn-move-sm {
     @apply px-3 py-2 bg-transparent text-amber-200 font-medium rounded-md
       border border-amber-300/25
       hover:bg-amber-300/10 hover:text-amber-100 transition
-      focus:outline-none focus:ring-2 focus:ring-amber-200/30;
+      focus:outline-hidden focus:ring-2 focus:ring-amber-200/30;
   }
 
   /* Date status badges (start/end date warnings) */

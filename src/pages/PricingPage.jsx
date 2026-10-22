@@ -67,13 +67,13 @@ const plans = [
 ];
 
 const Check = () => (
-  <svg className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+  <svg className="w-4 h-4 text-accent shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
   </svg>
 );
 
 const X = () => (
-  <svg className="w-4 h-4 text-gray-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+  <svg className="w-4 h-4 text-gray-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
   </svg>
 );
@@ -114,7 +114,7 @@ const PricingPage = () => {
   return (
     <div className="min-h-screen bg-background text-heading">
       {/* Nav */}
-      <header className="border-b border-gray-800 sticky top-0 z-50 bg-background/95 backdrop-blur">
+      <header className="border-b border-gray-800 sticky top-0 z-50 bg-background/95 backdrop-blur-sm">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <Link to="/" className="text-xl font-bold text-accent">
             GripTrack

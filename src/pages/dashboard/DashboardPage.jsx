@@ -125,7 +125,7 @@ const FilterSelect = ({ value, onChange, placeholder, options, label }) => (
       aria-label={label}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className={`w-full px-2 py-2 rounded-lg border shadow-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition appearance-none pr-6 text-sm ${
+      className={`w-full px-2 py-2 rounded-lg border shadow-xs focus:outline-hidden focus:ring-2 focus:ring-accent/50 focus:border-accent transition appearance-none pr-6 text-sm ${
         value
           ? "bg-accent/10 border-accent text-accent font-medium"
           : "bg-surface border-text/20 text-text/60"
@@ -194,7 +194,7 @@ const BulkToolbar = ({
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search by Name"
-          className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-surface text-text border border-text/20 placeholder:text-text/40 shadow-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition"
+          className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-surface text-text border border-text/20 placeholder:text-text/40 shadow-xs focus:outline-hidden focus:ring-2 focus:ring-accent/50 focus:border-accent transition"
         />
         {searchQuery.trim() ? (
           <button
@@ -416,7 +416,7 @@ const FilterPresets = ({ presets, activeFilters, onApply, onSave, onDelete }) =>
               if (e.key === "Escape") { setSaving(false); setName(""); }
             }}
             placeholder="Preset name…"
-            className="text-xs px-2 py-1 rounded bg-surface border border-text/20 text-text placeholder:text-text/40 focus:outline-none focus:border-accent w-36"
+            className="text-xs px-2 py-1 rounded bg-surface border border-text/20 text-text placeholder:text-text/40 focus:outline-hidden focus:border-accent w-36"
           />
           <button
             type="button"
@@ -699,7 +699,7 @@ const OrgOverview = () => {
                     </span>
                   </div>
                   <div className="mt-3 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
                     <span className="text-xs text-text/50">Active</span>
                     <span className="text-xs text-text/40 ml-auto">
                       {team.max_seats} seat{team.max_seats !== 1 ? "s" : ""}
@@ -729,7 +729,7 @@ const OrgOverview = () => {
                     {itemCount === null ? "—" : `${itemCount} item${itemCount !== 1 ? "s" : ""}`}
                   </p>
                   <div className="mt-3 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-text/30 flex-shrink-0" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-text/30 shrink-0" />
                     <span className="text-xs text-text/50">Archived</span>
                   </div>
                 </div>

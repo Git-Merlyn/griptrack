@@ -230,7 +230,7 @@ function SettingsPanel({ collapsed, onClose }) {
               placeholder="DELETE"
               value={delState.confirm}
               onChange={(e) => setDelState((s) => ({ ...s, confirm: e.target.value, err: "" }))}
-              className="w-full px-3 py-2 rounded bg-background text-text border border-danger/30 text-sm placeholder:text-text/30 focus:outline-none focus:ring-2 focus:ring-danger/40"
+              className="w-full px-3 py-2 rounded bg-background text-text border border-danger/30 text-sm placeholder:text-text/30 focus:outline-hidden focus:ring-2 focus:ring-danger/40"
               autoComplete="off"
             />
             {delState.err && <p className="text-danger text-xs">{delState.err}</p>}
@@ -258,7 +258,7 @@ function SettingsPanel({ collapsed, onClose }) {
               placeholder="New password"
               value={pwState.next}
               onChange={(e) => setPwState((s) => ({ ...s, next: e.target.value, err: "", ok: false }))}
-              className="w-full px-3 py-2 rounded bg-background text-text border border-text/15 text-sm placeholder:text-text/40 focus:outline-none focus:ring-2 focus:ring-accent/40"
+              className="w-full px-3 py-2 rounded bg-background text-text border border-text/15 text-sm placeholder:text-text/40 focus:outline-hidden focus:ring-2 focus:ring-accent/40"
               required
               minLength={8}
             />
@@ -267,7 +267,7 @@ function SettingsPanel({ collapsed, onClose }) {
               placeholder="Confirm new password"
               value={pwState.confirm}
               onChange={(e) => setPwState((s) => ({ ...s, confirm: e.target.value, err: "", ok: false }))}
-              className="w-full px-3 py-2 rounded bg-background text-text border border-text/15 text-sm placeholder:text-text/40 focus:outline-none focus:ring-2 focus:ring-accent/40"
+              className="w-full px-3 py-2 rounded bg-background text-text border border-text/15 text-sm placeholder:text-text/40 focus:outline-hidden focus:ring-2 focus:ring-accent/40"
               required
             />
             {pwState.err && <p className="text-danger text-xs">{pwState.err}</p>}
@@ -380,7 +380,7 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
           className={`ml-4 flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs transition-colors ${
             location.pathname === "/teams" ? "text-accent" : "text-text/50 hover:text-text/80"
           }`}>
-          <span className="w-1.5 h-1.5 rounded-full bg-accent flex-shrink-0" />
+          <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
           <span className="truncate">{activeTeam.name}</span>
         </button>
       )}

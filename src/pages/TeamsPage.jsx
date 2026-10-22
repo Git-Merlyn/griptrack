@@ -42,7 +42,7 @@ function CreateTeamForm({ onCreated, onCancel }) {
       <div>
         <label className="text-sm text-text/70">Team name *</label>
         <input
-          className="w-full mt-1 px-3 py-2 rounded bg-background text-text border border-text/20 focus:outline-none focus:ring-2 focus:ring-accent/40"
+          className="w-full mt-1 px-3 py-2 rounded bg-background text-text border border-text/20 focus:outline-hidden focus:ring-2 focus:ring-accent/40"
           value={name}
           onChange={(e) => { setErr(""); setName(e.target.value); }}
           placeholder="e.g. Grip, Electric"
@@ -57,7 +57,7 @@ function CreateTeamForm({ onCreated, onCancel }) {
           type="number"
           min={1}
           max={500}
-          className="w-full mt-1 px-3 py-2 rounded bg-background text-text border border-text/20 focus:outline-none focus:ring-2 focus:ring-accent/40"
+          className="w-full mt-1 px-3 py-2 rounded bg-background text-text border border-text/20 focus:outline-hidden focus:ring-2 focus:ring-accent/40"
           value={maxSeats}
           onChange={(e) => setMaxSeats(e.target.value)}
         />
@@ -132,7 +132,7 @@ function TeamMemberList({ teamId }) {
         return (
           <div key={m.user_id} className="flex items-center gap-2 text-sm">
             <span className="text-text truncate">{name}</span>
-            <span className="text-xs px-1.5 py-0.5 rounded-full bg-text/10 text-text/70 flex-shrink-0">
+            <span className="text-xs px-1.5 py-0.5 rounded-full bg-text/10 text-text/70 shrink-0">
               {roleBadge}
             </span>
           </div>
@@ -174,7 +174,7 @@ function TeamCard({ team, isActive, onSwitch, onArchive, onDelete, canManage, ca
       <div className="flex items-center gap-3 px-4 py-3">
         {/* Status dot */}
         <span
-          className={`flex-shrink-0 w-2 h-2 rounded-full ${
+          className={`shrink-0 w-2 h-2 rounded-full ${
             isArchived ? "bg-gray-500" : "bg-green-400"
           }`}
         />
@@ -205,7 +205,7 @@ function TeamCard({ team, isActive, onSwitch, onArchive, onDelete, canManage, ca
         </div>
 
         {/* Action buttons */}
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           {canSwitch && !isArchived && !isActive && (
             <button type="button" className="btn-secondary-sm" onClick={() => onSwitch(team.id)}>
               Switch to
