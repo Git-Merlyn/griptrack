@@ -1,0 +1,38 @@
+version: 2
+updates:
+  # Web (repo root): one grouped PR per week for minor + patch bumps.
+  # Majors are planned by hand (WP21 web majors, WP22 Tailwind 4).
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      web-minor-patch:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    commit-message:
+      prefix: chore
+      include: scope
+
+  # Mobile: Expo pins versions per SDK (npx expo install --fix), so no
+  # version-update PRs. Limit 0 keeps Dependabot security PRs only.
+  - package-ecosystem: npm
+    directory: /mobile
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+
+  # GitHub Actions used by the workflows.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci

@@ -1,0 +1,60 @@
+name: Nightly
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  web-shuffle:
+    name: Web tests (shuffled order, coverage)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci
+
+      - name: Test (shuffled, with coverage)
+        run: npx vitest run --sequence.shuffle --coverage
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-nightly-reports
+          path: |
+            reports/junit.xml
+            coverage/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  mobile-audit:
+    name: Mobile npm audit (informational)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Audit production dependencies (report only)
+        # Mostly Metro / Expo CLI build tooling that never ships in the app
+        # binary; fixes arrive with Expo SDK bumps (WP23). Report, don't fail.
+        run: npm audit --omit=dev --audit-level=high || true

@@ -5,10 +5,18 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   web:
-    name: Web (lint, test, build)
+    name: Web (lint, test, build, audit)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -26,15 +34,30 @@ jobs:
       - name: Test
         run: npx vitest run
 
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-junit
+          path: reports/junit.xml
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Build
         run: npx vite build
 
+      - name: Audit production dependencies (high+)
+        run: npm audit --omit=dev --audit-level=high
+
   mobile:
-    name: Mobile (typecheck, test)
+    name: Mobile (typecheck, lint, test, bundle)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: mobile
+    env:
+      EXPO_NO_TELEMETRY: 1
     steps:
       - uses: actions/checkout@v4
 
@@ -49,5 +72,75 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      - name: Lint
+        run: npx expo lint
+
       - name: Test
         run: npx jest --ci
+
+      - name: Bundle smoke (expo export, iOS + Android)
+        run: npx expo export --platform ios --platform android --output-dir "$RUNNER_TEMP/expo-export"
+
+      - name: expo-doctor
+        run: npx --yes expo-doctor@sdk-55
+
+  db:
+    name: DB (migrations, pgTAP, behavior scripts)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.1
+
+      - name: Start Supabase (db + auth only; applies every migration)
+        run: supabase start -x analytics,edge-runtime,functions,imgproxy,inbucket,kong,meta,realtime,rest,storage,studio,vector
+
+      - name: pgTAP (supabase/tests/database)
+        run: supabase test db supabase/tests/database
+
+      - name: Behavior scripts (plain psql, BEGIN ... ROLLBACK)
+        run: |
+          shopt -s nullglob
+          files=(supabase/tests/*.sql supabase/behavior-tests/*.sql)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No behavior scripts yet."
+            exit 0
+          fi
+          for f in "${files[@]}"; do
+            echo "::group::$f"
+            docker exec -i supabase_db_griptrack \
+              psql -U postgres -d postgres -X -q -v ON_ERROR_STOP=1 < "$f"
+            echo "::endgroup::"
+          done
+
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop --no-backup
+
+  functions:
+    name: Edge functions (deno check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # WP18: non-blocking until it has been green once on main (never run
+    # before; remote esm.sh types may need fixes). Then delete the next line.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.1.x
+
+      - name: deno check every function
+        run: |
+          fail=0
+          for dir in supabase/functions/*/; do
+            [ -f "${dir}index.ts" ] || continue
+            echo "::group::deno check ${dir}index.ts"
+            (cd "$dir" && deno check --no-lock index.ts) || fail=1
+            echo "::endgroup::"
+          done
+          exit $fail
