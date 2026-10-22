@@ -10,6 +10,8 @@ import { lazy, Suspense } from "react";
 // Always-eager: these are entry points — every session hits one of them immediately
 import MainLayout from "./components/layout/MainLayout";
 import GhostBar from "./components/GhostBar";
+import BootstrapErrorScreen from "./components/BootstrapErrorScreen";
+import { safeRedirectPath } from "./lib/authRedirect";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
@@ -42,6 +44,31 @@ const PageLoader = () => (
   </div>
 );
 
+// Unauthenticated hit on a protected path: remember where the user was going
+// so the authenticated tree can send them back after sign-in (L27). Only the
+// path and query are kept, never the hash (auth tokens live there).
+const RedirectToAuth = () => {
+  const location = useLocation();
+  return (
+    <Navigate
+      to="/auth"
+      replace
+      state={{ from: `${location.pathname}${location.search}` }}
+    />
+  );
+};
+
+// Signed in while on /auth: go to the remembered deep link, or home (L27).
+const RedirectAfterAuth = () => {
+  const location = useLocation();
+  return <Navigate to={safeRedirectPath(location.state?.from)} replace />;
+};
+
+// Paths the onboarding redirects must never bounce the user away from (L22):
+// InviteAccept finishes its own onboarding, and a password-recovery session
+// must reach the reset form before anything else.
+const ONBOARDING_EXEMPT = new Set(["/invite-accept", "/reset-password"]);
+
 const App = () => {
   const location = useLocation();
   // needsOrgSetup / needsProfileSetup update in place after OrgSetup /
@@ -52,6 +79,10 @@ const App = () => {
     needsOrgSetup,
     needsProfileSetup,
     features,
+    bootstrapError,
+    rebootstrap,
+    logout,
+    isPlatformAdmin,
   } = useUser();
 
   return (
@@ -68,6 +99,14 @@ const App = () => {
           <span className="text-2xl font-bold text-accent">GripTrack</span>
           <span className="text-gray-500 text-sm animate-pulse">Loading…</span>
         </div>
+      ) : authUser && bootstrapError ? (
+        // Signed in, but bootstrap_session failed (network or server error).
+        // Never render the app with orgId null; offer a retry instead (L3).
+        <BootstrapErrorScreen
+          error={bootstrapError}
+          onRetry={rebootstrap}
+          onSignOut={logout}
+        />
       ) : !authUser ? (
         // Unauthenticated: show public pages, redirect protected routes to /auth
         <Suspense fallback={<PageLoader />}>
@@ -80,28 +119,29 @@ const App = () => {
             <Route path="/invite" element={<Auth mode="invite" />} />
             <Route path="/invite-accept" element={<InviteAccept />} />
             <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="*" element={<Navigate to="/auth" replace />} />
+            <Route path="*" element={<RedirectToAuth />} />
           </Routes>
         </Suspense>
       ) : (
         // Authenticated
         <>
-          <GhostBar />
+          {/* Platform-admin tool; non-admins never mount it (L7) */}
+          {isPlatformAdmin && <GhostBar />}
           {needsOrgSetup &&
           location.pathname !== "/org-setup" &&
-          location.pathname !== "/invite-accept" ? (
+          !ONBOARDING_EXEMPT.has(location.pathname) ? (
             <Navigate to="/org-setup" replace />
           ) : !needsOrgSetup &&
             needsProfileSetup &&
             location.pathname !== "/complete-profile" &&
-            location.pathname !== "/invite-accept" ? (
+            !ONBOARDING_EXEMPT.has(location.pathname) ? (
             <Navigate to="/complete-profile" replace />
           ) : null}
 
           <Suspense fallback={<PageLoader />}>
             <Routes>
               {/* Redirect auth pages to app */}
-              <Route path="/auth" element={<Navigate to="/" replace />} />
+              <Route path="/auth" element={<RedirectAfterAuth />} />
               <Route path="/invite" element={<Navigate to="/" replace />} />
 
               {/* Password reset — recovery session exists before password is set */}
@@ -141,9 +181,9 @@ const App = () => {
                       : <Navigate to="/" replace />
                   }
                 />
+                {/* Unknown authenticated paths: 404 inside the app shell (L29) */}
+                <Route path="*" element={<NotFound />} />
               </Route>
-
-              <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
         </>

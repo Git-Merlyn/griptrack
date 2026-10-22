@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import * as Sentry from "@sentry/react";
 import UserContext from "./UserContext";
 import { supabase } from "@/lib/supabaseClient";
 import { signOutWithLocalFallback } from "@/lib/signOut";
@@ -21,6 +22,15 @@ const UserProvider = ({ children }) => {
   const [profile, setProfile] = useState(null);
   const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
   const [loadingOrg, setLoadingOrg] = useState(true);
+
+  // Set when bootstrap_session fails; App renders BootstrapErrorScreen (L3).
+  const [bootstrapError, setBootstrapError] = useState(null);
+  // From bootstrap_session: platform admin (gates GhostBar, L7) and whether
+  // this bootstrap accepted an org invite (InviteAccept, L28).
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const [inviteAccepted, setInviteAccepted] = useState(false);
+  // Latest ensureOrg from the auth effect, so rebootstrap() can re-run it.
+  const ensureOrgRef = useRef(null);
 
   // Team assignment (from organization_members.team_id)
   const [teamId, setTeamId] = useState(null);
@@ -66,6 +76,9 @@ const UserProvider = ({ children }) => {
     setSubscription(null);
     setTrialEndsAt(null);
     setGhost(GHOST_OFF);
+    setBootstrapError(null);
+    setIsPlatformAdmin(false);
+    setInviteAccepted(false);
 
     // Never throws; clears the stored session itself if /logout is unreachable (L31).
     await signOutWithLocalFallback();
@@ -106,7 +119,13 @@ const UserProvider = ({ children }) => {
     let unsub = null;
     let cancelled = false;
 
-    const ensureOrg = async (session) => {
+    // fromInvite: the page was opened from an invite link. bootstrap_session
+    // then does not auto-create a "New Company" org when no invite was
+    // accepted (L28). rebootstrap() always passes false.
+    const ensureOrg = async (
+      session,
+      { fromInvite = window.location.pathname === "/invite-accept" } = {},
+    ) => {
       if (cancelled) return;
 
       if (!session?.user) {
@@ -123,33 +142,56 @@ const UserProvider = ({ children }) => {
         setSubscription(null);
         setTrialEndsAt(null);
         setGhost(GHOST_OFF);
+        setBootstrapError(null);
+        setIsPlatformAdmin(false);
+        setInviteAccepted(false);
         return;
       }
 
       setAuthUser(session.user);
       setLoadingOrg(true);
+      setBootstrapError(null);
 
       // Single round trip: invite acceptance + org ensure + org row +
       // subscription + team assignment + profile, all from one RPC.
       // (Previously six serial requests — the bulk of the loading screen.)
-      const { data: boot, error } = await supabase.rpc("bootstrap_session");
+      let { data: boot, error } = fromInvite
+        ? await supabase.rpc("bootstrap_session", { p_from_invite: true })
+        : await supabase.rpc("bootstrap_session");
+      // Until the bootstrap_session(boolean) migration is live, PostgREST
+      // answers PGRST202 (no such function): fall back to the old call.
+      if (fromInvite && error?.code === "PGRST202") {
+        ({ data: boot, error } = await supabase.rpc("bootstrap_session"));
+      }
       if (cancelled) return;
 
       if (error || !boot) {
-        console.error("bootstrap_session failed", error);
+        const bootError = error ?? new Error("bootstrap_session returned no data");
+        console.error("bootstrap_session failed", bootError);
+        Sentry.captureException(bootError, { tags: { area: "bootstrap_session" } });
         setOrgId(null);
         setRole(null);
         setOrgName("");
         setNeedsOrgSetup(false);
         setProfile(null);
         setNeedsProfileSetup(false);
-        setLoadingOrg(false);
         setTeamId(null);
         setGhost(GHOST_OFF);
+        setSubscription(null);
+        setTrialEndsAt(null);
+        setFeatures({ teams_enabled: false, requests_enabled: false });
+        setIsPlatformAdmin(false);
+        setInviteAccepted(false);
+        // App shows BootstrapErrorScreen (Try again / Sign out) while this is
+        // set, instead of rendering the app with orgId null (L3).
+        setBootstrapError(bootError);
+        setLoadingOrg(false);
         return;
       }
 
       const nextOrgId = boot.org_id ?? null;
+      setIsPlatformAdmin(boot.is_platform_admin === true);
+      setInviteAccepted(boot.invite_accepted === true);
       setOrgId(nextOrgId);
       setRole(boot.role ?? null);
 
@@ -185,6 +227,8 @@ const UserProvider = ({ children }) => {
       setLoadingOrg(false);
     };
 
+    ensureOrgRef.current = ensureOrg;
+
     const init = async () => {
       const { data } = await supabase.auth.getSession();
       await ensureOrg(data?.session);
@@ -218,12 +262,22 @@ const UserProvider = ({ children }) => {
 
     return () => {
       cancelled = true;
+      ensureOrgRef.current = null;
       try {
         unsub?.unsubscribe?.();
       } catch {
         // ignore
       }
     };
+  }, []);
+
+  // Re-run bootstrap for the current session (BootstrapErrorScreen "Try
+  // again"). Always the plain bootstrap, never the invite variant.
+  const rebootstrap = useCallback(async () => {
+    const run = ensureOrgRef.current;
+    if (!run) return;
+    const { data } = await supabase.auth.getSession();
+    await run(data?.session ?? null, { fromInvite: false });
   }, []);
 
   // Role helpers — derived from role string.
@@ -315,6 +369,11 @@ const UserProvider = ({ children }) => {
       // Ghost (platform admin viewing another org)
       isGhost,
       ghostReadOnly,
+      // Bootstrap (L3, L7, L28)
+      bootstrapError,
+      rebootstrap,
+      isPlatformAdmin,
+      inviteAccepted,
       // Subscription
       subscription,
       plan,
@@ -353,6 +412,10 @@ const UserProvider = ({ children }) => {
       loadingSubscription,
       trialEndsAt,
       features,
+      bootstrapError,
+      rebootstrap,
+      isPlatformAdmin,
+      inviteAccepted,
       applyOrgName,
       applyProfile,
       devRoleOverride,

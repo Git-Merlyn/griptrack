@@ -14,6 +14,12 @@ const UserContext = createContext({
   needsProfileSetup: false,
   loadingOrg: true,
 
+  // Bootstrap (audit L3, L7, L28)
+  bootstrapError: null,     // Error when bootstrap_session failed; App shows a retry screen
+  rebootstrap: async () => {},
+  isPlatformAdmin: false,   // from bootstrap_session; gates the GhostBar
+  inviteAccepted: false,    // true when this bootstrap accepted an org invite
+
   // Team (the user's assigned department team)
   teamId: null,        // from organization_members.team_id
 

@@ -1,5 +1,6 @@
-// Dev-only "ghost" control bar. Renders nothing unless the signed-in user is a
-// platform admin (public.platform_admins). Lets a dev point the whole app at
+// Platform-admin-only "ghost" control bar. App mounts it only when
+// bootstrap_session reports is_platform_admin (public.platform_admins), so
+// ordinary users never load it or call its RPCs. Lets a dev point the whole app at
 // any org (read-only by default) and, for deep debugging, arm a time-boxed
 // write window. All state lives server-side (platform_admin_state); this bar is
 // just the control surface. Any change re-bootstraps via a full reload so the
@@ -15,7 +16,6 @@ function fmtCountdown(ms) {
 }
 
 export default function GhostBar() {
-  const [isAdmin, setIsAdmin] = useState(false);
   const [orgs, setOrgs] = useState([]);
   const [status, setStatus] = useState(null); // { active_org_id, write_enabled, write_expires_at }
   const [loadErr, setLoadErr] = useState("");
@@ -23,12 +23,6 @@ export default function GhostBar() {
   const [now, setNow] = useState(() => Date.now());
 
   const load = useCallback(async () => {
-    const { data: admin } = await supabase.rpc("is_platform_admin");
-    if (!admin) {
-      setIsAdmin(false);
-      return;
-    }
-    setIsAdmin(true);
     const [{ data: st }, { data: orgList, error: orgErr }] = await Promise.all([
       supabase.rpc("ghost_status"),
       supabase.rpc("ghost_list_orgs"),
@@ -50,8 +44,6 @@ export default function GhostBar() {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, [status?.write_enabled, status?.write_expires_at]);
-
-  if (!isAdmin) return null;
 
   const activeOrgId = status?.active_org_id || "";
   const writeMsLeft = status?.write_expires_at

@@ -6,10 +6,23 @@ import useUser from "@/context/useUser";
 export default function InviteAccept() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { authUser, loadingOrg, needsOrgSetup, needsProfileSetup, profile, applyProfile } =
-    useUser();
+  const {
+    authUser,
+    loadingOrg,
+    needsOrgSetup,
+    needsProfileSetup,
+    profile,
+    applyProfile,
+    orgId,
+    inviteAccepted,
+    logout,
+  } = useUser();
 
   const invitedEmail = String(searchParams.get("email") || "").trim();
+
+  // L28: this bootstrap accepted no invite and the user has no real org of
+  // their own (bootstrap_session(p_from_invite => true) did not create one).
+  const noInvite = !inviteAccepted && (!orgId || needsOrgSetup);
 
   const [statusMessage, setStatusMessage] = useState(
     "We’re finishing your sign-in and linking your account to the invited organization.",
@@ -80,27 +93,18 @@ export default function InviteAccept() {
       return;
     }
 
-    // Authenticated + org bootstrap complete.
-    // If profile is incomplete, stay on this page and let the invited user
-    // finish onboarding here (set name / password).
+    // No invite was accepted and the user has no org: stay here and show the
+    // "No pending invite" screen below. Nothing was created server-side.
+    if (noInvite) return;
+
+    // Authenticated + org attached. If profile is incomplete, stay on this
+    // page and let the invited user finish onboarding here (set name / password).
     if (needsProfileSetup) {
       return;
     }
 
-    // Invited users should NEVER create a new org. If an invite exists,
-    // org bootstrap should attach them automatically. If something still
-    // reports needsOrgSetup while coming from an invite, send them to the
-    // dashboard instead of org setup to prevent accidental org creation.
-    if (needsOrgSetup) {
-      if (invitedEmail) {
-        navigate("/", { replace: true });
-      } else {
-        navigate("/org-setup", { replace: true });
-      }
-      return;
-    }
-
-    // Happy path: session exists, invite consumed, org attached, profile complete.
+    // Happy path: session exists, invite consumed, org attached, profile
+    // complete. App's onboarding guard handles anything still missing.
     navigate("/", { replace: true });
   }, [
     authUser,
@@ -108,8 +112,8 @@ export default function InviteAccept() {
     invitedEmail,
     loadingOrg,
     navigate,
-    needsOrgSetup,
     needsProfileSetup,
+    noInvite,
   ]);
 
   const submit = async (e) => {
@@ -171,6 +175,40 @@ export default function InviteAccept() {
       setBusy(false);
     }
   };
+
+  const hasLinkError = Boolean(String(hashParams.get("error") || "").trim());
+
+  if (authUser && !loadingOrg && noInvite && !hasLinkError) {
+    const shownEmail = authUser.email || invitedEmail || "this email address";
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-gray-200">
+        <div className="bg-surface rounded-2xl p-6 w-[92%] max-w-md shadow-lg">
+          <h1 className="text-2xl font-bold text-accent mb-2">
+            No pending invite found
+          </h1>
+          <p className="text-gray-300 mb-6">
+            We couldn’t find a pending invite for {shownEmail}. Ask your admin
+            to send a new invite to this address, or set up your own
+            organization instead.
+          </p>
+          <div className="flex flex-col gap-3">
+            <button
+              type="button"
+              className="btn-secondary"
+              // Full reload: bootstrap then runs without the invite flag and
+              // creates the user's own org, and App routes to /org-setup.
+              onClick={() => window.location.assign("/org-setup")}
+            >
+              Set up my own organization
+            </button>
+            <button type="button" className="btn-secondary" onClick={logout}>
+              Sign out
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return authUser && !loadingOrg && needsProfileSetup ? (
     <div className="min-h-screen flex items-center justify-center bg-background text-gray-200">
