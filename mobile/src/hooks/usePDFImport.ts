@@ -8,6 +8,14 @@ import { invokeFn } from '../lib/invokeFn';
 
 export type PDFImportStatus = 'idle' | 'parsing' | 'done' | 'error';
 
+/**
+ * Largest PDF sent to parse-rental-pdf. Mirrors MAX_PDF_BYTES in
+ * supabase/functions/parse-rental-pdf/limits.ts, which answers 413 above it.
+ * Checking here skips base64-encoding and uploading a file that will be refused.
+ */
+export const MAX_PDF_UPLOAD_BYTES = 10 * 1024 * 1024;
+export const PDF_TOO_LARGE_MESSAGE = 'This PDF is too large. The limit is 10 MB.';
+
 interface UsePDFImportReturn {
   status: PDFImportStatus;
   error: string | null;
@@ -49,6 +57,9 @@ export function usePDFImport(): UsePDFImportReturn {
         // Send the PDF to the Edge Function for server-side parsing.
         // Hermes (React Native's JS engine) doesn't support import.meta, so
         // client-side PDF parsing libraries like pdfjs-dist can't run on device.
+        if (typeof asset.size === 'number' && asset.size > MAX_PDF_UPLOAD_BYTES) {
+          throw new Error(PDF_TOO_LARGE_MESSAGE);
+        }
         const base64 = await FileSystem.readAsStringAsync(asset.uri, {
           encoding: 'base64',
         });
