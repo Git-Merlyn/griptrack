@@ -6,9 +6,12 @@ import useUser from "@/context/useUser";
 import { planLimitMessage } from "@/lib/plan";
 
 const LocationsPage = () => {
-  const { orgId, role } = useUser();
+  const { orgId, isCoordinator, ghostReadOnly } = useUser();
   const { locations, loadLocations, equipment } = useContext(EquipmentContext);
-  const isAdmin = role === "owner" || role === "admin";
+  // Write controls: owner/admin, never a read-only ghost. RLS also lets
+  // department heads add/rename locations; they do that in the mobile app,
+  // and this page (and its sidebar link) stays owner/admin.
+  const isAdmin = isCoordinator && !ghostReadOnly;
 
   // Create
   const [newName, setNewName] = useState("");

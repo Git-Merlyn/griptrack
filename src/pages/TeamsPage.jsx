@@ -1,8 +1,8 @@
 // src/pages/TeamsPage.jsx
 // Teams management page.
-// - admin/owner: create, switch, archive, delete teams
-// - department_head: see and manage their locked team
-// - crew: read-only view of their assigned team
+// - admin/owner: create, switch, archive, delete teams (RLS "admins can manage teams")
+// - department_head / crew: read-only view of their assigned team and its members
+// - read-only ghost: the admin view without create/archive/delete
 
 import { useState, useEffect } from "react";
 import useTeam from "@/context/useTeam";
@@ -62,7 +62,7 @@ function CreateTeamForm({ onCreated, onCancel }) {
           onChange={(e) => setMaxSeats(e.target.value)}
         />
         <p className="text-xs text-text/50 mt-1">
-          Maximum number of crew members the department head can invite.
+          Maximum number of members on this team.
         </p>
       </div>
 
@@ -264,10 +264,11 @@ export default function TeamsPage() {
     canSwitchTeams,
   } = useTeam();
 
-  const { role, teamId: assignedTeamId, devRoleOverride } = useUser();
+  const { teamId: assignedTeamId, devRoleOverride, isCoordinator, ghostReadOnly } = useUser();
 
-  const isCoordinator = role === "admin" || role === "owner";
-  const isDeptHead = role === "department_head";
+  // Create/archive/delete: owner/admin (shared/roles canManageTeams), never a
+  // read-only ghost.
+  const canManage = isCoordinator && !ghostReadOnly;
 
   // In dev mode with a role override, the tester's account has no real
   // assignedTeamId (owners don't have one), so fall back to activeTeamId
@@ -348,7 +349,7 @@ export default function TeamsPage() {
             onSwitch={() => {}}
             onArchive={() => {}}
             onDelete={() => {}}
-            canManage={isDeptHead}
+            canManage={false}
             canSwitch={false}
             expanded={expandedTeamId === myTeam.id}
             onToggleExpand={() => toggleExpand(myTeam.id)}
@@ -375,7 +376,7 @@ export default function TeamsPage() {
           </p>
         </div>
 
-        {!showCreateForm && (
+        {canManage && !showCreateForm && (
           <button
             type="button"
             className="btn-accent"
@@ -411,7 +412,7 @@ export default function TeamsPage() {
                     onSwitch={handleSwitch}
                     onArchive={handleArchive}
                     onDelete={handleDelete}
-                    canManage={true}
+                    canManage={canManage}
                     canSwitch={canSwitchTeams}
                     expanded={expandedTeamId === t.id}
                     onToggleExpand={() => toggleExpand(t.id)}
@@ -433,7 +434,7 @@ export default function TeamsPage() {
                     onSwitch={handleSwitch}
                     onArchive={handleArchive}
                     onDelete={handleDelete}
-                    canManage={true}
+                    canManage={canManage}
                     canSwitch={canSwitchTeams}
                     expanded={expandedTeamId === t.id}
                     onToggleExpand={() => toggleExpand(t.id)}

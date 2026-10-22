@@ -187,7 +187,7 @@ const FILTER_TABS = [
 
 const RequestsPage = () => {
   const {
-    requests, loading, error, isAdmin,
+    requests, loading, error, isAdmin, canReview,
     refresh, submitRequest, reviewRequest,
   } = useRequests();
 
@@ -252,7 +252,7 @@ const RequestsPage = () => {
         <p className="text-gray-400 text-sm">
           {isAdmin
             ? "Review and approve gear requests from your crew."
-            : "Request gear from your department head or gaffer."}
+            : "Request gear here. Your coordinator will approve or decline it."}
         </p>
       </div>
 
@@ -316,7 +316,7 @@ const RequestsPage = () => {
                 <RequestCard
                   key={req.id}
                   request={req}
-                  isAdmin={isAdmin}
+                  isAdmin={canReview}
                   onApprove={handleApprove}
                   onDeny={handleDeny}
                   busy={reviewBusy}

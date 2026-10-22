@@ -285,8 +285,7 @@ function SettingsPanel({ collapsed, onClose }) {
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
   const location = useLocation();
-  const { role, features } = useUser();
-  const isAdmin = role === "owner" || role === "admin";
+  const { role, features, isCoordinator: isAdmin } = useUser();
   const isOwner = role === "owner";
 
   const { isTrialActive, daysLeft } = useTrial();

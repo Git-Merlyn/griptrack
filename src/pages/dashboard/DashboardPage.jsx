@@ -429,78 +429,90 @@ const FilterPresets = ({ presets, activeFilters, onApply, onSave, onDelete }) =>
 const WELCOME_DISMISSED_KEY = "griptrack_welcome_dismissed";
 
 // Shown the first time a new org lands on the dashboard with no inventory.
-const WelcomeBanner = ({ onAddItem, onImport, onDismiss }) => (
-  <div className="bg-accent/10 border border-accent/30 rounded-xl p-5 flex flex-col gap-4">
-    <div className="flex items-start justify-between gap-2">
-      <div>
-        <h3 className="text-lg font-bold text-accent mb-1">
-          Welcome to GripTrack
-        </h3>
-        <p className="text-sm text-text">
-          Get your inventory set up in three steps.
-        </p>
-      </div>
-      <button
-        type="button"
-        onClick={onDismiss}
-        className="text-text/60 hover:text-text text-xs shrink-0 mt-1 transition"
-        aria-label="Dismiss welcome banner"
-      >
-        Dismiss
-      </button>
-    </div>
-
-    <ol className="flex flex-col gap-3 text-sm">
-      <li className="flex items-start gap-3">
-        <span className="shrink-0 w-6 h-6 rounded-full bg-accent/20 text-accent text-xs font-bold flex items-center justify-center">
-          1
-        </span>
-        <span className="text-text">
-          <NavLink to="/locations" className="text-accent underline underline-offset-2">
+// Rendered only for roles that can add items (canAdd). The Locations and
+// Staff steps link to admin-only pages, so they appear only when
+// showAdminSteps (owner/admin). Steps are numbered by what is shown.
+const WelcomeBanner = ({ onAddItem, onImport, onDismiss, showAdminSteps = false }) => {
+  const linkClass = "text-accent underline underline-offset-2";
+  const steps = [];
+  if (showAdminSteps) {
+    steps.push({
+      key: "locations",
+      body: (
+        <>
+          <NavLink to="/locations" className={linkClass}>
             Add your locations
           </NavLink>{" "}
           — trucks, stages, or anywhere gear lives.
-        </span>
-      </li>
-
-      <li className="flex items-start gap-3">
-        <span className="shrink-0 w-6 h-6 rounded-full bg-accent/20 text-accent text-xs font-bold flex items-center justify-center">
-          2
-        </span>
-        <span className="text-text">
-          <button
-            type="button"
-            onClick={onImport}
-            className="text-accent underline underline-offset-2"
-          >
-            Import a rental PDF
-          </button>{" "}
-          or{" "}
-          <button
-            type="button"
-            onClick={onAddItem}
-            className="text-accent underline underline-offset-2"
-          >
-            add items manually
-          </button>
-          .
-        </span>
-      </li>
-
-      <li className="flex items-start gap-3">
-        <span className="shrink-0 w-6 h-6 rounded-full bg-accent/20 text-accent text-xs font-bold flex items-center justify-center">
-          3
-        </span>
-        <span className="text-text">
-          <NavLink to="/staff" className="text-accent underline underline-offset-2">
+        </>
+      ),
+    });
+  }
+  steps.push({
+    key: "items",
+    body: (
+      <>
+        <button type="button" onClick={onImport} className={linkClass}>
+          Import a rental PDF
+        </button>{" "}
+        or{" "}
+        <button type="button" onClick={onAddItem} className={linkClass}>
+          add items manually
+        </button>
+        .
+      </>
+    ),
+  });
+  if (showAdminSteps) {
+    steps.push({
+      key: "staff",
+      body: (
+        <>
+          <NavLink to="/staff" className={linkClass}>
             Invite your crew
           </NavLink>{" "}
           to see and request gear in real time.
-        </span>
-      </li>
-    </ol>
-  </div>
-);
+        </>
+      ),
+    });
+  }
+
+  return (
+    <div className="bg-accent/10 border border-accent/30 rounded-xl p-5 flex flex-col gap-4">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h3 className="text-lg font-bold text-accent mb-1">
+            Welcome to GripTrack
+          </h3>
+          <p className="text-sm text-text">
+            {steps.length > 1
+              ? "Get your inventory set up in three steps."
+              : "Get your team's inventory started."}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="text-text/60 hover:text-text text-xs shrink-0 mt-1 transition"
+          aria-label="Dismiss welcome banner"
+        >
+          Dismiss
+        </button>
+      </div>
+
+      <ol className="flex flex-col gap-3 text-sm">
+        {steps.map((step, i) => (
+          <li key={step.key} className="flex items-start gap-3">
+            <span className="shrink-0 w-6 h-6 rounded-full bg-accent/20 text-accent text-xs font-bold flex items-center justify-center">
+              {i + 1}
+            </span>
+            <span className="text-text">{step.body}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+};
 
 // Shown inside the inventory card when no rows are visible.
 const EmptyState = ({ hasActiveFilters, onClearFilters, onAddItem, onImport, canAdd = true }) => {
@@ -560,6 +572,19 @@ const EmptyState = ({ hasActiveFilters, onClearFilters, onAddItem, onImport, can
     </div>
   );
 };
+
+// ── NoTeamAssigned ────────────────────────────────────────────────────────────
+// Teams on, no active team, and the user cannot choose one (crew/dept head
+// whose membership has no team_id). OrgOverview's team cards would do
+// nothing for them, because setActiveTeamId ignores non-switchers.
+const NoTeamAssigned = () => (
+  <div className="flex flex-col items-center gap-1 py-20 text-center text-text/60">
+    <p className="text-lg text-text">No team assigned</p>
+    <p className="text-sm">
+      You haven&apos;t been assigned to a team yet. Ask your coordinator to add you to one.
+    </p>
+  </div>
+);
 
 // ── OrgOverview ───────────────────────────────────────────────────────────────
 // Shown to admin/owner when no team is active. Displays all teams as cards
@@ -738,13 +763,13 @@ const DashboardPage = () => {
     hasTeamSelected = true,
     loadingEquipment = false,
   } = useContext(EquipmentContext);
-  const { profile, authUser, orgId, effectivePlan } = useUser();
+  const { profile, authUser, orgId, effectivePlan, isCoordinator } = useUser();
   // Pro features on this page: the audit-history export and PDF export (audit M9).
   const canUsePro = planAllows(effectivePlan, "pro");
   // Best-effort human-readable identity for equipment_audit.actor — used
   // wherever this page writes an equipment change (create/edit/bulk-update/move).
   const actorName = profile?.full_name || profile?.email || authUser?.email || "Unknown";
-  const { loadingTeams } = useTeam();
+  const { loadingTeams, canChooseTeam } = useTeam();
 
   const { allLocations, addCustomLocation } = useLocation({
     contextLocations,
@@ -1224,11 +1249,12 @@ const DashboardPage = () => {
 
       {/* No team selected — admin/owner sees org overview with team cards.
           Wait for loadingTeams to settle so we don't flash this on initial hydration. */}
-      {!hasTeamSelected && !loadingTeams && <OrgOverview />}
+      {!hasTeamSelected && !loadingTeams && (canChooseTeam ? <OrgOverview /> : <NoTeamAssigned />)}
 
       {/* Welcome banner — visible only when team is loaded, org has no equipment, and not dismissed */}
-      {hasTeamSelected && !loadingEquipment && visibleEquipment.length === 0 && !welcomeDismissed && (
+      {canAdd && hasTeamSelected && !loadingEquipment && visibleEquipment.length === 0 && !welcomeDismissed && (
         <WelcomeBanner
+          showAdminSteps={isCoordinator}
           onAddItem={openAdd}
           onImport={() => {
             setPdfModalMode("import");

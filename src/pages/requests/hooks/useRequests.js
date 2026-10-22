@@ -7,11 +7,14 @@ const TABLE = "equipment_requests";
 /**
  * Manages equipment requests for the current org.
  *
- * Admins/owners see all requests; crew see only their own.
+ * Owners/admins see all requests and review them (RLS "admins can review
+ * requests"); department heads and crew see only their own and submit.
  */
 export default function useRequests() {
-  const { orgId, role, profile, authUser } = useContext(UserContext) || {};
-  const isAdmin = role === "owner" || role === "admin";
+  const { orgId, profile, authUser, isCoordinator, ghostReadOnly } = useContext(UserContext) || {};
+  const isAdmin = !!isCoordinator;
+  // A read-only ghost gets the admin view but no Approve/Deny.
+  const canReview = isAdmin && !ghostReadOnly;
 
   const [requests, setRequests] = useState([]);
   const [loading, setLoading]   = useState(false);
@@ -130,7 +133,7 @@ export default function useRequests() {
   // ── Review a request (admin/owner only) ───────────────────────────────────
 
   const reviewRequest = useCallback(async (requestId, newStatus) => {
-    if (!isAdmin) throw new Error("Not authorized");
+    if (!canReview) throw new Error("Not authorized");
     if (!["approved", "denied"].includes(newStatus)) {
       throw new Error(`Invalid status: ${newStatus}`);
     }
@@ -155,13 +158,14 @@ export default function useRequests() {
       prev.map((r) => (r.id === requestId ? data : r))
     );
     return data;
-  }, [isAdmin, orgId, profile, authUser]);
+  }, [canReview, orgId, profile, authUser]);
 
   return {
     requests,
     loading,
     error,
     isAdmin,
+    canReview,
     refresh: fetchRequests,
     submitRequest,
     reviewRequest,

@@ -40,7 +40,7 @@ function roleLabel(role) {
 }
 
 // ── Member row ────────────────────────────────────────────────────────────────
-function MemberRow({ member, teams, onChangeRole, onChangeTeam, onRemove, isSelf }) {
+function MemberRow({ member, teams, onChangeRole, onChangeTeam, onRemove, isSelf, canManage = false }) {
   const [rolebusy, setRoleBusy] = useState(false);
   const [teamBusy, setTeamBusy] = useState(false);
   const isOwner = member.role === "owner";
@@ -82,7 +82,7 @@ function MemberRow({ member, teams, onChangeRole, onChangeTeam, onRemove, isSelf
       </div>
 
       {/* Controls: team + role + remove — flex-wrap so they never overflow */}
-      {!isOwner && !isSelf && (
+      {canManage && !isOwner && !isSelf && (
         <div className="flex items-center gap-2 flex-wrap">
           <select
             value={member.team_id ?? ""}
@@ -124,7 +124,7 @@ function MemberRow({ member, teams, onChangeRole, onChangeTeam, onRemove, isSelf
 
 // ── Staff Page ────────────────────────────────────────────────────────────────
 export default function Staff() {
-  const { orgId, role, authUser } = useUser();
+  const { orgId, authUser, isCoordinator, ghostReadOnly } = useUser();
   const { teams, loadingTeams, activeTeamId } = useTeam();
 
   const [members, setMembers]           = useState([]);
@@ -147,7 +147,9 @@ export default function Staff() {
   const [error, setError]               = useState("");
   const [success, setSuccess]           = useState("");
 
-  const isAdmin = role === "owner" || role === "admin";
+  // Invite + member controls: owner/admin (shared/roles isOrgAdmin via
+  // isCoordinator), never a read-only ghost.
+  const isAdmin = isCoordinator && !ghostReadOnly;
 
   const loadData = useCallback(async () => {
     if (!orgId) return;
@@ -429,6 +431,7 @@ export default function Staff() {
                     onChangeTeam={handleChangeTeam}
                     onRemove={handleRemove}
                     isSelf={m.user_id === authUser?.id}
+                    canManage={isAdmin}
                   />
                 ))}
               </div>

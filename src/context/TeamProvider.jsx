@@ -20,6 +20,13 @@ export const TeamProvider = ({ children }) => {
     activeTeamIdRef.current = activeTeamId;
   }, [activeTeamId]);
 
+  // Who may pick the active team: admin/owner, or any role while a dev role
+  // override is active (the tester account has no assigned team, so it must
+  // be able to pick one). Used by BOTH the hydrate effect and
+  // setActiveTeamId so they cannot disagree (L8).
+  const isDevOverride = import.meta.env.DEV && !!devRoleOverride;
+  const canChooseTeam = !!canSwitchTeams || isDevOverride;
+
   // Hydrate active team from localStorage once orgId is known.
   // Coordinators (admin/owner) remember their last-used team across sessions.
   // Crew and department heads are always locked to their assigned team.
@@ -27,20 +34,19 @@ export const TeamProvider = ({ children }) => {
   // so the tester account (which has no assigned team) can still see inventory.
   useEffect(() => {
     if (!orgId) return;
-    const isDevOverride = import.meta.env.DEV && !!devRoleOverride;
-    if (!canSwitchTeams && !isDevOverride) {
+    if (!canChooseTeam) {
       // Lock non-admin users to their assigned team — ignore any stored preference
       setActiveTeamIdState(assignedTeamId ?? null);
       return;
     }
     const stored = localStorage.getItem(lsKey(orgId));
     setActiveTeamIdState(stored || null);
-  }, [orgId, canSwitchTeams, assignedTeamId, devRoleOverride]);
+  }, [orgId, canChooseTeam, assignedTeamId]);
 
   const setActiveTeamId = useCallback(
     (id) => {
-      // Crew/dept_head cannot switch teams — silently ignore
-      if (!canSwitchTeams) return;
+      // Crew/dept_head cannot switch teams (unless a dev override is active) — silently ignore
+      if (!canChooseTeam) return;
       setActiveTeamIdState(id);
       if (orgId) {
         if (id) {
@@ -50,7 +56,7 @@ export const TeamProvider = ({ children }) => {
         }
       }
     },
-    [canSwitchTeams, orgId],
+    [canChooseTeam, orgId],
   );
 
   const loadTeams = useCallback(async () => {
@@ -150,6 +156,7 @@ export const TeamProvider = ({ children }) => {
       activeTeam,
       loadingTeams,
       canSwitchTeams,
+      canChooseTeam,
       setActiveTeamId,
       createTeam,
       archiveTeam,
@@ -162,6 +169,7 @@ export const TeamProvider = ({ children }) => {
       activeTeam,
       loadingTeams,
       canSwitchTeams,
+      canChooseTeam,
       setActiveTeamId,
       createTeam,
       archiveTeam,
