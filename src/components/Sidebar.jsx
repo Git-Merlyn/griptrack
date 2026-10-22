@@ -295,7 +295,12 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // One ref per Settings area: the desktop sidebar (always in the DOM, hidden
+  // by CSS below md) and the mobile drawer. The outside-click check must look
+  // at both, or a tap on a drawer menu item counts as "outside" and closes the
+  // panel on mousedown, before the item's click can fire.
   const settingsRef = useRef(null);
+  const mobileSettingsRef = useRef(null);
 
   useEffect(() => {
     // 767.98px, not 768px: Tailwind's md: is min-width 768px, so matching
@@ -315,7 +320,8 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
   useEffect(() => {
     if (!settingsOpen) return;
     const handler = (e) => {
-      if (settingsRef.current && !settingsRef.current.contains(e.target)) {
+      const inside = [settingsRef, mobileSettingsRef].some((r) => r.current?.contains(e.target));
+      if (!inside) {
         setSettingsOpen(false);
       }
     };
@@ -520,7 +526,7 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
               {NavItems({ navCollapsed: false })}
             </div>
             <div className="border-t border-text/10 pt-2 pb-4">
-              <div className="px-2">
+              <div ref={mobileSettingsRef} className="px-2">
                 <button
                   type="button"
                   onClick={() => setSettingsOpen((o) => !o)}
