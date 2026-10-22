@@ -72,7 +72,11 @@ export const EquipmentProvider = ({ children }) => {
 
   // Saves a new location to the DB and refreshes the list.
   // Returns the new location row or null if it already exists.
-  const registerLocation = async (name) => {
+  // Returns the new row, or null when the name is blank / already exists / the
+  // insert fails. With { throwOnError: true } a failed insert throws the
+  // PostgREST error instead (the dashboard's "Add new location" passes it to
+  // WP09's planLimitMessage).
+  const registerLocation = async (name, { throwOnError = false } = {}) => {
     const trimmed = String(name || "").trim();
     if (!trimmed || !orgId) return null;
 
@@ -89,6 +93,7 @@ export const EquipmentProvider = ({ children }) => {
 
     if (error) {
       console.warn("Failed to register location", error);
+      if (throwOnError) throw error;
       return null;
     }
 

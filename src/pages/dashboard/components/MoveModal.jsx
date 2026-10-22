@@ -109,7 +109,11 @@ const MoveModal = ({
                 {loc}
               </option>
             ))}
-            <option value="__add_new__">➕ Add new location...</option>
+            {/* Only roles that may create locations get this option (WP15
+                Decision 3 = B): the parent passes no handler for crew. */}
+            {typeof onRequestAddLocation === "function" && (
+              <option value="__add_new__">➕ Add new location...</option>
+            )}
           </select>
 
           {hint && (

@@ -55,6 +55,27 @@ describe("MoveModal", () => {
     expect(screen.getByText("The item is already at this location.")).toBeInTheDocument();
   });
 
+  it("offers Add new location when the parent passes a handler", () => {
+    renderMove();
+    expect(screen.getByRole("option", { name: "➕ Add new location..." })).toBeInTheDocument();
+  });
+
+  it("hides Add new location when no handler is passed (crew, D63 = B)", () => {
+    render(
+      <MoveModal
+        isOpen
+        movingItem={{ id: "a", name: "C-Stand", quantity: 5, location: "Truck 1" }}
+        moveData={{ qty: 1, newLocation: "" }}
+        setMoveData={vi.fn()}
+        allLocations={["Truck 1", "Stage 2"]}
+        onCancel={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("option", { name: /Add new location/ })).toBeNull();
+    expect(screen.getByRole("option", { name: "Stage 2" })).toBeInTheDocument();
+  });
+
   it("enables Confirm for a valid move", async () => {
     const user = userEvent.setup();
     const props = renderMove({ moveData: { qty: 2, newLocation: "Stage 2" } });

@@ -30,7 +30,7 @@ import useExport from "./hooks/useExport";
 import { matchFileItemsToEquipment } from "./utils/pdfSelect";
 import { validateItemForm } from "./utils/itemValidation";
 import { buildImportRows } from "./utils/importRows";
-import { planAllows, proFeatureMessage } from "@/lib/plan";
+import { planAllows, planLimitMessage, proFeatureMessage } from "@/lib/plan";
 import { bulkMoveToLocation } from "./utils/bulkMove";
 import useFilterPresets from "./hooks/useFilterPresets";
 import { PAGE_SIZE_OPTIONS } from "./hooks/useInventoryView";
@@ -174,6 +174,7 @@ const BulkToolbar = ({
 
   bulkLocation,
   setBulkLocation,
+  bulkLocations,
   onAddNewLocation,
 
   onApplyBulkLocation,
@@ -297,12 +298,14 @@ const BulkToolbar = ({
             className="px-3 py-2 rounded bg-white text-black min-w-[220px]"
           >
             <option value="">Set location for selected...</option>
-            {allLocations.map((loc) => (
+            {(bulkLocations ?? allLocations).map((loc) => (
               <option key={loc} value={loc}>
                 {loc}
               </option>
             ))}
-            <option value="__add_new__">➕ Add new location...</option>
+            {typeof onAddNewLocation === "function" && (
+              <option value="__add_new__">➕ Add new location...</option>
+            )}
           </select>
 
           <button
@@ -762,6 +765,8 @@ const DashboardPage = () => {
     updateEquipment,
     moveEquipment,
     addMultipleItems,
+    registerLocation,
+    locations: locationRows,
     // importSummaryMessage and clearImportSummary are optional — if your EquipmentContext
     // provides them they will be used to show an import toast after PDF imports.
     importSummaryMessage,
@@ -781,10 +786,23 @@ const DashboardPage = () => {
   const actorName = profile?.full_name || profile?.email || authUser?.email || "Unknown";
   const { loadingTeams, canChooseTeam } = useTeam();
 
-  const { allLocations, addCustomLocation } = useLocation({
+  const { allLocations } = useLocation({
     contextLocations,
     equipment,
   });
+
+  // Move / bulk "Apply location" destinations. Crew may only move to an
+  // existing active location (WP15 Decision 3 = B; move_equipment enforces the
+  // same rule server-side, WP05 option C), so crew get the Locations-table list
+  // only. Roles that may create locations (canAdd = owner/admin/department_head,
+  // the locations INSERT policies) also see names still used by items.
+  const destinationLocations = useMemo(
+    () =>
+      canAdd
+        ? allLocations
+        : [...(contextLocations || [])].sort((a, b) => a.localeCompare(b)),
+    [canAdd, allLocations, contextLocations],
+  );
 
   const statusOptions = Array.from(
     new Set([
@@ -829,6 +847,7 @@ const DashboardPage = () => {
   const [bulkDeleteTarget, setBulkDeleteTarget] = useState(null); // { ids: string[] }
 
   const [showAddLocationModal, setShowAddLocationModal] = useState(false);
+  const [addingLocation, setAddingLocation] = useState(false);
   const [newLocationName, setNewLocationName] = useState("");
   const [isAddingLocationTo, setIsAddingLocationTo] = useState(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -845,14 +864,27 @@ const DashboardPage = () => {
   const [savingEdit, setSavingEdit] = useState(false);
   const [exportingHistory, setExportingHistory] = useState(false);
 
-  // Welcome banner — shown once when org has no equipment, dismissed via localStorage
-  const [welcomeDismissed, setWelcomeDismissed] = useState(
-    () => localStorage.getItem(WELCOME_DISMISSED_KEY) === "true",
-  );
+  // Welcome banner — shown once per org when it has no equipment; the
+  // dismissal is remembered per org (one browser can hold several orgs).
+  const welcomeKey = `${WELCOME_DISMISSED_KEY}_${orgId || "none"}`;
+  const [dismissedWelcomeKeys, setDismissedWelcomeKeys] = useState(() => new Set());
+  const welcomeDismissedStored = useMemo(() => {
+    try {
+      return localStorage.getItem(welcomeKey) === "true";
+    } catch {
+      return false; // storage blocked: show the banner, allow dismissing for this session
+    }
+  }, [welcomeKey]);
+  const welcomeDismissed =
+    welcomeDismissedStored || dismissedWelcomeKeys.has(welcomeKey);
 
   const dismissWelcome = () => {
-    localStorage.setItem(WELCOME_DISMISSED_KEY, "true");
-    setWelcomeDismissed(true);
+    try {
+      localStorage.setItem(welcomeKey, "true");
+    } catch {
+      // storage blocked: remembered for this session only
+    }
+    setDismissedWelcomeKeys((prev) => new Set(prev).add(welcomeKey));
   };
 
   // Mobile layout
@@ -1110,20 +1142,72 @@ const DashboardPage = () => {
     }
   };
 
-  const handleAddNewLocation = () => {
+  const handleAddNewLocation = async () => {
     const trimmed = newLocationName.trim();
-    if (!trimmed) return;
+    if (!trimmed || addingLocation) return;
 
-    // Register location without polluting inventory
-    addCustomLocation(trimmed);
+    // WP15 Decision 3 = B: a new location is always saved to the org's shared
+    // locations table; there are no device-local locations. Only canAdd roles
+    // (owner/admin/department_head, the same rule as the locations INSERT
+    // policies) are offered "Add new location"; this guard covers any other path.
+    if (!canAdd) {
+      window.toast?.error?.("Only owners, admins and department heads can add locations.");
+      return;
+    }
 
-    // Route the new location into the appropriate field depending on caller
+    const lower = trimmed.toLowerCase();
+    // Already an active location: just select it (with its stored spelling)
+    let chosen =
+      (contextLocations || []).find((l) => String(l).toLowerCase() === lower) ?? null;
+
+    if (!chosen) {
+      const archived = (locationRows || []).some(
+        (l) => l?.is_active === false && String(l.name).toLowerCase() === lower,
+      );
+      if (archived) {
+        // registerLocation refuses existing names; say why instead of failing silently
+        window.toast?.error?.(
+          `"${trimmed}" is an archived location. Reactivate it on the Locations page.`,
+        );
+        return;
+      }
+      setAddingLocation(true);
+      let saveError = null;
+      try {
+        // throwOnError (Step 42e): a refused insert throws its PostgREST error
+        // instead of returning null, so the toast can say why.
+        const row = await registerLocation(trimmed, { throwOnError: true });
+        chosen = row?.name ?? null;
+      } catch (err) {
+        saveError = err;
+      } finally {
+        setAddingLocation(false);
+      }
+      if (!chosen) {
+        // Insert refused or failed. WP09 Option A: the Free plan's 1-active-
+        // location limit arrives as a P0001 plan-limit error; WP09's
+        // planLimitMessage (src/lib/plan.js) turns it into the neutral server
+        // text plus the web upgrade call-to-action and returns null for any
+        // other error, which then shows the server's own message (WP09
+        // hand-off: planLimitMessage(error) ?? error.message). A null return
+        // with no error (name raced in, no org) gets the generic text. Keep
+        // the dialog open with the typed name so the user can retry or cancel.
+        window.toast?.error?.(
+          planLimitMessage(saveError) ??
+            (saveError?.message ||
+              "Couldn't save the location. Check your connection and try again."),
+        );
+        return;
+      }
+    }
+
+    // Route the location into the appropriate field depending on caller
     if (isAddingLocationTo === "new") {
-      setNewItem((prev) => ({ ...prev, location: trimmed }));
+      setNewItem((prev) => ({ ...prev, location: chosen }));
     } else if (isAddingLocationTo === "move") {
-      setMoveData((prev) => ({ ...prev, newLocation: trimmed }));
+      setMoveData((prev) => ({ ...prev, newLocation: chosen }));
     } else if (isAddingLocationTo === "bulk") {
-      setBulkLocation(trimmed);
+      setBulkLocation(chosen);
     }
 
     setNewLocationName("");
@@ -1332,10 +1416,16 @@ const DashboardPage = () => {
           selectedCount={selectedIds.length}
           bulkLocation={bulkLocation}
           setBulkLocation={setBulkLocation}
-          onAddNewLocation={() => {
-            setIsAddingLocationTo("bulk");
-            setShowAddLocationModal(true);
-          }}
+          bulkLocations={destinationLocations}
+          // Crew cannot create locations (WP15 Decision 3 = B): no handler, no option
+          onAddNewLocation={
+            canAdd
+              ? () => {
+                  setIsAddingLocationTo("bulk");
+                  setShowAddLocationModal(true);
+                }
+              : undefined
+          }
           onApplyBulkLocation={handleBulkSetLocation}
           onBulkDelete={handleBulkDelete}
           canDelete={canDelete}
@@ -1491,10 +1581,14 @@ const DashboardPage = () => {
         onChangeField={setField}
         allLocations={allLocations}
         statusOptions={statusOptions}
-        onRequestAddLocation={() => {
-          setIsAddingLocationTo("new");
-          setShowAddLocationModal(true);
-        }}
+        onRequestAddLocation={
+          canAdd
+            ? () => {
+                setIsAddingLocationTo("new");
+                setShowAddLocationModal(true);
+              }
+            : undefined
+        }
         onCancel={cancelEdit}
         onSave={async () => {
           if (savingEdit) return;
@@ -1539,11 +1633,16 @@ const DashboardPage = () => {
         movingItem={movingItem}
         moveData={moveData}
         setMoveData={setMoveData}
-        allLocations={allLocations}
-        onRequestAddLocation={() => {
-          setIsAddingLocationTo("move");
-          setShowAddLocationModal(true);
-        }}
+        allLocations={destinationLocations}
+        // Crew cannot create locations (WP15 Decision 3 = B): no handler, no option
+        onRequestAddLocation={
+          canAdd
+            ? () => {
+                setIsAddingLocationTo("move");
+                setShowAddLocationModal(true);
+              }
+            : undefined
+        }
         onCancel={() => setMovingItem(null)}
         onConfirm={handleMoveSubmit}
       />
@@ -1559,6 +1658,7 @@ const DashboardPage = () => {
           setIsAddingLocationTo(null);
         }}
         onAdd={handleAddNewLocation}
+        busy={addingLocation}
       />
 
       {/* Import File Modal — lazy chunk starts loading on first open */}
