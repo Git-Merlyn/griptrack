@@ -17,6 +17,15 @@ export default function Auth({ mode: entryMode = "normal" }) {
     if (emailFromUrl) {
       setEmail(emailFromUrl);
     }
+    // Marketing CTAs link to /auth?mode=signup (M10). Read it here rather
+    // than in useState so in-app navigation between /auth and
+    // /auth?mode=signup also switches the form.
+    const modeFromUrl = searchParams.get("mode");
+    if (modeFromUrl === "signup" || modeFromUrl === "signin") {
+      setErr("");
+      setSuccess("");
+      setAuthMode(modeFromUrl);
+    }
   }, [searchParams]);
 
   const submit = async (e) => {
