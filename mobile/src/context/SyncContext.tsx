@@ -267,6 +267,14 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     return true;
   }, [profile, activeTeamId, teamsEnabled, session, bumpLocalVersion]);
 
+  // Latest triggerSync for the realtime status callback below, so the channel
+  // is not torn down and re-created whenever triggerSync's identity changes.
+  const triggerSyncRef = useRef(triggerSync);
+  useEffect(() => {
+    triggerSyncRef.current = triggerSync;
+  }, [triggerSync]);
+  const needsResyncRef = useRef(false);
+
   // ─── Realtime — live equipment updates while online ────────────────────────
   // Mirrors the web app: another device's insert/update/delete lands in
   // SQLite immediately instead of waiting for the next full sync. The queue
@@ -304,17 +312,32 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       )
       .on(
         'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'equipment_items', filter: `org_id=eq.${orgId}` },
+        // NO filter on purpose (audit M1): Realtime can only filter DELETE
+        // events on a table with REPLICA IDENTITY FULL, so the old org_id
+        // filter meant this never fired. Do NOT set REPLICA IDENTITY FULL:
+        // Realtime skips RLS for DELETE, so every subscriber would receive
+        // whole deleted rows from every org. Unfiltered, we receive only ids.
+        { event: 'DELETE', schema: 'public', table: 'equipment_items' },
         (payload) => {
           // DELETE payloads only carry the primary key; deleting a row we
-          // don't have locally is a harmless no-op.
+          // don't have locally (e.g. another org's) is a harmless no-op.
           const id = (payload.old as { id?: string } | null)?.id;
           if (!id) return;
           deleteEquipmentItemLocal(String(id));
           bumpLocalVersion();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        // A dropped or timed-out channel may have missed events: pull now,
+        // and once more when the client has rejoined.
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          needsResyncRef.current = true;
+          triggerSyncRef.current();
+        } else if (status === 'SUBSCRIBED' && needsResyncRef.current) {
+          needsResyncRef.current = false;
+          triggerSyncRef.current();
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
