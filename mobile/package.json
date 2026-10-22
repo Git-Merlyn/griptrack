@@ -11,7 +11,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "test": "jest",
-    "test:run": "jest --ci"
+    "test:run": "jest --ci",
+    "lint": "expo lint"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
@@ -46,6 +47,8 @@
     "@types/jest": "^29.5.14",
     "@types/react": "~19.2.10",
     "babel-preset-expo": "~55.0.8",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "~55.0.1",
     "jest-expo": "~55.0.22",
     "typescript": "~5.9.2"
   },
