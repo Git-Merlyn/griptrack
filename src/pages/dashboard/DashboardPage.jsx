@@ -115,9 +115,10 @@ const ImportToast = ({ show, message, onDismiss }) => {
   );
 };
 
-const FilterSelect = ({ value, onChange, placeholder, options }) => (
+const FilterSelect = ({ value, onChange, placeholder, options, label }) => (
   <div className="relative">
     <select
+      aria-label={label}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className={`w-full px-2 py-2 rounded-lg border shadow-sm focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition appearance-none pr-6 text-sm ${
@@ -184,6 +185,7 @@ const BulkToolbar = ({
       <div className="flex items-center gap-2">
         <input
           type="text"
+          aria-label="Search inventory by name"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search by Name"
@@ -245,18 +247,21 @@ const BulkToolbar = ({
           value={filterLocation}
           onChange={setFilterLocation}
           placeholder="All Locations"
+          label="Filter by location"
           options={allLocations}
         />
         <FilterSelect
           value={filterStatus}
           onChange={setFilterStatus}
           placeholder="All Statuses"
+          label="Filter by status"
           options={statusOptions}
         />
         <FilterSelect
           value={filterCategory}
           onChange={setFilterCategory}
           placeholder="All Categories"
+          label="Filter by category"
           options={categoryOptions}
         />
       </div>
@@ -280,6 +285,7 @@ const BulkToolbar = ({
       {bulkMode && (
         <div className="flex flex-wrap items-center gap-2">
           <select
+            aria-label="Location for selected items"
             value={bulkLocation}
             onChange={(e) => {
               if (e.target.value === "__add_new__") onAddNewLocation();
@@ -798,7 +804,7 @@ const DashboardPage = () => {
     filterStatus,     setFilterStatus,
     filterCategory,   setFilterCategory,
     showBelowReserve, setShowBelowReserve,
-    toggleSort, sortArrow,
+    toggleSort, sortArrow, sortKey, sortDir,
     visibleEquipment,
     sortedEquipment,
     paginatedEquipment,
@@ -1194,24 +1200,9 @@ const DashboardPage = () => {
     visibleEquipment,
   });
 
-  // Escape hatch: close any open modal/backdrop with Escape
-  useEffect(() => {
-    const onKeyDown = (e) => {
-      if (e.key !== "Escape") return;
-      setShowUploadModal(false);
-      setShowAddLocationModal(false);
-      setMovingItem(null);
-      setDeleteTarget(null);
-      setBulkDeleteTarget(null);
-      setShowExportModal(false);
-      setShowSummaryModal(false);
-      setShowMobileDetailsModal(false);
-      setMobileDetailsItem(null);
-      closeEdit();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [closeEdit, setShowExportModal]);
+  // Escape is handled per dialog by useDialog: it closes only the top-most
+  // dialog and runs that dialog's own cancel handler (EditModal → cancelEdit,
+  // which also clears editingId).
 
   const {
     bulkMode,
@@ -1415,6 +1406,8 @@ const DashboardPage = () => {
               clearSelection={clearSelection}
               toggleSort={toggleSort}
               sortArrow={sortArrow}
+              sortKey={sortKey}
+              sortDir={sortDir}
               editingId={editingId}
               canEdit={canEdit}
               onOpenDetails={(item) => {

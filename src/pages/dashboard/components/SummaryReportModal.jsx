@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import useDialog from "@/hooks/useDialog";
 import { buildSummary, downloadSummaryCsv, printSummary } from "../utils/summary";
 
 const TABS = [
@@ -66,6 +67,8 @@ const SummaryReportModal = ({ isOpen, onClose, equipment }) => {
     window.toast?.success?.("Summary exported");
   };
 
+  const { panelRef, titleId } = useDialog({ isOpen, onClose });
+
   if (!isOpen) return null;
 
   const tabRows = {
@@ -80,13 +83,18 @@ const SummaryReportModal = ({ isOpen, onClose, equipment }) => {
       onClick={onClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         className="bg-surface rounded-xl w-[94%] max-w-lg shadow-lg max-h-[calc(100dvh-32px)] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="px-6 pt-5 pb-0">
           <div className="flex items-center justify-between mb-1">
-            <h3 className="text-xl font-bold text-accent">Inventory Summary</h3>
+            <h3 id={titleId} className="text-xl font-bold text-accent">Inventory Summary</h3>
             <span className="text-xs text-gray-500">
               {summary.totalItems} items · {summary.totalQty} total qty
             </span>

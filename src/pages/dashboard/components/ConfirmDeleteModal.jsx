@@ -1,4 +1,5 @@
 import React from "react";
+import useDialog from "@/hooks/useDialog";
 
 /**
  * ConfirmDeleteModal
@@ -34,6 +35,12 @@ const ConfirmDeleteModal = ({
   const inferredName =
     typeof itemName === "string" ? itemName : target?.name || "";
 
+  const { panelRef, titleId } = useDialog({
+    isOpen,
+    onClose: onCancel,
+    closeOnEscape: !busy,
+  });
+
   if (!isOpen) return null;
 
   return (
@@ -45,10 +52,15 @@ const ConfirmDeleteModal = ({
       }}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         className="bg-surface p-6 rounded-xl w-[90%] max-w-sm shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-lg font-bold text-accent mb-2">
+        <h3 id={titleId} className="text-lg font-bold text-accent mb-2">
           {inferredCount > 1 ? "Delete selected items?" : "Delete item?"}
         </h3>
 

@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useId } from "react";
+import useDialog from "@/hooks/useDialog";
 
 const MoveModal = ({
   isOpen,
@@ -10,7 +11,11 @@ const MoveModal = ({
   onCancel,
   onConfirm,
 }) => {
-  if (!isOpen || !movingItem) return null;
+  const fieldId = useId();
+  const open = !!isOpen && !!movingItem;
+  const { panelRef, titleId } = useDialog({ isOpen: open, onClose: onCancel });
+
+  if (!open) return null;
 
   return (
     <div
@@ -18,18 +23,24 @@ const MoveModal = ({
       onClick={onCancel}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         className="bg-surface p-6 rounded-xl w-[90%] max-w-md shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-xl font-bold text-accent mb-4">
+        <h3 id={titleId} className="text-xl font-bold text-accent mb-4">
           Move {movingItem.name}
         </h3>
 
         <div className="flex flex-col gap-3">
-          <label className="text-sm text-gray-300">
+          <label htmlFor={`${fieldId}-qty`} className="text-sm text-gray-300">
             Quantity to move (max {movingItem.quantity}):
           </label>
           <input
+            id={`${fieldId}-qty`}
             type="number"
             min="0"
             max={movingItem.quantity}
@@ -61,8 +72,11 @@ const MoveModal = ({
             className="px-3 py-2 rounded bg-white text-black"
           />
 
-          <label className="text-sm text-gray-300">New location:</label>
+          <label htmlFor={`${fieldId}-location`} className="text-sm text-gray-300">
+            New location:
+          </label>
           <select
+            id={`${fieldId}-location`}
             value={moveData.newLocation}
             onChange={(e) => {
               if (e.target.value === "__add_new__") onRequestAddLocation();

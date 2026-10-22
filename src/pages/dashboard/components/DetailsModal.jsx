@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import useDialog from "@/hooks/useDialog";
 import { statusClass, dateTextClass, getQty } from "../utils/helpers";
 import AuditLogPanel from "./AuditLogPanel";
 import PaywallGate from "@/components/PaywallGate";
@@ -16,6 +17,8 @@ const DetailsModal = ({ isOpen, item, isMobile, onClose }) => {
     if (isOpen) setActiveTab("details");
   }, [isOpen, item?.id]);
 
+  const { panelRef, titleId } = useDialog({ isOpen: !!isOpen && !!item, onClose });
+
   if (!isOpen || !item) return null;
 
   return (
@@ -24,12 +27,17 @@ const DetailsModal = ({ isOpen, item, isMobile, onClose }) => {
       onClick={onClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         className="bg-surface rounded-xl w-[94%] max-w-md shadow-lg max-h-[calc(100dvh-24px)] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="px-6 pt-[calc(env(safe-area-inset-top)+12px)] pb-0">
-          <h3 className="text-xl font-bold text-accent">Details</h3>
+          <h3 id={titleId} className="text-xl font-bold text-accent">Details</h3>
           <div className="text-sm text-gray-300 mt-1 truncate">{item.name}</div>
 
           {/* Tab bar */}

@@ -79,8 +79,53 @@ describe("EditModal UI guards", () => {
     await user.click(screen.getByText("Edit Item"));
     expect(props.onCancel).not.toHaveBeenCalled();
 
-    // Clicking overlay should cancel
-    await user.click(screen.getByRole("dialog")); // overlay div has role="dialog"
+    // Clicking overlay should cancel (the overlay is the dialog panel's parent)
+    await user.click(screen.getByRole("dialog").parentElement);
     expect(props.onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("is a labelled dialog whose fields have accessible names (M8)", () => {
+    renderEditModal();
+    expect(screen.getByRole("dialog", { name: "Edit Item" })).toBeInTheDocument();
+    for (const label of [
+      "Name",
+      "Category",
+      "Source",
+      "Location",
+      "Status",
+      "Quantity",
+      "Reserve minimum",
+      "Start date",
+      "End date",
+    ]) {
+      expect(screen.getByLabelText(label)).toBeInTheDocument();
+    }
+    expect(screen.getByLabelText("Name")).toHaveValue("C-Stand");
+  });
+
+  it("focuses the Name field when it opens", () => {
+    renderEditModal();
+    expect(screen.getByLabelText("Name")).toHaveFocus();
+  });
+
+  it("Escape calls onCancel (M6)", async () => {
+    const user = userEvent.setup();
+    const props = renderEditModal();
+    await user.keyboard("{Escape}");
+    expect(props.onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders no Delete button when onDelete is not provided (L14)", () => {
+    renderEditModal({ title: "Add Item", editingId: null, onDelete: undefined });
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+  });
+
+  it("disables Save while saving", async () => {
+    const user = userEvent.setup();
+    const props = renderEditModal({ saving: true });
+    const save = screen.getByRole("button", { name: "Saving…" });
+    expect(save).toBeDisabled();
+    await user.click(save);
+    expect(props.onSave).not.toHaveBeenCalled();
   });
 });

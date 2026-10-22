@@ -6,6 +6,17 @@ import {
   dateTextClass,
 } from "./utils/helpers";
 
+const SORT_COLUMNS = [
+  { key: "name", label: "Name" },
+  { key: "category", label: "Category" },
+  { key: "source", label: "Source" },
+  { key: "location", label: "Location" },
+  { key: "status", label: "Status" },
+  { key: "qty", label: "Qty" },
+  { key: "start", label: "Start" },
+  { key: "end", label: "End" },
+];
+
 const DesktopDashboard = ({
   sortedEquipment,
   bulkMode,
@@ -17,6 +28,8 @@ const DesktopDashboard = ({
 
   toggleSort,
   sortArrow,
+  sortKey,
+  sortDir,
 
   editingId,
 
@@ -34,6 +47,7 @@ const DesktopDashboard = ({
               <th className="p-2 whitespace-nowrap">
                 <input
                   type="checkbox"
+                  aria-label="Select all items on this page"
                   checked={
                     sortedEquipment.length > 0 &&
                     selectedIds.length === sortedEquipment.length
@@ -46,85 +60,28 @@ const DesktopDashboard = ({
               </th>
             )}
 
-            <th className="p-2 whitespace-nowrap">
-              <button
-                type="button"
-                onClick={() => toggleSort("name")}
-                className="hover:underline"
+            {SORT_COLUMNS.map((col) => (
+              <th
+                key={col.key}
+                className="p-2 whitespace-nowrap"
+                aria-sort={
+                  sortKey === col.key
+                    ? sortDir === "asc"
+                      ? "ascending"
+                      : "descending"
+                    : undefined
+                }
               >
-                Name{sortArrow("name")}
-              </button>
-            </th>
-
-            <th className="p-2 whitespace-nowrap">
-              <button
-                type="button"
-                onClick={() => toggleSort("category")}
-                className="hover:underline"
-              >
-                Category{sortArrow("category")}
-              </button>
-            </th>
-
-            <th className="p-2 whitespace-nowrap">
-              <button
-                type="button"
-                onClick={() => toggleSort("source")}
-                className="hover:underline"
-              >
-                Source{sortArrow("source")}
-              </button>
-            </th>
-
-            <th className="p-2 whitespace-nowrap">
-              <button
-                type="button"
-                onClick={() => toggleSort("location")}
-                className="hover:underline"
-              >
-                Location{sortArrow("location")}
-              </button>
-            </th>
-
-            <th className="p-2 whitespace-nowrap">
-              <button
-                type="button"
-                onClick={() => toggleSort("status")}
-                className="hover:underline"
-              >
-                Status{sortArrow("status")}
-              </button>
-            </th>
-
-            <th className="p-2 whitespace-nowrap">
-              <button
-                type="button"
-                onClick={() => toggleSort("qty")}
-                className="hover:underline"
-              >
-                Qty{sortArrow("qty")}
-              </button>
-            </th>
-
-            <th className="p-2 whitespace-nowrap">
-              <button
-                type="button"
-                onClick={() => toggleSort("start")}
-                className="hover:underline"
-              >
-                Start{sortArrow("start")}
-              </button>
-            </th>
-
-            <th className="p-2 whitespace-nowrap">
-              <button
-                type="button"
-                onClick={() => toggleSort("end")}
-                className="hover:underline"
-              >
-                End{sortArrow("end")}
-              </button>
-            </th>
+                <button
+                  type="button"
+                  onClick={() => toggleSort(col.key)}
+                  className="hover:underline"
+                >
+                  {col.label}
+                  <span aria-hidden="true">{sortArrow(col.key)}</span>
+                </button>
+              </th>
+            ))}
 
             <th className="p-2 whitespace-nowrap">Actions</th>
           </tr>
@@ -140,6 +97,7 @@ const DesktopDashboard = ({
                 <td className="p-2">
                   <input
                     type="checkbox"
+                    aria-label={`Select ${item.name}`}
                     checked={isSelected(item.id)}
                     onChange={() => toggleSelected(item.id)}
                   />

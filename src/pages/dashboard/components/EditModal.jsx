@@ -1,28 +1,35 @@
-import React from "react";
+import React, { useId } from "react";
+import useDialog from "@/hooks/useDialog";
 
 /**
- * EditModal (Dashboard-scoped)
- * - Desktop-first overlay modal (matches legacy/live styling)
+ * EditModal (Dashboard-scoped) — the Add Item / Edit Item form.
  * - Uses button classes from index.css (btn-secondary / btn-accent / btn-danger)
  * - Does NOT auto-close on Save/Delete; parent controls `isOpen`
+ * - Escape, an overlay click and Cancel all call onCancel
+ * - The Delete button renders only when `onDelete` is a function (the parent
+ *   passes it only while editing an existing item)
+ * - `saving` disables Save while the parent's save request is in flight
  */
 export default function EditModal({
   isOpen,
-  variant = "desktop", // "desktop" | "mobile" (kept for future parity)
   title = "Edit Item",
   editingId = null,
   newItem,
   allLocations = [],
   statusOptions = [],
+  saving = false,
   onChangeField,
   onRequestAddLocation,
   onCancel,
   onSave,
   onDelete,
 }) {
+  const fieldId = useId();
+  const { panelRef, titleId } = useDialog({ isOpen, onClose: onCancel });
+
   if (!isOpen) return null;
 
-  const isMobile = variant === "mobile";
+  const idFor = (key) => `${fieldId}-${key}`;
 
   const stop = (e) => e.stopPropagation();
 
@@ -64,11 +71,13 @@ export default function EditModal({
     <div
       className="fixed inset-0 flex items-center justify-center bg-black/60 z-50"
       onClick={onCancel}
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         className={
           "bg-surface rounded-xl w-[94%] max-w-xl shadow-lg " +
           "max-h-[calc(100dvh-24px)] overflow-hidden flex flex-col"
@@ -76,7 +85,9 @@ export default function EditModal({
         onClick={stop}
       >
         <div className="px-6 pt-6 pb-4">
-          <h3 className="text-xl font-bold text-accent">{title}</h3>
+          <h3 id={titleId} className="text-xl font-bold text-accent">
+            {title}
+          </h3>
           {newItem?.name ? (
             <div className="text-sm text-gray-300 mt-1 truncate">
               {newItem.name}
@@ -86,32 +97,44 @@ export default function EditModal({
 
         <div className="px-6 pb-6 overflow-y-auto flex-1">
           <div className="flex flex-col gap-3">
-            <label className="text-sm text-gray-300">Name</label>
+            <label htmlFor={idFor("name")} className="text-sm text-gray-300">
+              Name
+            </label>
             <input
+              id={idFor("name")}
               type="text"
               value={newItem?.name ?? ""}
               onChange={setText("name")}
               className="w-full px-3 py-2 rounded bg-white text-black"
             />
 
-            <label className="text-sm text-gray-300">Category</label>
+            <label htmlFor={idFor("category")} className="text-sm text-gray-300">
+              Category
+            </label>
             <input
+              id={idFor("category")}
               type="text"
               value={newItem?.category ?? ""}
               onChange={setText("category")}
               className="w-full px-3 py-2 rounded bg-white text-black"
             />
 
-            <label className="text-sm text-gray-300">Source</label>
+            <label htmlFor={idFor("source")} className="text-sm text-gray-300">
+              Source
+            </label>
             <input
+              id={idFor("source")}
               type="text"
               value={newItem?.source ?? ""}
               onChange={setText("source")}
               className="w-full px-3 py-2 rounded bg-white text-black"
             />
 
-            <label className="text-sm text-gray-300">Location</label>
+            <label htmlFor={idFor("location")} className="text-sm text-gray-300">
+              Location
+            </label>
             <select
+              id={idFor("location")}
               value={newItem?.location ?? ""}
               onChange={onLocationChange}
               className="w-full px-3 py-2 rounded bg-white text-black"
@@ -125,8 +148,11 @@ export default function EditModal({
               <option value="__add_new__">➕ Add new location...</option>
             </select>
 
-            <label className="text-sm text-gray-300">Status</label>
+            <label htmlFor={idFor("status")} className="text-sm text-gray-300">
+              Status
+            </label>
             <select
+              id={idFor("status")}
               value={newItem?.status ?? "Available"}
               onChange={setText("status")}
               className="w-full px-3 py-2 rounded bg-white text-black"
@@ -143,8 +169,11 @@ export default function EditModal({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="flex flex-col gap-2">
-                <label className="text-sm text-gray-300">Quantity</label>
+                <label htmlFor={idFor("quantity")} className="text-sm text-gray-300">
+                  Quantity
+                </label>
                 <input
+                  id={idFor("quantity")}
                   type="number"
                   min="0"
                   value={
@@ -158,8 +187,11 @@ export default function EditModal({
               </div>
 
               <div className="flex flex-col gap-2">
-                <label className="text-sm text-gray-300">Reserve minimum</label>
+                <label htmlFor={idFor("reserve")} className="text-sm text-gray-300">
+                  Reserve minimum
+                </label>
                 <input
+                  id={idFor("reserve")}
                   type="number"
                   min="0"
                   value={newItem?.reserveMin ?? 0}
@@ -171,8 +203,11 @@ export default function EditModal({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="flex flex-col gap-2">
-                <label className="text-sm text-gray-300">Start date</label>
+                <label htmlFor={idFor("start")} className="text-sm text-gray-300">
+                  Start date
+                </label>
                 <input
+                  id={idFor("start")}
                   type="date"
                   value={newItem?.rentalStart || ""}
                   onChange={setText("rentalStart")}
@@ -181,8 +216,11 @@ export default function EditModal({
               </div>
 
               <div className="flex flex-col gap-2">
-                <label className="text-sm text-gray-300">End date</label>
+                <label htmlFor={idFor("end")} className="text-sm text-gray-300">
+                  End date
+                </label>
                 <input
+                  id={idFor("end")}
                   type="date"
                   value={newItem?.rentalEnd || ""}
                   onChange={setText("rentalEnd")}
@@ -190,9 +228,6 @@ export default function EditModal({
                 />
               </div>
             </div>
-
-            {/* variant is currently only used for future sizing tweaks */}
-            {isMobile ? null : null}
           </div>
         </div>
 
@@ -205,9 +240,10 @@ export default function EditModal({
             <button
               type="button"
               onClick={() => onSave?.()}
-              className="btn-accent"
+              disabled={saving}
+              className={saving ? "btn-disabled" : "btn-accent"}
             >
-              Save
+              {saving ? "Saving…" : "Save"}
             </button>
 
             {canDelete ? (

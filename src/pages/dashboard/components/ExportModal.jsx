@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import useDialog from "@/hooks/useDialog";
 
 // exportType: 'inventory' | 'lowstock' | 'history'
 
@@ -30,6 +31,7 @@ const ExportModal = ({
   exportingHistory,
 }) => {
   const [exportType, setExportType] = useState("inventory");
+  const { panelRef, titleId } = useDialog({ isOpen, onClose });
 
   if (!isOpen) return null;
 
@@ -63,10 +65,15 @@ const ExportModal = ({
       onClick={onClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         className="bg-surface p-6 rounded-xl w-[92%] max-w-lg shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-xl font-bold text-accent mb-4">Export</h3>
+        <h3 id={titleId} className="text-xl font-bold text-accent mb-4">Export</h3>
 
         <div className="flex flex-col gap-4">
           {/* Export type selector */}
@@ -148,6 +155,7 @@ const ExportModal = ({
                 {exportScope === "single" && (
                   <div className="mt-3">
                     <select
+                      aria-label="Location to export"
                       value={exportSingleLocation}
                       onChange={(e) => setExportSingleLocation(e.target.value)}
                       className="w-full px-3 py-2 rounded bg-white text-black"

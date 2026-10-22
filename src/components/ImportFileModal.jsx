@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useContext } from "react";
 import Modal from "./Modal";
+import useDialog from "@/hooks/useDialog";
 import EquipmentContext from "../context/EquipmentContext";
 import useUser from "@/context/useUser";
 import { planAllows, PDF_IMPORT_PRO_MESSAGE } from "@/lib/plan";
@@ -67,6 +68,10 @@ const ImportFileModal = ({
   const [errorMessage, setErrorMessage] = useState("");
   const [showMissingLocationConfirm, setShowMissingLocationConfirm] =
     useState(false);
+  const confirmDialog = useDialog({
+    isOpen: showMissingLocationConfirm,
+    onClose: () => setShowMissingLocationConfirm(false),
+  });
 
   // Inline add-new controls (no browser prompt)
   const [localLocations, setLocalLocations] = useState([]);
@@ -1042,10 +1047,18 @@ const ImportFileModal = ({
           onClick={() => setShowMissingLocationConfirm(false)}
         >
           <div
+            ref={confirmDialog.panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={confirmDialog.titleId}
+            tabIndex={-1}
             className="bg-surface p-6 rounded-xl w-[90%] max-w-sm shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-bold text-accent mb-2">
+            <h3
+              id={confirmDialog.titleId}
+              className="text-lg font-bold text-accent mb-2"
+            >
               Continue without locations?
             </h3>
             <p className="text-sm text-gray-300 mb-4">

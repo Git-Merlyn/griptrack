@@ -5,6 +5,7 @@ import EquipmentContext from "@/context/EquipmentContext";
 import useOrgAuditLog from "../hooks/useOrgAuditLog";
 import { getActionMeta } from "../utils/actionMeta";
 import { fetchAndDownloadAuditCsv } from "../utils/auditExport";
+import useDialog from "@/hooks/useDialog";
 
 const RANGE_OPTIONS = [
   { value: "30", label: "Last 30 days" },
@@ -65,6 +66,8 @@ export default function OrgHistoryTable({ onClose }) {
   const [range, setRange] = useState("30");
   const [actionFilter, setActionFilter] = useState("all");
   const [exporting, setExporting] = useState(false);
+  // Rendered only while open (SettingsPage mounts it conditionally).
+  const { panelRef, titleId } = useDialog({ isOpen: true, onClose });
 
   const days = range === "all" ? null : Number(range);
   const { logs, total, truncated, loading, error, refresh } = useOrgAuditLog({
@@ -101,12 +104,17 @@ export default function OrgHistoryTable({ onClose }) {
       onClick={onClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         className="bg-surface border border-text/10 rounded-xl w-full max-w-5xl max-h-[90dvh] shadow-lg flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-4 px-5 py-4 border-b border-text/10 shrink-0">
           <div>
-            <h2 className="text-lg font-bold text-accent">Full History</h2>
+            <h2 id={titleId} className="text-lg font-bold text-accent">Full History</h2>
             <p className="text-xs text-text/50 mt-0.5">
               Every action across your entire inventory — additions, moves, edits, and deletions.
             </p>
@@ -151,6 +159,7 @@ export default function OrgHistoryTable({ onClose }) {
           </div>
 
           <select
+            aria-label="Date range"
             value={range}
             onChange={(e) => setRange(e.target.value)}
             className="bg-background border border-text/20 rounded-lg px-2.5 py-1 text-xs text-text"

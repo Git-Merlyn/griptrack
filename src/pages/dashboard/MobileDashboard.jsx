@@ -60,6 +60,7 @@ const MobileDashboard = ({
                 <label className="flex items-center gap-2 text-sm text-gray-300 select-none">
                   <input
                     type="checkbox"
+                    aria-label={`Select ${item.name}`}
                     checked={isSelected(item.id)}
                     onChange={() => toggleSelected(item.id)}
                   />
