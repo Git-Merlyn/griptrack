@@ -6,6 +6,7 @@ import { NavLink } from "react-router-dom";
 // chunk roughly halves the initial bundle.
 const ImportFileModal = lazy(() => import("@/components/ImportFileModal"));
 import EquipmentContext from "@/context/EquipmentContext";
+import Modal from "@/components/Modal";
 import useUser from "@/context/useUser";
 import useTeam from "@/context/useTeam";
 import { supabase } from "@/lib/supabaseClient";
@@ -28,6 +29,7 @@ import useLocation from "./hooks/useLocation";
 import useExport from "./hooks/useExport";
 import { matchFileItemsToEquipment } from "./utils/pdfSelect";
 import { validateItemForm } from "./utils/itemValidation";
+import { buildImportRows } from "./utils/importRows";
 import { planAllows, proFeatureMessage } from "@/lib/plan";
 import { bulkMoveToLocation } from "./utils/bulkMove";
 import useFilterPresets from "./hooks/useFilterPresets";
@@ -759,6 +761,7 @@ const DashboardPage = () => {
     deleteEquipmentMany,
     updateEquipment,
     moveEquipment,
+    addMultipleItems,
     // importSummaryMessage and clearImportSummary are optional — if your EquipmentContext
     // provides them they will be used to show an import toast after PDF imports.
     importSummaryMessage,
@@ -1119,26 +1122,19 @@ const DashboardPage = () => {
     setShowAddLocationModal(false);
   };
 
-  const handlePdfUpload = (items) => {
-    if (!Array.isArray(items) || items.length === 0) return;
-
-    items.forEach((item) => {
-      if (!item.name || !item.location || item.quantity <= 0) return;
-
-      addEquipment({
-        itemId: item.id || "",
-        name: item.name,
-        category: item.category || "", // ✅ add this
-        source: item.source || "",
-        location: item.location,
-        status: item.status || "Available", // ✅ optional but recommended
-        rentalStart: item.startDate || "",
-        rentalEnd: item.endDate || "",
-        quantity: item.quantity || 1,
-        reserveMin: Number(item.reserveMin) || 0,
-        updatedBy: actorName,
-      });
-    });
+  // Import: one batched insert for every row (one request, one realtime
+  // event, one accurate "N items added" toast from addMultipleItems). Rows
+  // with a blank location are kept and stored as "Unassigned". Throws on
+  // failure so ImportFileModal keeps the parsed rows on screen for a retry.
+  const handlePdfUpload = async (items) => {
+    const { rows, skipped } = buildImportRows(items, actorName);
+    if (skipped > 0) {
+      window.toast?.info?.(
+        `${skipped} row${skipped !== 1 ? "s" : ""} skipped (no name or quantity 0).`,
+      );
+    }
+    if (rows.length === 0) return;
+    await addMultipleItems(rows);
   };
 
   // useInventoryView is declared earlier in the component (above useEditFlow)
@@ -1557,17 +1553,29 @@ const DashboardPage = () => {
 
       {/* Import File Modal — lazy chunk starts loading on first open */}
       {showUploadModal && (
-        <Suspense fallback={null}>
+        <Suspense
+          fallback={
+            <Modal
+              isOpen
+              onClose={() => setShowUploadModal(false)}
+              title="Import"
+            >
+              <p className="text-sm text-text/70">Loading importer…</p>
+            </Modal>
+          }
+        >
           <ImportFileModal
             isOpen={showUploadModal}
             onClose={() => {
               setShowUploadModal(false);
               setPdfModalMode("import");
             }}
-            onUpload={(items) => {
-              if (pdfModalMode === "select") handlePdfSelect(items);
-              else handlePdfUpload(items);
-            }}
+            // Returns the promise: the modal awaits it before closing
+            onUpload={(items) =>
+              pdfModalMode === "select"
+                ? handlePdfSelect(items)
+                : handlePdfUpload(items)
+            }
             mode={pdfModalMode}
             setImportInProgress={setImportInProgress}
             allLocations={allLocations}

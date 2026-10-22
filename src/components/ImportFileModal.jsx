@@ -9,12 +9,15 @@ import pdfWorker from "pdfjs-dist/build/pdf.worker?url";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
+// Stable default: a fresh [] each render would re-run the allLocations effect.
+const EMPTY_LOCATIONS = [];
+
 const ImportFileModal = ({
   isOpen,
   onClose,
   onUpload,
   setImportInProgress,
-  allLocations = [],
+  allLocations = EMPTY_LOCATIONS,
   mode = "import", // 'import' | 'select'
 }) => {
   const { pdfParsingStatus, setPdfParsingStatus, registerLocation } =
@@ -506,7 +509,9 @@ const ImportFileModal = ({
           const leadingParsed = parseInt(leadingToken, 10);
 
           // Remove the leading qty token first
-          remainder = remainder.replace(/^\s*\d{1,3}\s+/, "").trim();
+          // Remove exactly the token the match found (1-4 digits plus the
+          // surrounding whitespace), so it can't drift from the match regex.
+          remainder = remainder.slice(qtyAfterCodeMatch[0].length).trim();
 
           // Heuristic: some OCR layers split 2-digit quantities like "32" into "2" near the code and "3" at the end.
           // If we see a 1-digit leading token AND a 1-digit trailing token, combine them into a 2-digit quantity.
@@ -727,30 +732,28 @@ const ImportFileModal = ({
     setNewSourceName("");
   };
 
-  const doSubmit = () => {
+  // Waits for the dashboard to finish (one batched insert in import mode).
+  // The dashboard shows the result toast with the real count; on failure the
+  // parsed rows stay on screen so the user can retry.
+  const doSubmit = async () => {
+    setShowMissingLocationConfirm(false);
+    setErrorMessage("");
+    setPdfParsingStatus && setPdfParsingStatus("uploading");
+    if (setImportInProgress) setImportInProgress(true);
     try {
-      setPdfParsingStatus && setPdfParsingStatus("uploading");
-      if (setImportInProgress) setImportInProgress(true);
-
-      onUpload(parsedData);
-
-      if (mode === "import") {
-        window.toast?.success?.(
-          `${parsedData.length} item${parsedData.length !== 1 ? "s" : ""} added`,
-        );
-      } else {
-        window.toast?.success?.(
-          `${parsedData.length} item${parsedData.length !== 1 ? "s" : ""} selected`,
-        );
-      }
+      await onUpload(parsedData);
 
       setParsedData([]);
       setDefaultLocation("");
       setDefaultSource("");
       setPdfParsingStatus && setPdfParsingStatus("idle");
-      setShowMissingLocationConfirm(false);
-      setErrorMessage("");
       onClose();
+    } catch (e) {
+      console.error("Import failed", e);
+      setPdfParsingStatus && setPdfParsingStatus("done");
+      setErrorMessage(
+        `Import failed: ${e?.message || "unknown error"}. Nothing was added — please try again.`,
+      );
     } finally {
       if (setImportInProgress) setImportInProgress(false);
     }
@@ -803,7 +806,7 @@ const ImportFileModal = ({
           </div>
         )}
 
-        {pdfParsingStatus === "error" && (
+        {pdfParsingStatus === "error" && !errorMessage && (
           <div className="text-danger font-medium">
             Error parsing PDF/CSV. Please try again or upload a cleaner version.
           </div>
@@ -1033,7 +1036,10 @@ const ImportFileModal = ({
               <button
                 type="button"
                 onClick={handleSubmit}
-                className="btn-accent"
+                disabled={pdfParsingStatus === "uploading"}
+                className={
+                  pdfParsingStatus === "uploading" ? "btn-disabled" : "btn-accent"
+                }
               >
                 {mode === "select" ? "Apply Selection" : "Submit"}
               </button>
@@ -1062,8 +1068,8 @@ const ImportFileModal = ({
               Continue without locations?
             </h3>
             <p className="text-sm text-gray-300 mb-4">
-              Some rows have no location assigned. Continue and leave them
-              blank?
+              Some rows have no location assigned. They will be added to
+              &ldquo;Unassigned&rdquo; — you can move them later.
             </p>
             <div className="flex justify-end gap-2">
               <button
