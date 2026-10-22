@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import UserContext from "./UserContext";
 import { supabase } from "@/lib/supabaseClient";
+import { signOutWithLocalFallback } from "@/lib/signOut";
 import { isPlaceholderOrgName } from "@/lib/orgName";
 import { canSwitchTeams as roleCanSwitchTeams, isOrgAdmin } from "@shared/roles";
 import { computeEffectivePlan } from "@/lib/plan";
@@ -57,11 +58,8 @@ const UserProvider = ({ children }) => {
     setSubscription(null);
     setTrialEndsAt(null);
 
-    try {
-      await supabase.auth.signOut();
-    } catch {
-      // ignore
-    }
+    // Never throws; clears the stored session itself if /logout is unreachable (L31).
+    await signOutWithLocalFallback();
 
     window.location.href = "/auth";
   };

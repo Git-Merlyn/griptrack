@@ -8,6 +8,7 @@ import useTrial from "@/hooks/useTrial";
 import useTeam from "@/context/useTeam";
 import useTheme from "@/hooks/useTheme";
 import { supabase } from "@/lib/supabaseClient";
+import { signOutWithLocalFallback } from "@/lib/signOut";
 
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -80,7 +81,7 @@ function SettingsPanel({ collapsed, onClose }) {
         return;
       }
       // Account is gone server-side; clear the local session and leave.
-      await supabase.auth.signOut().catch(() => {});
+      await signOutWithLocalFallback();
       window.location.href = "/";
     } catch (e2) {
       // Network failure or an unexpected throw from functions.invoke — without
