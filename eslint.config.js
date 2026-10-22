@@ -5,7 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 
 export default [
   // mobile/ is the Expo app with its own TS toolchain — not linted from here
-  { ignores: ['dist', 'mobile'] },
+  { ignores: ['dist', 'mobile', 'coverage', 'reports'] },
   {
     files: ['**/*.{js,jsx}'],
     languageOptions: {
