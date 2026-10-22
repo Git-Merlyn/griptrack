@@ -6,7 +6,8 @@ import {
   useContext,
 } from "react";
 import { supabase } from "../lib/supabaseClient";
-import { canManageInventory, isOrgAdmin } from "@shared/roles";
+import { isOrgAdmin } from "@shared/roles";
+import { inventoryPermissions } from "./permissions";
 import { deleteByIds } from "../lib/deleteRows";
 import UserContext from "./UserContext";
 import TeamContext from "./TeamContext";
@@ -20,7 +21,7 @@ const EQUIPMENT_TABLE = "equipment_items";
 const EquipmentContext = createContext();
 
 export const EquipmentProvider = ({ children }) => {
-  const { orgId, loadingOrg, role, teamId: assignedTeamId, devRoleOverride, features } = useContext(UserContext) || {};
+  const { orgId, loadingOrg, role, teamId: assignedTeamId, devRoleOverride, features, ghostReadOnly } = useContext(UserContext) || {};
 
   // When teams are disabled, inventory is a single flat pool scoped to the org
   // (equipment rows carry team_id = null) and there is no team to select.
@@ -29,12 +30,10 @@ export const EquipmentProvider = ({ children }) => {
   // Read active team for scoping equipment queries
   const { activeTeamId } = useContext(TeamContext) || {};
 
-  // Role-based permission flags (mirrors database RLS)
+  // Role-based permission flags (mirror database RLS; see ./permissions.js).
+  // A read-only ghost session gets no write controls (L1).
   const isCoordinator = !!role && isOrgAdmin(role);
-  const canAdd    = !!role && canManageInventory(role); // crew cannot add items
-  const canDelete = isCoordinator;                      // admin/owner only
-  const canMove   = true;                               // any role that can edit a row may move it (move_equipment RPC enforces team scope)
-  const canEdit   = !!role && canManageInventory(role); // crew cannot edit metadata
+  const { canAdd, canEdit, canDelete, canMove } = inventoryPermissions(role, { ghostReadOnly });
 
   // The effective team scope for queries:
   // - crew/dept_head: locked to their assigned team (from organization_members)

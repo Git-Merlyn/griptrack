@@ -6,6 +6,9 @@ import { isPlaceholderOrgName } from "@/lib/orgName";
 import { canSwitchTeams as roleCanSwitchTeams, isOrgAdmin } from "@shared/roles";
 import { computeEffectivePlan } from "@/lib/plan";
 
+// Ghost state when the session is NOT a platform-admin ghost (the normal case).
+const GHOST_OFF = { active: false, canWrite: false };
+
 const UserProvider = ({ children }) => {
   // Supabase auth identity
   const [authUser, setAuthUser] = useState(null);
@@ -21,6 +24,11 @@ const UserProvider = ({ children }) => {
 
   // Team assignment (from organization_members.team_id)
   const [teamId, setTeamId] = useState(null);
+
+  // Platform-admin "ghost" session (bootstrap_session.ghost / ghost_write).
+  // A ghost is reported as role 'owner' so every page renders, but unless
+  // write is armed RLS refuses every write, so write controls are hidden.
+  const [ghost, setGhost] = useState(GHOST_OFF);
 
   // Dev-only role override — lets the DevPanel simulate any permission level.
   // The setter is a no-op in production so this never affects real users.
@@ -57,6 +65,7 @@ const UserProvider = ({ children }) => {
     setTeamId(null);
     setSubscription(null);
     setTrialEndsAt(null);
+    setGhost(GHOST_OFF);
 
     // Never throws; clears the stored session itself if /logout is unreachable (L31).
     await signOutWithLocalFallback();
@@ -113,6 +122,7 @@ const UserProvider = ({ children }) => {
         setTeamId(null);
         setSubscription(null);
         setTrialEndsAt(null);
+        setGhost(GHOST_OFF);
         return;
       }
 
@@ -135,6 +145,7 @@ const UserProvider = ({ children }) => {
         setNeedsProfileSetup(false);
         setLoadingOrg(false);
         setTeamId(null);
+        setGhost(GHOST_OFF);
         return;
       }
 
@@ -161,6 +172,8 @@ const UserProvider = ({ children }) => {
 
       setSubscription(boot.subscription ?? null);
       setTeamId(boot.team_id ?? null);
+      // Strict === true: an older payload without these keys means "not a ghost".
+      setGhost({ active: boot.ghost === true, canWrite: boot.ghost_write === true });
 
       const profileRow = boot.profile ?? null;
       setProfile(profileRow);
@@ -220,6 +233,12 @@ const UserProvider = ({ children }) => {
   const isCoordinator = !!effectiveRole && isOrgAdmin(effectiveRole);
   // admin/owner can browse any team; crew/dept_head are locked to their assigned team
   const canSwitchTeams = !!effectiveRole && roleCanSwitchTeams(effectiveRole);
+  // Ghost flags (L1). ghostReadOnly: viewing another org without armed write.
+  // Pages keep their read UI (role is 'owner') but must hide write controls.
+  // Snapshot from bootstrap: an armed window that expires mid-session still
+  // shows write controls until the next reload, and RLS refuses the write.
+  const isGhost = ghost.active;
+  const ghostReadOnly = ghost.active && !ghost.canWrite;
 
   // Toggle an org-level feature flag. Owner-only: RLS ("owners can update
   // their organization") enforces it, but an RLS-refused UPDATE returns 2xx
@@ -293,6 +312,9 @@ const UserProvider = ({ children }) => {
       isDepartmentHead,
       isCoordinator,
       canSwitchTeams,
+      // Ghost (platform admin viewing another org)
+      isGhost,
+      ghostReadOnly,
       // Subscription
       subscription,
       plan,
@@ -323,6 +345,8 @@ const UserProvider = ({ children }) => {
       isDepartmentHead,
       isCoordinator,
       canSwitchTeams,
+      isGhost,
+      ghostReadOnly,
       subscription,
       plan,
       effectivePlan,

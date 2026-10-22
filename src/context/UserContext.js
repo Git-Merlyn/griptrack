@@ -22,6 +22,12 @@ const UserContext = createContext({
   isCoordinator: false,      // role === 'admin' || role === 'owner'
   canSwitchTeams: false,     // admin/owner can view any team; others are locked
 
+  // Platform-admin ghost session (see GhostBar). A ghost is reported as role
+  // 'owner'. ghostReadOnly = viewing another org without armed write: every
+  // write control must be hidden (RLS refuses the writes anyway).
+  isGhost: false,
+  ghostReadOnly: false,
+
   // Subscription
   subscription: null,   // { plan, status, current_period_end, cancel_at_period_end }
   plan: "free",         // derived: 'free' | 'pro' | 'team' (billed plan)
