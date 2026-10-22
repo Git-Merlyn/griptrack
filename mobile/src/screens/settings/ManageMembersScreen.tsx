@@ -19,6 +19,10 @@ import { useOrgContext } from '../../context/OrgContext';
 import { useAuthContext } from '../../context/AuthContext';
 import { useTeamContext } from '../../context/TeamContext';
 import { Role, isOrgAdmin, ASSIGNABLE_ROLES } from '../../lib/types';
+import { getInitials } from '../../lib/helpers';
+import PickerModal from '../../components/PickerModal';
+import IconButton from '../../components/IconButton';
+import { GapMd } from '../../components/ListSeparators';
 
 // ─── Role config ──────────────────────────────────────────────────────────────
 
@@ -29,6 +33,9 @@ const ROLE_CONFIG: Record<Role, { label: string; bg: string; text: string }> = {
   crew:            { label: 'Crew',      bg: 'rgba(156,163,175,0.12)', text: '#9ca3af' },
 };
 
+
+// PickerModal option key for "no team" (team ids are UUIDs, so no clash).
+const NO_TEAM_KEY = '__none__';
 
 function RoleBadge({ role }: { role: Role }) {
   const cfg = ROLE_CONFIG[role] ?? ROLE_CONFIG.crew;
@@ -91,9 +98,7 @@ function InviteMemberModal({
 
           <View className="px-5 pt-3 pb-2 flex-row items-center justify-between">
             <Text className="text-slate-100 text-lg font-semibold">Invite Member</Text>
-            <TouchableOpacity onPress={handleClose} hitSlop={8}>
-              <Ionicons name="close" size={22} color="#6b7280" />
-            </TouchableOpacity>
+            <IconButton icon="close" label="Close" onPress={handleClose} />
           </View>
 
           <View style={{ padding: 20, paddingBottom: 40 }}>
@@ -170,9 +175,7 @@ function MemberCard({
   onChangeTeam: () => void;
   onRemove: () => void;
 }) {
-  const initials = member.full_name
-    ? member.full_name.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase()
-    : member.email[0].toUpperCase();
+  const initials = getInitials(member.full_name, member.email);
 
   const canEdit = canManage && !isSelf && member.role !== 'owner';
 
@@ -269,57 +272,33 @@ export default function ManageMembersScreen() {
     setRefreshing(false);
   }
 
-  function promptRoleChange(member: OrgMemberProfile) {
-    Alert.alert(
-      `Change role for ${member.full_name ?? member.email}`,
-      'Select a new role:',
-      [
-        ...ASSIGNABLE_ROLES.map((role) => ({
-          text: ROLE_CONFIG[role].label + (member.role === role ? ' ✓' : ''),
-          onPress: async () => {
-            if (role === member.role) return;
-            try {
-              await changeRole(member.user_id, role);
-            } catch (err: any) {
-              Alert.alert('Error', err?.message ?? 'Failed to change role.');
-            }
-          },
-        })),
-        { text: 'Cancel', style: 'cancel' as const },
-      ]
-    );
+  // Role and team are picked in a bottom sheet, not Alert.alert: Android's
+  // Alert keeps only the first 3 buttons (Cancel, "No team" and any team past
+  // the third vanished) and ignores back / outside taps.
+  const [roleTarget, setRoleTarget] = useState<OrgMemberProfile | null>(null);
+  const [teamTarget, setTeamTarget] = useState<OrgMemberProfile | null>(null);
+
+  async function handleRoleSelect(key: string) {
+    const member = roleTarget;
+    const role = key as Role;
+    if (!member || role === member.role) return;
+    try {
+      await changeRole(member.user_id, role);
+    } catch (err: any) {
+      Alert.alert('Error', err?.message ?? 'Failed to change role.');
+    }
   }
 
-  function promptTeamChange(member: OrgMemberProfile) {
-    Alert.alert(
-      `Assign team for ${member.full_name ?? member.email}`,
-      'Select a team:',
-      [
-        ...teams.map((t) => ({
-          text: t.name + (member.team_id === t.id ? ' ✓' : ''),
-          onPress: async () => {
-            if (member.team_id === t.id) return;
-            try {
-              await changeTeam(member.user_id, t.id);
-            } catch (err: any) {
-              Alert.alert('Error', err?.message ?? 'Failed to change team.');
-            }
-          },
-        })),
-        {
-          text: 'No team' + (member.team_id === null ? ' ✓' : ''),
-          onPress: async () => {
-            if (member.team_id === null) return;
-            try {
-              await changeTeam(member.user_id, null);
-            } catch (err: any) {
-              Alert.alert('Error', err?.message ?? 'Failed to change team.');
-            }
-          },
-        },
-        { text: 'Cancel', style: 'cancel' as const },
-      ]
-    );
+  async function handleTeamSelect(key: string) {
+    const member = teamTarget;
+    if (!member) return;
+    const teamId = key === NO_TEAM_KEY ? null : key;
+    if (teamId === member.team_id) return;
+    try {
+      await changeTeam(member.user_id, teamId);
+    } catch (err: any) {
+      Alert.alert('Error', err?.message ?? 'Failed to change team.');
+    }
   }
 
   function confirmRemove(member: OrgMemberProfile) {
@@ -369,7 +348,7 @@ export default function ManageMembersScreen() {
         },
       },
       { text: 'Cancel', style: 'cancel' },
-    ]);
+    ], { cancelable: true });
   }
 
   async function handleInvite(email: string, role: Role) {
@@ -413,7 +392,7 @@ export default function ManageMembersScreen() {
           data={members}
           keyExtractor={(m) => m.user_id}
           contentContainerStyle={{ padding: 16, paddingBottom: canManage ? 96 : 24 }}
-          ItemSeparatorComponent={() => <View className="h-3" />}
+          ItemSeparatorComponent={GapMd}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#4debf9" />
           }
@@ -465,8 +444,8 @@ export default function ManageMembersScreen() {
               teamName={item.team_id ? teamNameById.get(item.team_id) ?? null : null}
               isSelf={item.user_id === profile?.id}
               canManage={canManage}
-              onChangeRole={() => promptRoleChange(item)}
-              onChangeTeam={() => promptTeamChange(item)}
+              onChangeRole={() => setRoleTarget(item)}
+              onChangeTeam={() => setTeamTarget(item)}
               onRemove={() => confirmRemove(item)}
             />
           )}
@@ -479,10 +458,33 @@ export default function ManageMembersScreen() {
           className="absolute bottom-6 right-5 bg-accent w-14 h-14 rounded-full items-center justify-center shadow-lg"
           onPress={() => setInviteModalVisible(true)}
           activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Invite member"
         >
           <Ionicons name="person-add-outline" size={22} color="#0f1117" />
         </TouchableOpacity>
       )}
+
+      <PickerModal
+        visible={roleTarget !== null}
+        title={roleTarget ? `Change role for ${roleTarget.full_name ?? roleTarget.email}` : ''}
+        options={ASSIGNABLE_ROLES.map((r) => ({ key: r, label: ROLE_CONFIG[r].label }))}
+        selectedKey={roleTarget?.role ?? null}
+        onSelect={handleRoleSelect}
+        onClose={() => setRoleTarget(null)}
+      />
+
+      <PickerModal
+        visible={teamTarget !== null}
+        title={teamTarget ? `Assign team for ${teamTarget.full_name ?? teamTarget.email}` : ''}
+        options={[
+          ...teams.map((t) => ({ key: t.id, label: t.name })),
+          { key: NO_TEAM_KEY, label: 'No team' },
+        ]}
+        selectedKey={teamTarget ? teamTarget.team_id ?? NO_TEAM_KEY : null}
+        onSelect={handleTeamSelect}
+        onClose={() => setTeamTarget(null)}
+      />
 
       <InviteMemberModal
         visible={inviteModalVisible}

@@ -5,6 +5,8 @@ interface Props {
   value: boolean;
   onValueChange: (v: boolean) => void;
   disabled?: boolean;
+  /** What the switch controls, read by TalkBack / VoiceOver (e.g. "Truck 1 active"). */
+  accessibilityLabel?: string;
 }
 
 const TRACK_W = 48;
@@ -13,7 +15,12 @@ const THUMB   = 22;
 const PAD     = 3;
 const TRAVEL  = TRACK_W - THUMB - PAD * 2;
 
-export default function ToggleSwitch({ value, onValueChange, disabled = false }: Props) {
+export default function ToggleSwitch({
+  value,
+  onValueChange,
+  disabled = false,
+  accessibilityLabel,
+}: Props) {
   const anim = useRef(new Animated.Value(value ? 1 : 0)).current;
 
   useEffect(() => {
@@ -51,6 +58,7 @@ export default function ToggleSwitch({ value, onValueChange, disabled = false }:
       style={{ opacity: disabled ? 0.45 : 1 }}
       hitSlop={8}
       accessibilityRole="switch"
+      accessibilityLabel={accessibilityLabel}
       accessibilityState={{ checked: value, disabled }}
     >
       <Animated.View

@@ -90,7 +90,8 @@ export function useOrgMembers(orgId: string | null): UseOrgMembersResult {
             team_id: r.team_id ?? null,
             created_at: r.created_at,
             full_name: p?.full_name ?? null,
-            email: p?.email ?? r.user_id,
+            // `||` not `??`: profiles.email can be '' and the UI needs a non-empty value.
+            email: p?.email || r.user_id,
           };
         })
       );

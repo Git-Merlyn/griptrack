@@ -17,6 +17,14 @@ import ToggleSwitch from '../../components/ToggleSwitch';
 
 type SettingsNav = NativeStackNavigationProp<SettingsStackParamList, 'SettingsHome'>;
 
+// Linking.openURL rejects when nothing can open the URL; never leave that
+// promise unhandled.
+function openLink(url: string) {
+  Linking.openURL(url).catch(() => {
+    Alert.alert('Could not open link', `Visit ${url} in your browser.`);
+  });
+}
+
 export default function SettingsScreen() {
   const { features, updateFeatures } = useOrgContext();
   const { profile } = useAuthContext();
@@ -120,11 +128,11 @@ export default function SettingsScreen() {
 
       {/* ── Legal ── */}
       <View className="flex-row justify-center items-center gap-2 mt-2">
-        <TouchableOpacity onPress={() => Linking.openURL('https://griptrack.app/privacy')} hitSlop={8}>
+        <TouchableOpacity onPress={() => openLink('https://griptrack.app/privacy')} hitSlop={8}>
           <Text className="text-text/40 text-xs">Privacy Policy</Text>
         </TouchableOpacity>
         <Text className="text-text/30 text-xs">·</Text>
-        <TouchableOpacity onPress={() => Linking.openURL('https://griptrack.app/terms')} hitSlop={8}>
+        <TouchableOpacity onPress={() => openLink('https://griptrack.app/terms')} hitSlop={8}>
           <Text className="text-text/40 text-xs">Terms of Service</Text>
         </TouchableOpacity>
       </View>
@@ -188,7 +196,12 @@ function FeatureRow({ icon, title, description, value, disabled, onValueChange }
             {title}
           </Text>
         </View>
-        <ToggleSwitch value={value} onValueChange={onValueChange} disabled={disabled} />
+        <ToggleSwitch
+          value={value}
+          onValueChange={onValueChange}
+          disabled={disabled}
+          accessibilityLabel={title}
+        />
       </View>
       <Text className="text-text text-xs mt-2 leading-relaxed" style={{ paddingLeft: 28 }}>
         {description}

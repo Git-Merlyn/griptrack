@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { deleteById } from '../lib/deleteById';
 import { EquipmentItem, ParsedPDFItem } from '../lib/types';
+import { normalizeImportRow } from '../lib/importFile';
 import { useAuthContext } from '../context/AuthContext';
 import { useTeamContext } from '../context/TeamContext';
 import { useOrgContext } from '../context/OrgContext';
@@ -228,20 +229,16 @@ export function useEquipmentMutations(): UseMutationsReturn {
 
       const now = new Date().toISOString();
 
+      // normalizeImportRow: blank name → "(Unnamed)", blank location →
+      // "Unassigned", bad quantity → 1, non-ISO date → null (same as web).
       const records: EquipmentItem[] = parsedItems.map((parsed) => ({
         id: generateId(),
         org_id: profile.org_id,
         team_id: teamsEnabled ? activeTeamId : null,
         item_id: null,
-        name: parsed.name.trim(),
-        category: parsed.category.trim() || null,
-        source: parsed.source.trim() || null,
-        location: parsed.location.trim(),
-        quantity: parsed.quantity,
+        ...normalizeImportRow(parsed),
         reserve_min: 0,
         status: 'Available',
-        start_date: parsed.start_date || null,
-        end_date: parsed.end_date || null,
         updated_by: updatedBy,
         updated_at: now,
         created_at: now,

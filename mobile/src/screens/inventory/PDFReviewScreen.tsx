@@ -16,6 +16,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { InventoryStackParamList, ParsedPDFItem } from '../../lib/types';
 import { useEquipmentMutations } from '../../hooks/useEquipmentMutations';
 import { useSyncContext } from '../../context/SyncContext';
+import { UNASSIGNED_LOCATION } from '../../lib/importFile';
+import { sanitizeQtyInput } from '../../lib/validation';
+import IconButton from '../../components/IconButton';
+import { GapMd } from '../../components/ListSeparators';
 
 type Props = NativeStackScreenProps<InventoryStackParamList, 'PDFReview'>;
 
@@ -41,16 +45,7 @@ export default function PDFReviewScreen({ navigation, route }: Props) {
     setItems((prev) => prev.map((i) => ({ ...i, location: loc })));
   }
 
-  async function handleConfirm() {
-    if (!isOnline) {
-      Alert.alert('Offline', 'PDF import requires a connection. Please reconnect and try again.');
-      return;
-    }
-    if (items.length === 0) {
-      Alert.alert('No Items', 'There are no items to import.');
-      return;
-    }
-
+  async function commit() {
     setCommitting(true);
     try {
       await addMultipleItems(items);
@@ -66,6 +61,37 @@ export default function PDFReviewScreen({ navigation, route }: Props) {
     }
   }
 
+  function handleConfirm() {
+    if (!isOnline) {
+      Alert.alert('Offline', 'PDF import requires a connection. Please reconnect and try again.');
+      return;
+    }
+    if (items.length === 0) {
+      Alert.alert('No Items', 'There are no items to import.');
+      return;
+    }
+
+    // Same check as the web importer: rows without a location are imported
+    // to "Unassigned" only after the user confirms.
+    const missing = items.filter((i) => !i.location.trim()).length;
+    if (missing > 0) {
+      Alert.alert(
+        'Continue without locations?',
+        `${missing} item${missing !== 1 ? 's have' : ' has'} no location. ` +
+          `They will be imported to "${UNASSIGNED_LOCATION}" and can be moved later. ` +
+          'To set one location for everything, use "Assign all to location" at the top.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Import', onPress: commit },
+        ],
+        { cancelable: true }
+      );
+      return;
+    }
+
+    commit();
+  }
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -77,7 +103,7 @@ export default function PDFReviewScreen({ navigation, route }: Props) {
         <Text className="text-slate-400 text-xs mb-1.5">Assign all to location</Text>
         <View className="flex-row gap-2">
           <TextInput
- className="flex-1 bg-surface border border-white/10 rounded-lg px-3 py-2 text-slate-100"
+            className="flex-1 bg-surface border border-white/10 rounded-lg px-3 py-2 text-slate-100"
             style={{ fontSize: 14 }}
             placeholder="Location name…"
             placeholderTextColor="#4b5563"
@@ -106,7 +132,7 @@ export default function PDFReviewScreen({ navigation, route }: Props) {
         data={items}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: 16, paddingBottom: 108 }}
-        ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+        ItemSeparatorComponent={GapMd}
         keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => (
           <ParsedItemRow
@@ -155,12 +181,23 @@ interface RowProps {
 }
 
 function ParsedItemRow({ item, onChange, onDelete }: RowProps) {
+  // The Qty field keeps its own text so it can be cleared while typing; an
+  // empty field counts as 0. sanitizeQtyInput drops non-digits and leading
+  // zeros ("05" → "5").
+  const [qtyText, setQtyText] = useState(String(item.quantity));
+
+  function handleQtyChange(v: string) {
+    const clean = sanitizeQtyInput(v);
+    setQtyText(clean);
+    onChange({ quantity: clean === '' ? 0 : parseInt(clean, 10) });
+  }
+
   return (
     <View className="bg-surface border border-white/10 rounded-xl p-3 gap-2.5">
       {/* Name row */}
       <View className="flex-row items-center gap-2">
         <TextInput
- className="flex-1 text-accent font-semibold"
+          className="flex-1 text-accent font-semibold"
           style={{ fontSize: 14 }}
           value={item.name}
           onChangeText={(v) => onChange({ name: v })}
@@ -168,9 +205,13 @@ function ParsedItemRow({ item, onChange, onDelete }: RowProps) {
           placeholderTextColor="#4b5563"
           returnKeyType="done"
         />
-        <TouchableOpacity onPress={onDelete} hitSlop={8} activeOpacity={0.7}>
-          <Ionicons name="trash-outline" size={18} color="#ef4444" />
-        </TouchableOpacity>
+        <IconButton
+          icon="trash-outline"
+          label={`Remove ${item.name || 'item'} from import`}
+          size={18}
+          color="#ef4444"
+          onPress={onDelete}
+        />
       </View>
 
       {/* Category + Qty */}
@@ -178,7 +219,7 @@ function ParsedItemRow({ item, onChange, onDelete }: RowProps) {
         <View className="flex-1">
           <Text className="text-slate-500 text-xs mb-1">Category</Text>
           <TextInput
- className="bg-background border border-white/10 rounded-lg px-2.5 py-1.5 text-slate-100"
+            className="bg-background border border-white/10 rounded-lg px-2.5 py-1.5 text-slate-100"
             style={{ fontSize: 12 }}
             value={item.category}
             onChangeText={(v) => onChange({ category: v })}
@@ -190,12 +231,15 @@ function ParsedItemRow({ item, onChange, onDelete }: RowProps) {
         <View style={{ width: 72 }}>
           <Text className="text-slate-500 text-xs mb-1">Qty</Text>
           <TextInput
- className="bg-background border border-white/10 rounded-lg px-2.5 py-1.5 text-slate-100"
+            className="bg-background border border-white/10 rounded-lg px-2.5 py-1.5 text-slate-100"
             style={{ fontSize: 12 }}
-            value={String(item.quantity)}
-            onChangeText={(v) => onChange({ quantity: parseInt(v, 10) || 0 })}
+            value={qtyText}
+            onChangeText={handleQtyChange}
+            onEndEditing={() => {
+              if (qtyText === '') setQtyText('0');
+            }}
             keyboardType="number-pad"
-            placeholder="1"
+            placeholder="0"
             placeholderTextColor="#4b5563"
             returnKeyType="done"
           />
@@ -207,7 +251,7 @@ function ParsedItemRow({ item, onChange, onDelete }: RowProps) {
         <View className="flex-1">
           <Text className="text-slate-500 text-xs mb-1">Location</Text>
           <TextInput
- className="bg-background border border-white/10 rounded-lg px-2.5 py-1.5 text-slate-100"
+            className="bg-background border border-white/10 rounded-lg px-2.5 py-1.5 text-slate-100"
             style={{ fontSize: 12 }}
             value={item.location}
             onChangeText={(v) => onChange({ location: v })}
@@ -219,7 +263,7 @@ function ParsedItemRow({ item, onChange, onDelete }: RowProps) {
         <View className="flex-1">
           <Text className="text-slate-500 text-xs mb-1">Source</Text>
           <TextInput
- className="bg-background border border-white/10 rounded-lg px-2.5 py-1.5 text-slate-100"
+            className="bg-background border border-white/10 rounded-lg px-2.5 py-1.5 text-slate-100"
             style={{ fontSize: 12 }}
             value={item.source}
             onChangeText={(v) => onChange({ source: v })}

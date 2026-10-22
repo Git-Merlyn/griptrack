@@ -3,6 +3,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { ParsedPDFItem } from '../lib/types';
 import { parseCSV } from '../lib/parseRentalFile';
+import { IMPORT_MIME_TYPES, classifyImportFile } from '../lib/importFile';
 import { invokeFn } from '../lib/invokeFn';
 
 export type PDFImportStatus = 'idle' | 'parsing' | 'done' | 'error';
@@ -22,7 +23,7 @@ export function usePDFImport(): UsePDFImportReturn {
     setStatus('idle');
 
     const result = await DocumentPicker.getDocumentAsync({
-      type: ['application/pdf', 'text/csv', 'text/comma-separated-values'],
+      type: IMPORT_MIME_TYPES,
     });
     if (result.canceled || !result.assets?.length) return null;
 
@@ -30,10 +31,14 @@ export function usePDFImport(): UsePDFImportReturn {
     setStatus('parsing');
 
     try {
-      const isCsv =
-        asset.mimeType === 'text/csv' ||
-        asset.mimeType === 'text/comma-separated-values' ||
-        asset.name.toLowerCase().endsWith('.csv');
+      // The picker filter is wide (Android reports CSVs under several MIME
+      // types), so reject anything that is not a PDF or CSV here instead of
+      // uploading it to parse-rental-pdf.
+      const kind = classifyImportFile(asset);
+      if (!kind) {
+        throw new Error('Unsupported file type. Choose a PDF or CSV file.');
+      }
+      const isCsv = kind === 'csv';
 
       let items: ParsedPDFItem[];
 

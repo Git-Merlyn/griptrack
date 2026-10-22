@@ -8,9 +8,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Modal,
-  FlatList,
-  Pressable,
   Alert,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -20,61 +17,10 @@ import { InventoryStackParamList, CORE_STATUSES } from '../../lib/types';
 import { useEquipmentMutations, ItemFields } from '../../hooks/useEquipmentMutations';
 import { useLocations } from '../../hooks/useLocations';
 import { useInventory } from '../../hooks/useInventory';
+import PickerModal, { stringOptions } from '../../components/PickerModal';
+import { isIsoDate } from '../../lib/validation';
 
 type Props = NativeStackScreenProps<InventoryStackParamList, 'ItemForm'>;
-
-// ─── Inline picker modal ──────────────────────────────────────────────────────
-
-function PickerModal({
-  visible,
-  title,
-  options,
-  value,
-  onSelect,
-  onClose,
-}: {
-  visible: boolean;
-  title: string;
-  options: string[];
-  value: string;
-  onSelect: (v: string) => void;
-  onClose: () => void;
-}) {
-  return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable className="flex-1 bg-black/60" onPress={onClose} />
-      <View className="bg-surface rounded-t-3xl border-t border-white/10 max-h-[55%]">
-        <View className="items-center pt-3 pb-1">
-          <View className="w-10 h-1 bg-white/20 rounded-full" />
-        </View>
-        <View className="px-5 pt-3 pb-2 flex-row items-center justify-between">
-          <Text className="text-slate-100 text-lg font-semibold">{title}</Text>
-          <TouchableOpacity onPress={onClose} hitSlop={8}>
-            <Ionicons name="close" size={22} color="#6b7280" />
-          </TouchableOpacity>
-        </View>
-        <FlatList
-          data={options}
-          keyExtractor={(o) => o}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
-          ItemSeparatorComponent={() => <View className="h-px bg-white/5" />}
-          renderItem={({ item: opt }) => (
-            <TouchableOpacity
-              className="flex-row items-center justify-between py-3.5"
-              onPress={() => { onSelect(opt); onClose(); }}
-              activeOpacity={0.7}
-            >
-              <Text className={`text-base ${value === opt ? 'text-accent font-medium' : 'text-slate-100'}`}>
-                {opt}
-              </Text>
-              {value === opt && <Ionicons name="checkmark" size={20} color="#4debf9" />}
-            </TouchableOpacity>
-          )}
-        />
-      </View>
-    </Modal>
-  );
-}
 
 // ─── Field components ─────────────────────────────────────────────────────────
 
@@ -203,6 +149,24 @@ export default function ItemFormScreen({ route, navigation }: Props) {
       Alert.alert('Invalid', 'Quantity must be 0 or more.');
       return;
     }
+    // Blank reserve means 0; anything else must be a whole number >= 0.
+    const reserve = reserveMin.trim() === '' ? 0 : parseInt(reserveMin, 10);
+    if (isNaN(reserve) || reserve < 0) {
+      Alert.alert('Invalid', 'Reserve min must be 0 or more.');
+      return;
+    }
+    // Dates go straight into Postgres `date` columns: accept only YYYY-MM-DD
+    // so "05/01/2026" is not misread and offline rows do not fail at sync.
+    const start = startDate.trim();
+    const end = endDate.trim();
+    if (start && !isIsoDate(start)) {
+      Alert.alert('Invalid date', 'Start date must be a real date written as YYYY-MM-DD, e.g. 2026-10-21.');
+      return;
+    }
+    if (end && !isIsoDate(end)) {
+      Alert.alert('Invalid date', 'End date must be a real date written as YYYY-MM-DD, e.g. 2026-10-31.');
+      return;
+    }
 
     const fields: ItemFields = {
       name,
@@ -210,10 +174,10 @@ export default function ItemFormScreen({ route, navigation }: Props) {
       source,
       location,
       quantity: qty,
-      reserve_min: parseInt(reserveMin, 10) || 0,
+      reserve_min: reserve,
       status,
-      start_date: startDate.trim() || null,
-      end_date: endDate.trim() || null,
+      start_date: start || null,
+      end_date: end || null,
     };
 
     setSubmitting(true);
@@ -347,26 +311,28 @@ export default function ItemFormScreen({ route, navigation }: Props) {
       <PickerModal
         visible={statusPickerOpen}
         title="Status"
-        options={statusOptions}
-        value={status}
+        options={stringOptions(statusOptions)}
+        selectedKey={status}
         onSelect={setStatus}
         onClose={() => setStatusPickerOpen(false)}
       />
       <PickerModal
         visible={locationPickerOpen}
         title="Location"
-        options={locationNames}
-        value={location}
+        options={stringOptions(locationNames)}
+        selectedKey={location}
         onSelect={setLocation}
         onClose={() => setLocationPickerOpen(false)}
+        emptyText="No locations set up yet. Add one in Settings › Manage Locations."
       />
       <PickerModal
         visible={categoryPickerOpen}
         title="Category"
-        options={categoryOptions}
-        value={category}
+        options={stringOptions(categoryOptions)}
+        selectedKey={category}
         onSelect={setCategory}
         onClose={() => setCategoryPickerOpen(false)}
+        emptyText="No categories yet. Categories come from your existing items."
       />
     </KeyboardAvoidingView>
   );

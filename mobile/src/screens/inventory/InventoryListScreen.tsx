@@ -8,7 +8,9 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  Platform,
 } from 'react-native';
+import type { AlertButton } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -22,6 +24,8 @@ import { useOrgContext } from '../../context/OrgContext';
 import { useSyncContext } from '../../context/SyncContext';
 import { usePDFImport } from '../../hooks/usePDFImport';
 import { statusColor, getQty, qtyColor } from '../../lib/helpers';
+import IconButton from '../../components/IconButton';
+import { GapSm } from '../../components/ListSeparators';
 
 type Props = NativeStackScreenProps<InventoryStackParamList, 'InventoryList'>;
 
@@ -84,33 +88,49 @@ export default function InventoryListScreen({ navigation }: Props) {
     }
   }, [isOnline, pickAndParse, navigation]);
 
+  // Android's Alert shows at most 3 buttons, styles the LAST one as the
+  // primary action, and ignores back / outside taps unless cancelable is set.
+  // So Android gets two buttons ("Add item" primary) and dismisses with back
+  // or a tap outside; iOS keeps an explicit Cancel.
+  const openAddMenu = useCallback(() => {
+    const addItem: AlertButton = {
+      text: 'Add item',
+      onPress: () => navigation.navigate('ItemForm', { mode: 'add' }),
+    };
+    const importFile: AlertButton = { text: 'Import PDF / CSV', onPress: handleImportPDF };
+    const buttons: AlertButton[] =
+      Platform.OS === 'android'
+        ? [importFile, addItem]
+        : [addItem, importFile, { text: 'Cancel', style: 'cancel' }];
+    Alert.alert(
+      'Add equipment',
+      'Add one item by hand, or import a rental PDF or CSV.',
+      buttons,
+      { cancelable: true }
+    );
+  }, [navigation, handleImportPDF]);
+
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, marginRight: 0 }}>
           {canManage && (
-            <TouchableOpacity
-              onPress={() =>
-                Alert.alert('', '', [
-                  {
-                    text: 'Add Item',
-                    onPress: () => navigation.navigate('ItemForm', { mode: 'add' }),
-                  },
-                  { text: 'Import PDF / CSV', onPress: handleImportPDF },
-                  { text: 'Cancel', style: 'cancel' },
-                ])
-              }
+            <IconButton
+              icon="add"
+              label="Add equipment"
+              size={28}
+              color="#4debf9"
               hitSlop={10}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="add" size={28} color="#4debf9" />
-            </TouchableOpacity>
+              onPress={openAddMenu}
+            />
           )}
           {teamsActive && activeTeam && (
             <TouchableOpacity
               onPress={() => setSwitcherVisible(true)}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
               hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel={`Team: ${activeTeam.name}. Switch team`}
             >
               <Ionicons name="people-outline" size={16} color="#4debf9" />
               <Text className="text-accent text-sm font-medium" numberOfLines={1}>
@@ -122,7 +142,7 @@ export default function InventoryListScreen({ navigation }: Props) {
         </View>
       ),
     });
-  }, [navigation, activeTeam, teamsActive, canManage, handleImportPDF]);
+  }, [navigation, activeTeam, teamsActive, canManage, openAddMenu]);
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -174,8 +194,16 @@ export default function InventoryListScreen({ navigation }: Props) {
             onChangeText={setSearchQuery}
             autoCorrect={false}
             autoCapitalize="none"
-            clearButtonMode="while-editing"
           />
+          {/* clearButtonMode is iOS-only; this clear button works on both platforms. */}
+          {searchQuery.length > 0 && (
+            <IconButton
+              icon="close-circle"
+              label="Clear search"
+              size={16}
+              onPress={() => setSearchQuery('')}
+            />
+          )}
         </View>
       </View>
 
@@ -228,7 +256,7 @@ export default function InventoryListScreen({ navigation }: Props) {
           data={displayItems}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
-          ItemSeparatorComponent={() => <View className="h-2.5" />}
+          ItemSeparatorComponent={GapSm}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#4debf9" />
           }
