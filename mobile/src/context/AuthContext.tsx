@@ -1,15 +1,8 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { Session } from '@supabase/supabase-js';
-import { useAuth } from '../hooks/useAuth';
-import { UserProfile, Role } from '../lib/types';
+import { useAuth, UseAuthReturn } from '../hooks/useAuth';
+import { Role } from '../lib/types';
 
-interface AuthContextValue {
-  session: Session | null;
-  profile: UserProfile | null;
-  loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
-  signOut: () => Promise<void>;
-  sendPasswordReset: (email: string) => Promise<{ error: string | null }>;
+interface AuthContextValue extends UseAuthReturn {
   /** Dev-only: the role that overrides profile.role in __DEV__ builds */
   roleOverride: Role | null;
   /** Dev-only: set to override the active role, null to clear */

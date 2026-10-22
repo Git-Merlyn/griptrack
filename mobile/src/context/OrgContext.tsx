@@ -1,40 +1,39 @@
 /**
- * OrgContext — fetches org-level feature flags from the `organizations` table.
+ * OrgContext — org-level feature flags ({ teamsEnabled, requestsEnabled }).
  *
- * Flags live in a JSONB `features` column:
- *   { teams_enabled: boolean, requests_enabled: boolean }
+ * The flags arrive from bootstrap_session in the same state update as the
+ * profile (useAuth), and are cached with it for offline launches. So there is
+ * no separate fetch and no "defaults until loaded" window (M26): while a
+ * profile exists the flags are the org's real flags. SIGNED_OUT_FEATURES is
+ * only seen when there is no profile, and every consumer already bails on
+ * !profile (RootNavigator does not mount the app without one).
  *
- * Both default to `true` if the column is missing or the value is absent,
- * so existing orgs are unaffected until a flag is explicitly set to false.
+ * Flags are opt-in: anything but literal true is off (lib/authCache.ts).
  */
 
-import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
+import React, { createContext, useCallback, useContext, ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
+import type { OrgFeatures } from '../lib/authCache';
 import { useAuthContext } from './AuthContext';
 
-interface OrgFeatures {
-  teamsEnabled: boolean;
-  requestsEnabled: boolean;
-}
+export type { OrgFeatures };
 
 interface OrgContextValue {
   orgId: string | null;
+  /** The org's flags. Both off only when signed out (profile is null). */
   features: OrgFeatures;
-  loadingFeatures: boolean;
   /** Owner-only: persist an updated features object to Supabase and update local state. */
   updateFeatures: (next: OrgFeatures) => Promise<void>;
 }
 
-// Off by default — teams/requests are opt-in. Real values load from the org.
-const DEFAULT_FEATURES: OrgFeatures = {
+const SIGNED_OUT_FEATURES: OrgFeatures = {
   teamsEnabled: false,
   requestsEnabled: false,
 };
 
 const OrgContext = createContext<OrgContextValue>({
   orgId: null,
-  features: DEFAULT_FEATURES,
-  loadingFeatures: false,
+  features: SIGNED_OUT_FEATURES,
   updateFeatures: async () => {},
 });
 
@@ -43,80 +42,45 @@ export function useOrgContext() {
 }
 
 export function OrgProvider({ children }: { children: ReactNode }) {
-  const { profile } = useAuthContext();
-  const [features, setFeatures] = useState<OrgFeatures>(DEFAULT_FEATURES);
-  const [loadingFeatures, setLoadingFeatures] = useState(false);
-
-  // Keep a ref to current features so updateFeatures can roll back without
-  // stale closure issues.
-  const featuresRef = useRef(features);
-  featuresRef.current = features;
-
+  const { profile, features: authFeatures, setFeatures } = useAuthContext();
   const orgId = profile?.org_id ?? null;
+  const features = authFeatures ?? SIGNED_OUT_FEATURES;
 
-  useEffect(() => {
-    if (!orgId) return;
+  const updateFeatures = useCallback(
+    async (next: OrgFeatures) => {
+      if (!orgId || !authFeatures) return;
+      const previous = authFeatures;
 
-    let cancelled = false;
-    setLoadingFeatures(true);
+      // Optimistic update — feels instant to the user (also updates the cache)
+      setFeatures(next);
 
-    async function fetchFeatures() {
+      // .select('id'): RLS turns a forbidden UPDATE (non-owner, read-only
+      // ghost) into 0 rows with no error, so count the rows (M19/L2 pattern,
+      // handed over by WP02).
       const { data, error } = await supabase
         .from('organizations')
-        .select('features')
-        .eq('id', orgId!)
-        .maybeSingle();
+        .update({
+          features: {
+            teams_enabled: next.teamsEnabled,
+            requests_enabled: next.requestsEnabled,
+          },
+        })
+        .eq('id', orgId)
+        .select('id');
 
-      if (cancelled) return;
-
-      if (error) {
-        console.warn('[OrgContext] failed to fetch features, using defaults', error.message);
-        setFeatures(DEFAULT_FEATURES);
-      } else {
-        // Parse JSONB — off by default (opt-in). Existing orgs were backfilled
-        // with an explicit flag, so absent means a genuinely new/unset org.
-        const f = (data?.features as Record<string, unknown>) ?? {};
-        setFeatures({
-          teamsEnabled:    f.teams_enabled    === true,
-          requestsEnabled: f.requests_enabled === true,
-        });
+      if (error || !data || data.length === 0) {
+        // Roll back to previous state on failure
+        setFeatures(previous);
+        throw new Error(
+          error?.message ?? "Not saved: you don't have permission to change this organization's settings."
+        );
       }
-
-      if (!cancelled) setLoadingFeatures(false);
-    }
-
-    fetchFeatures();
-
-    return () => { cancelled = true; };
-  }, [orgId]);
-
-  async function updateFeatures(next: OrgFeatures) {
-    if (!orgId) return;
-
-    const previous = featuresRef.current;
-
-    // Optimistic update — feels instant to the user
-    setFeatures(next);
-
-    const { error } = await supabase
-      .from('organizations')
-      .update({
-        features: {
-          teams_enabled:    next.teamsEnabled,
-          requests_enabled: next.requestsEnabled,
-        },
-      })
-      .eq('id', orgId);
-
-    if (error) {
-      // Roll back to previous state on failure
-      setFeatures(previous);
-      throw new Error(error.message);
-    }
-  }
+    },
+    [orgId, authFeatures, setFeatures]
+  );
 
   return (
-    <OrgContext.Provider value={{ orgId, features, loadingFeatures, updateFeatures }}>
+    <OrgContext.Provider value={{ orgId, features, updateFeatures }}>
       {children}
     </OrgContext.Provider>
   );
