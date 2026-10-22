@@ -20,11 +20,10 @@ const SORT_COLUMNS = [
 const DesktopDashboard = ({
   sortedEquipment,
   bulkMode,
-  selectedIds,
   isSelected,
   toggleSelected,
   selectAllVisible,
-  clearSelection,
+  deselectVisible,
 
   toggleSort,
   sortArrow,
@@ -36,6 +35,12 @@ const DesktopDashboard = ({
   onOpenMove,
   canEdit = true,
 }) => {
+  // sortedEquipment is the current page. Selection can also hold rows from
+  // other pages or from "Select from File", so compare row by row.
+  const allVisibleSelected =
+    sortedEquipment.length > 0 && sortedEquipment.every((r) => isSelected(r.id));
+  const someVisibleSelected = sortedEquipment.some((r) => isSelected(r.id));
+
   return (
     <div className="min-w-[700px]">
       <table className="w-full text-left border-collapse">
@@ -46,13 +51,13 @@ const DesktopDashboard = ({
                 <input
                   type="checkbox"
                   aria-label="Select all items on this page"
-                  checked={
-                    sortedEquipment.length > 0 &&
-                    selectedIds.length === sortedEquipment.length
-                  }
+                  checked={allVisibleSelected}
+                  ref={(el) => {
+                    if (el) el.indeterminate = someVisibleSelected && !allVisibleSelected;
+                  }}
                   onChange={(e) => {
                     if (e.target.checked) selectAllVisible();
-                    else clearSelection();
+                    else deselectVisible();
                   }}
                 />
               </th>

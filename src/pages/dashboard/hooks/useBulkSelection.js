@@ -38,8 +38,16 @@ export default function useBulkSelection({
     );
   }, []);
 
+  // Adds the visible rows to the selection. Rows selected on other pages or
+  // via "Select from File" stay selected.
   const selectAllVisible = useCallback(() => {
-    setSelectedIds(visibleIds);
+    setSelectedIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
+  }, [visibleIds]);
+
+  // Removes only the visible rows from the selection.
+  const deselectVisible = useCallback(() => {
+    const visible = new Set(visibleIds);
+    setSelectedIds((prev) => prev.filter((id) => !visible.has(id)));
   }, [visibleIds]);
 
   const clearSelection = useCallback(() => setSelectedIds([]), []);
@@ -76,6 +84,7 @@ export default function useBulkSelection({
     isSelected,
     toggleSelected,
     selectAllVisible,
+    deselectVisible,
     clearSelection,
   };
 }

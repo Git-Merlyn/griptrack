@@ -9,6 +9,7 @@ const MobileDashboard = ({
   isSelected,
   toggleSelected,
   selectAllVisible,
+  deselectVisible,
   clearSelection,
 
   onOpenDetails,
@@ -16,6 +17,11 @@ const MobileDashboard = ({
   onOpenMove,
   canEdit = true,
 }) => {
+  // sortedEquipment is the current page; compare row by row (see DesktopDashboard).
+  const allVisibleSelected =
+    sortedEquipment.length > 0 && sortedEquipment.every((r) => isSelected(r.id));
+  const someVisibleSelected = sortedEquipment.some((r) => isSelected(r.id));
+
   return (
     <div className="flex flex-col gap-3 -mx-1">
       {bulkMode && (
@@ -23,13 +29,13 @@ const MobileDashboard = ({
           <label className="flex items-center gap-2 text-sm text-gray-300 select-none">
             <input
               type="checkbox"
-              checked={
-                sortedEquipment.length > 0 &&
-                selectedIds.length === sortedEquipment.length
-              }
+              checked={allVisibleSelected}
+              ref={(el) => {
+                if (el) el.indeterminate = someVisibleSelected && !allVisibleSelected;
+              }}
               onChange={(e) => {
                 if (e.target.checked) selectAllVisible();
-                else clearSelection();
+                else deselectVisible();
               }}
             />
             Select all

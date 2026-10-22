@@ -96,6 +96,36 @@ describe("useBulkSelection", () => {
     expect(result.current.selectedIds).toEqual([]);
   });
 
+  it("selectAllVisible adds to the selection instead of replacing it (L15)", () => {
+    const { result, rerender } = renderHook(
+      ({ rows }) => useBulkSelection({ visibleRows: rows }),
+      { initialProps: { rows: makeRows(["a", "b"]) } },
+    );
+    act(() => result.current.selectAllVisible());
+    rerender({ rows: makeRows(["c", "d"]) }); // next page
+    act(() => result.current.selectAllVisible());
+    expect(result.current.selectedIds).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("selectAllVisible does not duplicate already-selected ids", () => {
+    const { result } = renderHook(() => useBulkSelection({ visibleRows: makeRows(["a", "b"]) }));
+    act(() => result.current.toggleSelected("a"));
+    act(() => result.current.selectAllVisible());
+    expect(result.current.selectedIds).toEqual(["a", "b"]);
+  });
+
+  it("deselectVisible removes only the visible rows (L15)", () => {
+    const { result, rerender } = renderHook(
+      ({ rows }) => useBulkSelection({ visibleRows: rows }),
+      { initialProps: { rows: makeRows(["a", "b"]) } },
+    );
+    act(() => result.current.selectAllVisible());
+    rerender({ rows: makeRows(["c", "d"]) });
+    act(() => result.current.selectAllVisible());
+    act(() => result.current.deselectVisible());
+    expect(result.current.selectedIds).toEqual(["a", "b"]);
+  });
+
   it("filters out falsy ids from visibleRows", () => {
     const rows = [{ id: "a" }, { id: "" }, { id: null }];
     const { result } = renderHook(() => useBulkSelection({ visibleRows: rows }));

@@ -17,6 +17,25 @@ const MoveModal = ({
 
   if (!open) return null;
 
+  const max = Number(movingItem.quantity) || 0;
+  const qtyNum = Number(moveData.qty);
+  const qtyOk = Number.isInteger(qtyNum) && qtyNum >= 1 && qtyNum <= max;
+  const sameLocation =
+    !!moveData.newLocation &&
+    String(moveData.newLocation).trim().toLowerCase() ===
+      String(movingItem.location ?? "").trim().toLowerCase();
+  const hint =
+    max === 0
+      ? "Nothing to move: this item's quantity is 0."
+      : !qtyOk
+        ? `Enter a quantity from 1 to ${max}.`
+        : !moveData.newLocation
+          ? "Choose a destination."
+          : sameLocation
+            ? "The item is already at this location."
+            : "";
+  const canConfirm = hint === "";
+
   return (
     <div
       className="fixed inset-0 flex items-center justify-center bg-black/60 z-50"
@@ -93,11 +112,22 @@ const MoveModal = ({
             <option value="__add_new__">➕ Add new location...</option>
           </select>
 
+          {hint && (
+            <p className="text-sm text-warning" role="status">
+              {hint}
+            </p>
+          )}
+
           <div className="flex justify-end gap-2 mt-4">
             <button type="button" onClick={onCancel} className="btn-secondary">
               Cancel
             </button>
-            <button type="button" onClick={onConfirm} className="btn-accent">
+            <button
+              type="button"
+              onClick={onConfirm}
+              disabled={!canConfirm}
+              className={canConfirm ? "btn-accent" : "btn-disabled"}
+            >
               Confirm Move
             </button>
           </div>

@@ -1089,9 +1089,18 @@ const DashboardPage = () => {
   };
 
   const handleMoveSubmit = async () => {
-    if (!movingItem || moveData.qty <= 0 || !moveData.newLocation) return;
+    if (!movingItem) return;
+    // MoveModal disables Confirm in these cases; this covers any other path.
+    const qtyToMove = Number(moveData.qty);
+    if (!Number.isInteger(qtyToMove) || qtyToMove <= 0) {
+      window.toast?.error?.("Enter a quantity of at least 1.");
+      return;
+    }
+    if (!moveData.newLocation) {
+      window.toast?.error?.("Choose a destination location.");
+      return;
+    }
     try {
-      const qtyToMove = Math.max(1, Number(moveData.qty) || 1);
       await moveEquipment(movingItem.id, qtyToMove, moveData.newLocation, actorName);
       setMovingItem(null);
       setMoveData({ qty: 1, newLocation: "" });
@@ -1206,6 +1215,7 @@ const DashboardPage = () => {
     isSelected,
     toggleSelected,
     selectAllVisible,
+    deselectVisible,
     clearSelection,
   } = useBulkSelection({
     visibleRows: paginatedEquipment,
@@ -1372,6 +1382,7 @@ const DashboardPage = () => {
               isSelected={isSelected}
               toggleSelected={toggleSelected}
               selectAllVisible={selectAllVisible}
+              deselectVisible={deselectVisible}
               clearSelection={clearSelection}
               canEdit={canEdit}
               onOpenDetails={(item) => {
@@ -1390,11 +1401,10 @@ const DashboardPage = () => {
             <DesktopDashboard
               sortedEquipment={paginatedEquipment}
               bulkMode={bulkMode}
-              selectedIds={selectedIds}
               isSelected={isSelected}
               toggleSelected={toggleSelected}
               selectAllVisible={selectAllVisible}
-              clearSelection={clearSelection}
+              deselectVisible={deselectVisible}
               toggleSort={toggleSort}
               sortArrow={sortArrow}
               sortKey={sortKey}
