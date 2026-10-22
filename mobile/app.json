@@ -11,8 +11,6 @@
       "bundleIdentifier": "com.griptrack.mobile",
       "buildNumber": "1",
       "infoPlist": {
-        "NSCameraUsageDescription": "GripTrack uses the camera to scan equipment QR codes.",
-        "NSPhotoLibraryUsageDescription": "GripTrack needs access to your photo library to attach images to equipment.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -24,8 +22,7 @@
         "backgroundColor": "#1a1d23"
       },
       "permissions": [
-        "android.permission.ACCESS_NETWORK_STATE",
-        "android.permission.CAMERA"
+        "android.permission.ACCESS_NETWORK_STATE"
       ],
       "predictiveBackGestureEnabled": false
     },
@@ -33,7 +30,12 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
       "expo-sqlite",
       [
         "expo-build-properties",

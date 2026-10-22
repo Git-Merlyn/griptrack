@@ -3,7 +3,7 @@
 import LegalLayout from "./LegalLayout";
 
 const PrivacyPage = () => (
-  <LegalLayout title="Privacy Policy" updated="July 7, 2026">
+  <LegalLayout title="Privacy Policy" updated="October 21, 2026">
     <p>
       GripTrack ("we", "us") is equipment inventory software for film and
       television crews, available at griptrack.app and as a mobile app. This
@@ -75,8 +75,10 @@ const PrivacyPage = () => (
     <p>
       The mobile app stores a copy of your organization's inventory on your
       device (so it works offline) and your login token in your device's
-      secure storage. Camera access, if granted, is used only to scan
-      equipment QR codes; photos are not collected without your action.
+      secure storage. It does not access your camera, photos, contacts, or
+      location. When you import a rental PDF, the file is sent to our server
+      to read its line items and is not stored; CSV files are read on your
+      device.
     </p>
 
     <h2>Your rights</h2>
