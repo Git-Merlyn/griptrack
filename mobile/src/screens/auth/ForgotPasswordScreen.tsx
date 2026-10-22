@@ -58,7 +58,7 @@ export default function ForgotPasswordScreen() {
     >
       <View className="flex-1 justify-center px-6">
         <View className="bg-surface rounded-2xl p-6 border border-white/10">
-          <Text className="text-slate-100 text-base mb-6 text-text">
+          <Text className="text-text text-base mb-6">
             Enter your email and we'll send you a reset link.
           </Text>
 
@@ -78,6 +78,8 @@ export default function ForgotPasswordScreen() {
               autoCapitalize="none"
               autoCorrect={false}
               keyboardType="email-address"
+              textContentType="emailAddress"
+              autoComplete="email"
               returnKeyType="done"
               onSubmitEditing={handleSubmit}
               value={email}

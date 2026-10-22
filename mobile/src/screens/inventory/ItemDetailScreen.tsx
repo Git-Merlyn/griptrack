@@ -103,7 +103,7 @@ export default function ItemDetailScreen({ route, navigation }: Props) {
           </Text>
           <DetailRow label="Category" value={item.category} />
           <DetailRow label="Location" value={item.location} />
-          <DetailRow label="Source" value={item.source} />
+          <DetailRow label="Source" value={item.source} isLast />
         </View>
 
         {/* Dates card */}
@@ -113,7 +113,7 @@ export default function ItemDetailScreen({ route, navigation }: Props) {
               Rental Period
             </Text>
             <DetailRow label="Start" value={formatDate(item.start_date)} />
-            <DetailRow label="End" value={formatDate(item.end_date)} />
+            <DetailRow label="End" value={formatDate(item.end_date)} isLast />
           </View>
         )}
 
@@ -123,7 +123,7 @@ export default function ItemDetailScreen({ route, navigation }: Props) {
             Record Info
           </Text>
           <DetailRow label="Last edited" value={item.updated_by} />
-          <DetailRow label="Added" value={formatDateTime(item.created_at)} />
+          <DetailRow label="Added" value={formatDateTime(item.created_at)} isLast />
         </View>
 
         {/* Action buttons — dept_head and above */}
@@ -185,9 +185,19 @@ export default function ItemDetailScreen({ route, navigation }: Props) {
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
+// NativeWind does not support `last:` variants, so the last row in each card
+// passes isLast to drop its divider.
+function DetailRow({
+  label,
+  value,
+  isLast = false,
+}: {
+  label: string;
+  value: string | null | undefined;
+  isLast?: boolean;
+}) {
   return (
-    <View className="flex-row items-start py-2.5 border-b border-white/5 last:border-0">
+    <View className={`flex-row items-start py-2.5 ${isLast ? '' : 'border-b border-white/5'}`}>
       <Text className="text-text text-sm w-28">{label}</Text>
       <Text className="text-slate-100 text-sm flex-1 font-medium">
         {value && value.trim() ? value : '—'}

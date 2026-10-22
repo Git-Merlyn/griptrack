@@ -20,9 +20,11 @@ import { useAuthContext } from '../../context/AuthContext';
 import { useSyncContext } from '../../context/SyncContext';
 import { useBulkSelection } from '../../hooks/useBulkSelection';
 import { moveEquipment, moveEquipmentBulk } from '../../lib/moveEquipment';
-import { EquipmentItem } from '../../lib/types';
+import { EquipmentItem, UserProfile } from '../../lib/types';
 import { getQty, statusColor } from '../../lib/helpers';
 import BulkActionBar from '../../components/BulkActionBar';
+import IconButton from '../../components/IconButton';
+import { GapSm, Hairline } from '../../components/ListSeparators';
 
 export default function MoveScreen() {
   const { equipment, loading, refresh } = useInventory();
@@ -124,9 +126,17 @@ export default function MoveScreen() {
             onChangeText={setSearch}
             autoCorrect={false}
             autoCapitalize="none"
-            clearButtonMode="while-editing"
             editable={!bulkMode}
           />
+          {/* clearButtonMode is iOS-only; this clear button works on both platforms. */}
+          {search.length > 0 && !bulkMode && (
+            <IconButton
+              icon="close-circle"
+              label="Clear search"
+              size={16}
+              onPress={() => setSearch('')}
+            />
+          )}
         </View>
       </View>
 
@@ -200,7 +210,7 @@ export default function MoveScreen() {
             paddingHorizontal: 16,
             paddingBottom: bulkMode ? 120 : 24,
           }}
-          ItemSeparatorComponent={() => <View className="h-2.5" />}
+          ItemSeparatorComponent={GapSm}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#4debf9" />
           }
@@ -326,7 +336,7 @@ interface MoveItemModalProps {
   item: EquipmentItem | null;
   locationNames: string[];
   allItems: EquipmentItem[];
-  profile: any;
+  profile: UserProfile | null;
   isOnline: boolean;
   bumpLocalVersion: () => void;
   triggerSync: () => Promise<boolean>;
@@ -421,9 +431,12 @@ function MoveItemModal({
             /* ── Inline location picker ── */
             <>
               <View className="px-5 pt-3 pb-2 flex-row items-center gap-3">
-                <TouchableOpacity onPress={() => { setShowLocPicker(false); setLocationSearch(''); }} hitSlop={8}>
-                  <Ionicons name="arrow-back" size={22} color="#4debf9" />
-                </TouchableOpacity>
+                <IconButton
+                  icon="arrow-back"
+                  label="Back"
+                  color="#4debf9"
+                  onPress={() => { setShowLocPicker(false); setLocationSearch(''); }}
+                />
                 <Text className="text-slate-100 text-lg font-semibold">Select Location</Text>
               </View>
               <View className="px-5 pb-2">
@@ -446,7 +459,7 @@ function MoveItemModal({
                 keyExtractor={(l) => l}
                 style={{ maxHeight: 320 }}
                 contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
-                ItemSeparatorComponent={() => <View className="h-px bg-white/5" />}
+                ItemSeparatorComponent={Hairline}
                 ListEmptyComponent={
                   <Text className="text-text text-sm text-center py-8">No locations found</Text>
                 }
@@ -480,9 +493,7 @@ function MoveItemModal({
                     From: {item?.location ?? '—'}  ·  {maxQty} available
                   </Text>
                 </View>
-                <TouchableOpacity onPress={onClose} hitSlop={8}>
-                  <Ionicons name="close" size={22} color="#6b7280" />
-                </TouchableOpacity>
+                <IconButton icon="close" label="Close" onPress={onClose} />
               </View>
 
               <View className="px-5 pb-8">

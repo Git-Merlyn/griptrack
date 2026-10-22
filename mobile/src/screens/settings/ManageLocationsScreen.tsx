@@ -20,10 +20,12 @@ import { useLocationMutations } from '../../hooks/useLocationMutations';
 import { useAuthContext } from '../../context/AuthContext';
 import { useSyncContext } from '../../context/SyncContext';
 import ToggleSwitch from '../../components/ToggleSwitch';
+import IconButton from '../../components/IconButton';
+import { GapSm } from '../../components/ListSeparators';
 
 export default function ManageLocationsScreen() {
   const { profile } = useAuthContext();
-  const { localVersion } = useSyncContext();
+  const { localVersion, triggerSync, isSyncing } = useSyncContext();
   const { addLocation, renameLocation, toggleLocation, deleteLocation } = useLocationMutations();
   // RLS lets department heads add, rename and (de)activate locations, but
   // only owner/admin may delete them — so dept heads get no trash button.
@@ -45,10 +47,20 @@ export default function ManageLocationsScreen() {
 
   useEffect(() => { load(); }, [load, localVersion]);
 
+  // Pull-to-refresh runs a real sync, so a location added on the web shows
+  // up. triggerSync() records its own failures in syncError (shown by the
+  // sync status bar), so a rejection here is only swallowed, never unhandled.
+  // load() re-reads SQLite afterwards in every case.
   async function handleRefresh() {
     setRefreshing(true);
-    load();
-    setRefreshing(false);
+    try {
+      await triggerSync();
+    } catch {
+      // already surfaced through SyncContext's syncError
+    } finally {
+      setRefreshing(false);
+      load();
+    }
   }
 
   function openAdd() {
@@ -140,79 +152,93 @@ export default function ManageLocationsScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      {locations.length === 0 && !refreshing ? (
-        <View className="flex-1 items-center justify-center">
-          <Ionicons name="location-outline" size={40} color="#374151" />
-          <Text className="text-text mt-3 text-sm">No locations yet</Text>
-          <TouchableOpacity
-            onPress={openAdd}
-            className="mt-4 bg-accent rounded-xl px-5 py-2.5"
-            activeOpacity={0.85}
-          >
-            <Text className="text-slate-900 font-semibold">Add first location</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <FlatList
-          data={locations}
-          keyExtractor={(l) => l.id}
-          contentContainerStyle={{ padding: 16, paddingBottom: 96 }}
-          ItemSeparatorComponent={() => <View className="h-2.5" />}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#4debf9" />
-          }
-          ListHeaderComponent={
+      {/* One FlatList for every state, so pull-to-refresh also works from the
+          empty state. Before the first sync finishes, show a spinner rather
+          than "No locations yet". */}
+      <FlatList
+        data={locations}
+        keyExtractor={(l) => l.id}
+        contentContainerStyle={{ padding: 16, paddingBottom: 96, flexGrow: 1 }}
+        ItemSeparatorComponent={GapSm}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#4debf9" />
+        }
+        ListHeaderComponent={
+          locations.length > 0 ? (
             <Text className="text-text text-xs mb-4">
               {locations.length} location{locations.length !== 1 ? 's' : ''}
             </Text>
-          }
-          renderItem={({ item: loc }) => (
-            <View
-              className={`bg-surface border rounded-xl px-4 py-3.5 flex-row items-center gap-3 ${
-                loc.is_active ? 'border-white/10' : 'border-white/5 opacity-50'
-              }`}
-            >
-              <Ionicons name="location-outline" size={18} color="#6b7280" />
-
-              <Text className="text-slate-100 font-medium flex-1" numberOfLines={1}>
-                {loc.name}
-              </Text>
-
-              {/* Rename */}
-              <TouchableOpacity
-                onPress={() => openRename(loc)}
-                hitSlop={8}
-                className="p-1"
-              >
-                <Ionicons name="pencil-outline" size={16} color="#6b7280" />
-              </TouchableOpacity>
-
-              {/* Active toggle */}
-              <ToggleSwitch
-                value={loc.is_active}
-                onValueChange={(v) => handleToggle(loc, v)}
-              />
-
-              {/* Delete — owner/admin only */}
-              {canDelete && (
-                <TouchableOpacity
-                  onPress={() => confirmDelete(loc)}
-                  hitSlop={8}
-                  className="p-1"
-                >
-                  <Ionicons name="trash-outline" size={16} color="#ff4d4d" />
-                </TouchableOpacity>
-              )}
+          ) : null
+        }
+        ListEmptyComponent={
+          isSyncing && !refreshing ? (
+            <View className="flex-1 items-center justify-center">
+              <ActivityIndicator color="#4debf9" size="large" />
             </View>
-          )}
-        />
-      )}
+          ) : (
+            <View className="flex-1 items-center justify-center">
+              <Ionicons name="location-outline" size={40} color="#374151" />
+              <Text className="text-text mt-3 text-sm">No locations yet</Text>
+              <TouchableOpacity
+                onPress={openAdd}
+                className="mt-4 bg-accent rounded-xl px-5 py-2.5"
+                activeOpacity={0.85}
+              >
+                <Text className="text-slate-900 font-semibold">Add first location</Text>
+              </TouchableOpacity>
+            </View>
+          )
+        }
+        renderItem={({ item: loc }) => (
+          <View
+            className={`bg-surface border rounded-xl px-4 py-3.5 flex-row items-center gap-3 ${
+              loc.is_active ? 'border-white/10' : 'border-white/5 opacity-50'
+            }`}
+          >
+            <Ionicons name="location-outline" size={18} color="#6b7280" />
+
+            <Text className="text-slate-100 font-medium flex-1" numberOfLines={1}>
+              {loc.name}
+            </Text>
+
+            {/* Rename */}
+            <IconButton
+              icon="pencil-outline"
+              label={`Rename ${loc.name}`}
+              size={16}
+              className="p-1"
+              onPress={() => openRename(loc)}
+            />
+
+            {/* Active toggle */}
+            <ToggleSwitch
+              value={loc.is_active}
+              onValueChange={(v) => handleToggle(loc, v)}
+              accessibilityLabel={`${loc.name} active`}
+            />
+
+            {/* Delete — owner/admin only */}
+            {canDelete && (
+              <IconButton
+                icon="trash-outline"
+                label={`Delete ${loc.name}`}
+                size={16}
+                color="#ff4d4d"
+                className="p-1"
+                onPress={() => confirmDelete(loc)}
+              />
+            )}
+          </View>
+        )}
+      />
 
       {/* FAB */}
       <TouchableOpacity
         className="absolute bottom-6 right-5 bg-accent w-14 h-14 rounded-full items-center justify-center shadow-lg"
         onPress={openAdd}
         activeOpacity={0.85}
+        accessibilityRole="button"
+        accessibilityLabel="Add location"
       >
         <Ionicons name="add" size={28} color="#0f1117" />
       </TouchableOpacity>
@@ -235,9 +261,7 @@ export default function ManageLocationsScreen() {
               <Text className="text-slate-100 text-lg font-semibold">
                 {editTarget ? 'Rename location' : 'New location'}
               </Text>
-              <TouchableOpacity onPress={closeModal} hitSlop={8}>
-                <Ionicons name="close" size={22} color="#6b7280" />
-              </TouchableOpacity>
+              <IconButton icon="close" label="Close" onPress={closeModal} />
             </View>
 
             <View style={{ padding: 20, paddingBottom: 40 }}>

@@ -80,6 +80,8 @@ export default function SignInScreen({ navigation }: Props) {
                 autoCapitalize="none"
                 autoCorrect={false}
                 keyboardType="email-address"
+                textContentType="emailAddress"
+                autoComplete="email"
                 returnKeyType="next"
                 value={email}
                 onChangeText={setEmail}
@@ -95,6 +97,8 @@ export default function SignInScreen({ navigation }: Props) {
                 placeholder="••••••••"
                 placeholderTextColor="#4b5563"
                 secureTextEntry
+                textContentType="password"
+                autoComplete="current-password"
                 returnKeyType="done"
                 onSubmitEditing={handleSignIn}
                 value={password}

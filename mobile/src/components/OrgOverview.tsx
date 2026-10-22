@@ -16,6 +16,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { GapMd } from './ListSeparators';
 
 import { supabase } from '../lib/supabase';
 import { Team } from '../lib/types';
@@ -99,7 +100,7 @@ export default function OrgOverview() {
           )}
         </View>
       }
-      ItemSeparatorComponent={() => <View className="h-3" />}
+      ItemSeparatorComponent={GapMd}
       ListEmptyComponent={
         <View className="items-center justify-center pt-20">
           <Ionicons name="people-outline" size={40} color="#374151" />

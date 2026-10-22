@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { InventoryStackParamList } from '../../lib/types';
 import { useAuditLog, AuditEvent } from '../../hooks/useAuditLog';
+import { Hairline } from '../../components/ListSeparators';
 
 type Props = NativeStackScreenProps<InventoryStackParamList, 'AuditLog'>;
 
@@ -72,7 +73,7 @@ function LogEntry({ log }: { log: AuditEvent }) {
     (log.user_id ? `User ${log.user_id.slice(-6)}` : null);
 
   return (
-    <View className="py-3.5 border-b border-white/5 last:border-0">
+    <View className="py-3.5">
       {/* Top row: badge + timestamp */}
       <View className="flex-row items-center justify-between mb-1.5">
         <ActionBadge action={log.action} />
@@ -137,7 +138,9 @@ export default function AuditLogScreen({ route }: Props) {
   const { item } = route.params;
   const { logs, loading, error, refresh } = useAuditLog(item.id);
 
-  if (loading) {
+  // Full-screen spinner only for the first load; a refresh keeps the list
+  // on screen and shows the pull-to-refresh indicator instead.
+  if (loading && logs.length === 0) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
         <ActivityIndicator color="#4debf9" size="large" />
@@ -166,7 +169,11 @@ export default function AuditLogScreen({ route }: Props) {
         keyExtractor={(l) => l.id}
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 40 }}
         refreshControl={
-          <RefreshControl refreshing={false} onRefresh={refresh} tintColor="#4debf9" />
+          <RefreshControl
+            refreshing={loading && logs.length > 0}
+            onRefresh={refresh}
+            tintColor="#4debf9"
+          />
         }
         ListHeaderComponent={
           <View className="py-3 flex-row items-center justify-between">
@@ -184,6 +191,8 @@ export default function AuditLogScreen({ route }: Props) {
             <Text className="text-text mt-3 text-sm">No history recorded yet</Text>
           </View>
         }
+        // Divider between rows only (NativeWind has no `last:` variant).
+        ItemSeparatorComponent={Hairline}
         renderItem={({ item: log }) => <LogEntry log={log} />}
       />
     </View>

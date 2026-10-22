@@ -15,6 +15,8 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import IconButton from '../../components/IconButton';
+import { GapMd } from '../../components/ListSeparators';
 import { useNavigation } from '@react-navigation/native';
 import { useRequests, EquipmentRequest } from '../../hooks/useRequests';
 import { useOrgContext } from '../../context/OrgContext';
@@ -166,9 +168,7 @@ function NewRequestModal({
 
           <View className="px-5 pt-3 pb-2 flex-row items-center justify-between">
             <Text className="text-slate-100 text-lg font-semibold">New Request</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={8}>
-              <Ionicons name="close" size={22} color="#6b7280" />
-            </TouchableOpacity>
+            <IconButton icon="close" label="Close" onPress={onClose} />
           </View>
 
           <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
@@ -282,7 +282,7 @@ export default function RequestsScreen() {
           data={requests}
           keyExtractor={(r) => r.id}
           contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
-          ItemSeparatorComponent={() => <View className="h-3" />}
+          ItemSeparatorComponent={GapMd}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#4debf9" />
           }
@@ -319,6 +319,8 @@ export default function RequestsScreen() {
           className="absolute bottom-6 right-5 bg-accent w-14 h-14 rounded-full items-center justify-center shadow-lg"
           onPress={() => setNewRequestVisible(true)}
           activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="New request"
         >
           <Ionicons name="add" size={28} color="#0f1117" />
         </TouchableOpacity>

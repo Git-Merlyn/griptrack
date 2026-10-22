@@ -11,6 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import IconButton from './IconButton';
 
 interface BulkActionBarProps {
   selectedCount: number;
@@ -69,9 +70,7 @@ function LocationPickerSheet({
         {/* Header */}
         <View className="px-5 pt-3 pb-3 flex-row items-center justify-between border-b border-white/5">
           <Text className="text-slate-100 text-lg font-semibold">Move to location</Text>
-          <TouchableOpacity onPress={onClose} hitSlop={8}>
-            <Ionicons name="close" size={22} color="#6b7280" />
-          </TouchableOpacity>
+          <IconButton icon="close" label="Close" onPress={onClose} />
         </View>
 
         {/* Location list */}

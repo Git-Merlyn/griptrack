@@ -20,6 +20,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import IconButton from './IconButton';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuthContext } from '../context/AuthContext';
@@ -120,9 +121,7 @@ export default function DevRoleSwitcher() {
               </View>
               <Text className="text-slate-100 text-base font-semibold">Role Override</Text>
             </View>
-            <TouchableOpacity onPress={() => setOpen(false)} hitSlop={8}>
-              <Ionicons name="close" size={22} color="#6b7280" />
-            </TouchableOpacity>
+            <IconButton icon="close" label="Close" onPress={() => setOpen(false)} />
           </View>
 
           <ScrollView

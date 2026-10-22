@@ -12,6 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import IconButton from './IconButton';
 import { EquipmentItem } from '../lib/types';
 import { useEquipmentMutations } from '../hooks/useEquipmentMutations';
 
@@ -55,9 +56,7 @@ export default function DamageReportModal({ visible, item, onClose, onDamageRepo
               <Ionicons name="warning-outline" size={20} color="#ff4d4d" />
               <Text className="text-slate-100 text-lg font-semibold">Report Damage</Text>
             </View>
-            <TouchableOpacity onPress={onClose} hitSlop={8}>
-              <Ionicons name="close" size={22} color="#6b7280" />
-            </TouchableOpacity>
+            <IconButton icon="close" label="Close" onPress={onClose} />
           </View>
 
           <View className="px-5 pb-8">

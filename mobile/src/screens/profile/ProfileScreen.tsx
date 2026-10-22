@@ -12,7 +12,9 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from '../../lib/supabase';
+import IconButton from '../../components/IconButton';
 import { useAuthContext } from '../../context/AuthContext';
 import { useSyncContext } from '../../context/SyncContext';
 
@@ -123,7 +125,7 @@ export default function ProfileScreen() {
     Alert.alert(
       'Delete account',
       isOwner
-        ? 'This permanently deletes your account AND your organization — all equipment, history, locations, and settings. This cannot be undone.'
+        ? 'This permanently deletes your account AND your organization — all equipment, history, locations, and settings. Any active subscription is cancelled. This cannot be undone.'
         : "This permanently deletes your account. Your organization's data is not affected. This cannot be undone.",
       [
         { text: 'Cancel', style: 'cancel' },
@@ -146,7 +148,8 @@ export default function ProfileScreen() {
                     if (error || data?.error) {
                       let msg = data?.error || error?.message || 'Account deletion failed.';
                       try {
-                        const body = await (error as any)?.context?.json?.();
+                        const body =
+                          error instanceof FunctionsHttpError ? await error.context.json() : null;
                         if (body?.error) msg = body.error;
                       } catch { /* keep msg */ }
                       Alert.alert('Cannot delete yet', msg);
@@ -203,13 +206,17 @@ export default function ProfileScreen() {
           <View className="bg-surface border border-white/10 rounded-2xl p-5 mb-4">
             <View className="flex-row items-center justify-between mb-4">
               <Text className="text-slate-100 text-base font-semibold">Change password</Text>
-              <TouchableOpacity onPress={cancelPasswordChange} hitSlop={8}>
-                <Ionicons name="close" size={20} color="#6b7280" />
-              </TouchableOpacity>
+              <IconButton
+                icon="close"
+                label="Cancel password change"
+                size={20}
+                onPress={cancelPasswordChange}
+              />
             </View>
 
             <PasswordField
               label="Current password"
+              autofill="current"
               value={currentPassword}
               onChangeText={setCurrentPassword}
               show={showCurrent}
@@ -219,6 +226,7 @@ export default function ProfileScreen() {
             <View className="h-3" />
             <PasswordField
               label="New password"
+              autofill="new"
               value={newPassword}
               onChangeText={setNewPassword}
               show={showNew}
@@ -228,6 +236,7 @@ export default function ProfileScreen() {
             <View className="h-3" />
             <PasswordField
               label="Confirm new password"
+              autofill="new"
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               show={showConfirm}
@@ -287,6 +296,8 @@ export default function ProfileScreen() {
 
 interface PasswordFieldProps {
   label: string;
+  /** 'current' = the existing password; 'new' = new / confirm fields. Drives OS autofill. */
+  autofill: 'current' | 'new';
   value: string;
   onChangeText: (v: string) => void;
   show: boolean;
@@ -297,6 +308,7 @@ interface PasswordFieldProps {
 
 function PasswordField({
   label,
+  autofill,
   value,
   onChangeText,
   show,
@@ -314,18 +326,19 @@ function PasswordField({
           value={value}
           onChangeText={onChangeText}
           secureTextEntry={!show}
+          textContentType={autofill === 'new' ? 'newPassword' : 'password'}
+          autoComplete={autofill === 'new' ? 'new-password' : 'current-password'}
           autoCapitalize="none"
           autoCorrect={false}
           returnKeyType={returnKeyType}
           onSubmitEditing={onSubmit}
         />
-        <TouchableOpacity onPress={onToggleShow} hitSlop={8}>
-          <Ionicons
-            name={show ? 'eye-off-outline' : 'eye-outline'}
-            size={18}
-            color="#6b7280"
-          />
-        </TouchableOpacity>
+        <IconButton
+          icon={show ? 'eye-off-outline' : 'eye-outline'}
+          label={`${show ? 'Hide' : 'Show'} ${label.toLowerCase()}`}
+          size={18}
+          onPress={onToggleShow}
+        />
       </View>
     </View>
   );

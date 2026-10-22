@@ -9,6 +9,8 @@ import {
   Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import IconButton from './IconButton';
+import { Hairline } from './ListSeparators';
 import { useTeamContext } from '../context/TeamContext';
 
 interface Props {
@@ -35,9 +37,7 @@ export default function TeamSwitcher({ visible, onClose }: Props) {
 
         <View className="px-5 pt-3 pb-2 flex-row items-center justify-between">
           <Text className="text-slate-100 text-lg font-semibold">Switch Team</Text>
-          <TouchableOpacity onPress={onClose} hitSlop={8}>
-            <Ionicons name="close" size={22} color="#6b7280" />
-          </TouchableOpacity>
+          <IconButton icon="close" label="Close" onPress={onClose} />
         </View>
 
         {loadingTeams ? (
@@ -49,7 +49,7 @@ export default function TeamSwitcher({ visible, onClose }: Props) {
             data={teams}
             keyExtractor={(t) => t.id}
             contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
-            ItemSeparatorComponent={() => <View className="h-px bg-white/5" />}
+            ItemSeparatorComponent={Hairline}
             ListEmptyComponent={
               <View className="items-center py-10">
                 <Text className="text-text text-sm">No teams found</Text>
