@@ -35,7 +35,7 @@ describe('usePDFImport size limit (audit L73)', () => {
 
   it('rejects a PDF over the limit without reading or uploading it', async () => {
     pick.mockResolvedValue(pdfAsset(MAX_PDF_UPLOAD_BYTES + 1));
-    const { result } = renderHook(() => usePDFImport());
+    const { result } = await renderHook(() => usePDFImport());
     let caught: unknown;
     await act(async () => {
       try {
@@ -53,7 +53,7 @@ describe('usePDFImport size limit (audit L73)', () => {
 
   it('uploads a PDF at exactly the limit', async () => {
     pick.mockResolvedValue(pdfAsset(MAX_PDF_UPLOAD_BYTES));
-    const { result } = renderHook(() => usePDFImport());
+    const { result } = await renderHook(() => usePDFImport());
     await act(async () => {
       await expect(result.current.pickAndParse()).resolves.toEqual([]);
     });
@@ -66,7 +66,7 @@ describe('usePDFImport size limit (audit L73)', () => {
 
   it('uploads when the picker does not report a size', async () => {
     pick.mockResolvedValue(pdfAsset(undefined));
-    const { result } = renderHook(() => usePDFImport());
+    const { result } = await renderHook(() => usePDFImport());
     await act(async () => {
       await expect(result.current.pickAndParse()).resolves.toEqual([]);
     });

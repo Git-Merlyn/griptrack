@@ -13,8 +13,8 @@ const options = [
 ];
 
 describe('PickerModal', () => {
-  it('shows every option — no 3-button cap like Android Alert', () => {
-    render(
+  it('shows every option — no 3-button cap like Android Alert', async () => {
+    await render(
       <PickerModal visible title="Assign team" options={options} selectedKey="t4"
         onSelect={jest.fn()} onClose={jest.fn()} />
     );
@@ -22,20 +22,20 @@ describe('PickerModal', () => {
     expect(screen.getByText('Assign team')).toBeTruthy();
   });
 
-  it('selecting an option reports its key and closes', () => {
+  it('selecting an option reports its key and closes', async () => {
     const onSelect = jest.fn();
     const onClose = jest.fn();
-    render(
+    await render(
       <PickerModal visible title="Assign team" options={options} selectedKey={null}
         onSelect={onSelect} onClose={onClose} />
     );
-    fireEvent.press(screen.getByText('No team'));
+    await fireEvent.press(screen.getByText('No team'));
     expect(onSelect).toHaveBeenCalledWith('__none__');
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('marks the current option as selected', () => {
-    render(
+  it('marks the current option as selected', async () => {
+    await render(
       <PickerModal visible title="Assign team" options={options} selectedKey="t2"
         onSelect={jest.fn()} onClose={jest.fn()} />
     );
@@ -44,18 +44,18 @@ describe('PickerModal', () => {
     expect(selected[0]).toHaveTextContent('Electric');
   });
 
-  it('can be dismissed with the labelled close button', () => {
+  it('can be dismissed with the labelled close button', async () => {
     const onClose = jest.fn();
-    render(
+    await render(
       <PickerModal visible title="Role" options={options} selectedKey={null}
         onSelect={jest.fn()} onClose={onClose} />
     );
-    fireEvent.press(screen.getByRole('button', { name: 'Close' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Close' }));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('shows the empty text when there are no options', () => {
-    render(
+  it('shows the empty text when there are no options', async () => {
+    await render(
       <PickerModal visible title="Location" options={[]} selectedKey={null}
         onSelect={jest.fn()} onClose={jest.fn()}
         emptyText="No locations set up yet." />

@@ -24,7 +24,7 @@ function emptyQuery() {
 }
 
 async function renderLoaded() {
-  const hook = renderHook(() => useOrgMembers('org-1'));
+  const hook = await renderHook(() => useOrgMembers('org-1'));
   // The initial fetch ends with the org_invites query.
   await waitFor(() => expect(mockFrom).toHaveBeenCalledWith('org_invites'));
   await waitFor(() => expect(hook.result.current.loading).toBe(false));

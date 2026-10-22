@@ -30,17 +30,17 @@ beforeEach(() => {
 });
 
 describe('OrgContext (M26)', () => {
-  it('exposes the identity\'s flags with no fetch of its own', () => {
-    const { result } = renderHook(() => useOrgContext(), { wrapper });
+  it('exposes the identity\'s flags with no fetch of its own', async () => {
+    const { result } = await renderHook(() => useOrgContext(), { wrapper });
     expect(result.current.orgId).toBe('org-1');
     expect(result.current.features).toEqual({ teamsEnabled: true, requestsEnabled: false });
     expect(mockFrom).not.toHaveBeenCalled();
   });
 
-  it('signed out: org null, both flags off', () => {
+  it('signed out: org null, both flags off', async () => {
     mockAuth.profile = null;
     mockAuth.features = null;
-    const { result } = renderHook(() => useOrgContext(), { wrapper });
+    const { result } = await renderHook(() => useOrgContext(), { wrapper });
     expect(result.current.orgId).toBeNull();
     expect(result.current.features).toEqual({ teamsEnabled: false, requestsEnabled: false });
   });
@@ -48,7 +48,7 @@ describe('OrgContext (M26)', () => {
   it('updateFeatures writes optimistically and persists to organizations', async () => {
     const q = updateQuery({ data: [{ id: 'org-1' }], error: null });
     mockFrom.mockReturnValue(q);
-    const { result } = renderHook(() => useOrgContext(), { wrapper });
+    const { result } = await renderHook(() => useOrgContext(), { wrapper });
     await act(async () => {
       await result.current.updateFeatures({ teamsEnabled: true, requestsEnabled: true });
     });
@@ -61,7 +61,7 @@ describe('OrgContext (M26)', () => {
 
   it('updateFeatures rolls back and throws on error', async () => {
     mockFrom.mockReturnValue(updateQuery({ data: null, error: { message: 'permission denied' } }));
-    const { result } = renderHook(() => useOrgContext(), { wrapper });
+    const { result } = await renderHook(() => useOrgContext(), { wrapper });
     await act(async () => {
       await expect(
         result.current.updateFeatures({ teamsEnabled: false, requestsEnabled: false })
@@ -75,7 +75,7 @@ describe('OrgContext (M26)', () => {
 
   it('updateFeatures rolls back and throws when RLS updated 0 rows', async () => {
     mockFrom.mockReturnValue(updateQuery({ data: [], error: null }));
-    const { result } = renderHook(() => useOrgContext(), { wrapper });
+    const { result } = await renderHook(() => useOrgContext(), { wrapper });
     await act(async () => {
       await expect(
         result.current.updateFeatures({ teamsEnabled: false, requestsEnabled: true })

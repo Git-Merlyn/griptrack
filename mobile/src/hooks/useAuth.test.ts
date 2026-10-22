@@ -133,7 +133,7 @@ afterEach(() => {
 describe('useAuth — online bootstrap (L59)', () => {
   it('builds profile and features from bootstrap_session and caches them', async () => {
     auth.getSession.mockResolvedValue({ data: { session: makeSession() }, error: null });
-    const { result } = renderHook(() => useAuth());
+    const { result } = await renderHook(() => useAuth());
 
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(rpc).toHaveBeenCalledWith('bootstrap_session');
@@ -153,7 +153,7 @@ describe('useAuth — online bootstrap (L59)', () => {
   });
 
   it('no session and no error -> signed out, no bootstrap', async () => {
-    const { result } = renderHook(() => useAuth());
+    const { result } = await renderHook(() => useAuth());
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.session).toBeNull();
     expect(result.current.profile).toBeNull();
@@ -164,7 +164,7 @@ describe('useAuth — online bootstrap (L59)', () => {
 describe('useAuth — repeat auth events (M16)', () => {
   it('TOKEN_REFRESHED / SIGNED_IN / USER_UPDATED / INITIAL_SESSION for the same user never re-bootstrap or set loading', async () => {
     auth.getSession.mockResolvedValue({ data: { session: makeSession() }, error: null });
-    const { result } = renderHook(() => useAuth());
+    const { result } = await renderHook(() => useAuth());
     await waitFor(() => expect(result.current.profile?.org_id).toBe('org-1'));
     const loadingSeen: boolean[] = [];
 
@@ -182,7 +182,7 @@ describe('useAuth — repeat auth events (M16)', () => {
 
   it('SIGNED_IN for a different user drops the old identity and bootstraps the new one', async () => {
     auth.getSession.mockResolvedValue({ data: { session: makeSession('u1') }, error: null });
-    const { result } = renderHook(() => useAuth());
+    const { result } = await renderHook(() => useAuth());
     await waitFor(() => expect(result.current.profile?.id).toBe('u1'));
 
     rpc.mockResolvedValue({ data: { ...boot('org-2'), profile: { id: 'u2', email: 'u2@x.test', full_name: null } }, error: null });
@@ -199,7 +199,7 @@ describe('useAuth — repeat auth events (M16)', () => {
 
   it('SIGNED_OUT clears identity, session and the cache', async () => {
     auth.getSession.mockResolvedValue({ data: { session: makeSession() }, error: null });
-    const { result } = renderHook(() => useAuth());
+    const { result } = await renderHook(() => useAuth());
     await waitFor(() => expect(result.current.profile).not.toBeNull());
 
     await act(async () => {
@@ -212,7 +212,7 @@ describe('useAuth — repeat auth events (M16)', () => {
   });
 
   it('TOKEN_REFRESHED while signed out is ignored', async () => {
-    const { result } = renderHook(() => useAuth());
+    const { result } = await renderHook(() => useAuth());
     await waitFor(() => expect(result.current.loading).toBe(false));
     await act(async () => {
       authCb('TOKEN_REFRESHED', makeSession());
@@ -228,7 +228,7 @@ describe('useAuth — offline (H7)', () => {
     mockReadCache.mockReturnValue(cachedIdentity('u1'));
     mockReadStored.mockResolvedValue(makeSession('u1', 'expired-token'));
 
-    const { result } = renderHook(() => useAuth());
+    const { result } = await renderHook(() => useAuth());
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.offline).toBe(true);
@@ -242,7 +242,7 @@ describe('useAuth — offline (H7)', () => {
     auth.getSession.mockResolvedValue({ data: { session: null }, error: retryable });
     mockReadStored.mockResolvedValue(makeSession('u1', 'expired-token'));
 
-    const { result } = renderHook(() => useAuth());
+    const { result } = await renderHook(() => useAuth());
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.offline).toBe(true);
     expect(result.current.profile).toBeNull();
@@ -251,7 +251,7 @@ describe('useAuth — offline (H7)', () => {
 
   it('retryable error but nothing stored -> signed out', async () => {
     auth.getSession.mockResolvedValue({ data: { session: null }, error: retryable });
-    const { result } = renderHook(() => useAuth());
+    const { result } = await renderHook(() => useAuth());
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.offline).toBe(false);
     expect(result.current.session).toBeNull();
@@ -262,7 +262,7 @@ describe('useAuth — offline (H7)', () => {
     rpc.mockResolvedValue({ data: null, error: networkPgError });
     mockReadCache.mockReturnValue(cachedIdentity('u1'));
 
-    const { result } = renderHook(() => useAuth());
+    const { result } = await renderHook(() => useAuth());
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.profile?.full_name).toBe('Cached Name');
     expect(result.current.bootError).toBeNull();
@@ -274,7 +274,7 @@ describe('useAuth — offline (H7)', () => {
     rpc.mockResolvedValue({ data: null, error: networkPgError });
     mockReadCache.mockReturnValue(cachedIdentity('someone-else'));
 
-    const { result } = renderHook(() => useAuth());
+    const { result } = await renderHook(() => useAuth());
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.profile).toBeNull();
     expect(result.current.bootError).toBe('TypeError: Network request failed');
@@ -286,7 +286,7 @@ describe('useAuth — offline (H7)', () => {
     mockReadCache.mockReturnValue(cachedIdentity('u1'));
     mockReadStored.mockResolvedValue(makeSession('u1', 'expired-token'));
 
-    const { result } = renderHook(() => useAuth());
+    const { result } = await renderHook(() => useAuth());
     expect(result.current.loading).toBe(true);
 
     await act(async () => {
@@ -301,7 +301,7 @@ describe('useAuth — offline (H7)', () => {
     auth.getSession.mockResolvedValueOnce({ data: { session: null }, error: retryable });
     mockReadCache.mockReturnValue(cachedIdentity('u1'));
     mockReadStored.mockResolvedValue(makeSession('u1', 'expired-token'));
-    const { result } = renderHook(() => useAuth());
+    const { result } = await renderHook(() => useAuth());
     await waitFor(() => expect(result.current.offline).toBe(true));
 
     await act(async () => {
@@ -317,7 +317,7 @@ describe('useAuth — offline (H7)', () => {
     auth.getSession.mockResolvedValue({ data: { session: makeSession('u1') }, error: null });
     rpc.mockResolvedValueOnce({ data: null, error: networkPgError });
     mockReadCache.mockReturnValue(cachedIdentity('u1'));
-    const { result } = renderHook(() => useAuth());
+    const { result } = await renderHook(() => useAuth());
     await waitFor(() => expect(result.current.profile?.full_name).toBe('Cached Name'));
 
     const netCb = mockNetListen.mock.calls[mockNetListen.mock.calls.length - 1][0];
@@ -336,7 +336,7 @@ describe('useAuth — no org (L59)', () => {
   it('bootstrap error with no cache -> no profile and bootError; retryBootstrap recovers', async () => {
     auth.getSession.mockResolvedValue({ data: { session: makeSession('u1') }, error: null });
     rpc.mockResolvedValueOnce({ data: null, error: { code: '23505', message: 'duplicate key' } });
-    const { result } = renderHook(() => useAuth());
+    const { result } = await renderHook(() => useAuth());
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.profile).toBeNull();
     expect(result.current.bootError).toBe('duplicate key');
@@ -352,7 +352,7 @@ describe('useAuth — no org (L59)', () => {
 describe('useAuth — signOut (L31)', () => {
   it('server sign-out ok: no local removal, no alert', async () => {
     auth.getSession.mockResolvedValue({ data: { session: makeSession() }, error: null });
-    const { result } = renderHook(() => useAuth());
+    const { result } = await renderHook(() => useAuth());
     await waitFor(() => expect(result.current.profile).not.toBeNull());
 
     await act(async () => {
@@ -366,7 +366,7 @@ describe('useAuth — signOut (L31)', () => {
   it('server sign-out fails: removes the stored session, signs out locally, tells the user', async () => {
     auth.getSession.mockResolvedValue({ data: { session: makeSession() }, error: null });
     auth.signOut.mockResolvedValue({ error: retryable });
-    const { result } = renderHook(() => useAuth());
+    const { result } = await renderHook(() => useAuth());
     await waitFor(() => expect(result.current.profile).not.toBeNull());
 
     await act(async () => {
@@ -383,7 +383,7 @@ describe('useAuth — signOut (L31)', () => {
     auth.getSession.mockResolvedValue({ data: { session: null }, error: retryable });
     mockReadCache.mockReturnValue(cachedIdentity('u1'));
     mockReadStored.mockResolvedValue(makeSession('u1', 'expired-token'));
-    const { result } = renderHook(() => useAuth());
+    const { result } = await renderHook(() => useAuth());
     await waitFor(() => expect(result.current.offline).toBe(true));
 
     await act(async () => {
@@ -399,7 +399,7 @@ describe('useAuth — signOut (L31)', () => {
     auth.getSession.mockResolvedValue({ data: { session: null }, error: retryable });
     mockReadCache.mockReturnValue(cachedIdentity('u1'));
     mockReadStored.mockResolvedValue(makeSession('u1', 'expired-token'));
-    const { result } = renderHook(() => useAuth());
+    const { result } = await renderHook(() => useAuth());
     await waitFor(() => expect(result.current.offline).toBe(true));
 
     await act(async () => {
@@ -417,11 +417,11 @@ describe('useAuth — signOut (L31)', () => {
 describe('useAuth — setFeatures', () => {
   it('updates features and the cache, keeps the profile', async () => {
     auth.getSession.mockResolvedValue({ data: { session: makeSession() }, error: null });
-    const { result } = renderHook(() => useAuth());
+    const { result } = await renderHook(() => useAuth());
     await waitFor(() => expect(result.current.profile).not.toBeNull());
     mockWriteCache.mockClear();
 
-    act(() => {
+    await act(() => {
       result.current.setFeatures({ teamsEnabled: false, requestsEnabled: true });
     });
     expect(result.current.features).toEqual({ teamsEnabled: false, requestsEnabled: true });

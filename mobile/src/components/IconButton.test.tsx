@@ -7,11 +7,11 @@ import IconButton from './IconButton';
 jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 
 describe('IconButton', () => {
-  it('is announced as a button with its label', () => {
+  it('is announced as a button with its label', async () => {
     const onPress = jest.fn();
-    render(<IconButton icon="trash-outline" label="Delete location" onPress={onPress} />);
+    await render(<IconButton icon="trash-outline" label="Delete location" onPress={onPress} />);
     const button = screen.getByRole('button', { name: 'Delete location' });
-    fireEvent.press(button);
+    await fireEvent.press(button);
     expect(onPress).toHaveBeenCalledTimes(1);
   });
 });

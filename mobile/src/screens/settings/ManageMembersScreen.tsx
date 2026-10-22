@@ -436,7 +436,7 @@ export default function ManageMembersScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
-            ) : null
+            ) : undefined
           }
           renderItem={({ item }) => (
             <MemberCard

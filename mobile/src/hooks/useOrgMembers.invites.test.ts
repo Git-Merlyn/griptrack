@@ -52,7 +52,7 @@ beforeEach(() => {
 async function mountWithOneInvite() {
   queue('organization_members', { data: [], error: null });
   queue('org_invites', { data: [INVITE], error: null });
-  const hook = renderHook(() => useOrgMembers('org-1'));
+  const hook = await renderHook(() => useOrgMembers('org-1'));
   await waitFor(() => expect(hook.result.current.invites).toHaveLength(1));
   return hook;
 }

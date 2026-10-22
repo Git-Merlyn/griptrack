@@ -9,6 +9,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.griptrack.mobile",
+      "deploymentTarget": "16.4",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -38,11 +39,7 @@
       [
         "expo-build-properties",
         {
-          "ios": {
-            "deploymentTarget": "15.1"
-          },
           "android": {
-            "compileSdkVersion": 36,
             "targetSdkVersion": 36,
             "minSdkVersion": 24
           }
@@ -57,7 +54,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#0f1117"
         }
-      ]
+      ],
+      "expo-status-bar"
     ],
     "extra": {
       "eas": {

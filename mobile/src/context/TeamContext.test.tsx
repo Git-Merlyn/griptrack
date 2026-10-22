@@ -49,7 +49,7 @@ describe('TeamContext (L34)', () => {
     mockAuth.profile = { id: 'u1', org_id: 'org-1', team_id: null, role: 'owner' };
     await AsyncStorage.setItem('gt_active_team_org-1', 't-b');
 
-    const { result } = renderHook(() => useTeamContext(), { wrapper });
+    const { result } = await renderHook(() => useTeamContext(), { wrapper });
     await waitFor(() => expect(result.current.loadingTeams).toBe(false));
 
     expect(result.current.activeTeamId).toBe('t-b');
@@ -58,7 +58,7 @@ describe('TeamContext (L34)', () => {
 
   it('auto-selects the first team when nothing is stored, and persists it', async () => {
     mockAuth.profile = { id: 'u1', org_id: 'org-1', team_id: null, role: 'admin' };
-    const { result } = renderHook(() => useTeamContext(), { wrapper });
+    const { result } = await renderHook(() => useTeamContext(), { wrapper });
     await waitFor(() => expect(result.current.activeTeamId).toBe('t-a'));
     await waitFor(async () => expect(await AsyncStorage.getItem('gt_active_team_org-1')).toBe('t-a'));
   });
@@ -66,7 +66,7 @@ describe('TeamContext (L34)', () => {
   it('locks crew to their own team', async () => {
     mockAuth.profile = { id: 'u2', org_id: 'org-1', team_id: 't-a', role: 'crew' };
     await AsyncStorage.setItem('gt_active_team_org-1', 't-b');
-    const { result } = renderHook(() => useTeamContext(), { wrapper });
+    const { result } = await renderHook(() => useTeamContext(), { wrapper });
     await waitFor(() => expect(result.current.loadingTeams).toBe(false));
     expect(result.current.activeTeamId).toBe('t-a');
     expect(result.current.canSwitch).toBe(false);
@@ -75,7 +75,7 @@ describe('TeamContext (L34)', () => {
   it('survives AsyncStorage failures', async () => {
     mockAuth.profile = { id: 'u1', org_id: 'org-1', team_id: 't-a', role: 'owner' };
     (AsyncStorage.getItem as jest.Mock).mockRejectedValueOnce(new Error('storage broken'));
-    const { result } = renderHook(() => useTeamContext(), { wrapper });
+    const { result } = await renderHook(() => useTeamContext(), { wrapper });
     await waitFor(() => expect(result.current.loadingTeams).toBe(false));
     expect(result.current.activeTeamId).toBe('t-a');
   });
@@ -84,7 +84,7 @@ describe('TeamContext (L34)', () => {
 describe('TeamContext teams cache (H7)', () => {
   it('writes the fetched list to the cache', async () => {
     mockAuth.profile = { id: 'u1', org_id: 'org-1', team_id: null, role: 'owner' };
-    const { result } = renderHook(() => useTeamContext(), { wrapper });
+    const { result } = await renderHook(() => useTeamContext(), { wrapper });
     await waitFor(() => expect(result.current.teams).toHaveLength(2));
     expect(mockWriteTeams).toHaveBeenCalledWith('org-1', TEAMS);
   });
@@ -95,7 +95,7 @@ describe('TeamContext teams cache (H7)', () => {
       teamsQuery({ data: null, error: { code: '', message: 'TypeError: Network request failed' } })
     );
     mockReadTeams.mockReturnValue(TEAMS);
-    const { result } = renderHook(() => useTeamContext(), { wrapper });
+    const { result } = await renderHook(() => useTeamContext(), { wrapper });
     await waitFor(() => expect(result.current.loadingTeams).toBe(false));
     expect(result.current.teams).toEqual(TEAMS);
     expect(result.current.activeTeam?.name).toBe('B Grip');
@@ -109,7 +109,7 @@ describe('TeamContext teams cache (H7)', () => {
     pending.order = jest.fn(() => new Promise(() => {})); // offline: auth-js still retrying
     mockFrom.mockImplementation(() => pending);
     mockReadTeams.mockReturnValue(TEAMS);
-    const { result } = renderHook(() => useTeamContext(), { wrapper });
+    const { result } = await renderHook(() => useTeamContext(), { wrapper });
     await waitFor(() => expect(result.current.activeTeam?.name).toBe('B Grip'));
     expect(result.current.loadingTeams).toBe(true);
   });

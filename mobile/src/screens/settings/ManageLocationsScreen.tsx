@@ -168,7 +168,7 @@ export default function ManageLocationsScreen() {
             <Text className="text-text text-xs mb-4">
               {locations.length} location{locations.length !== 1 ? 's' : ''}
             </Text>
-          ) : null
+          ) : undefined
         }
         ListEmptyComponent={
           isSyncing && !refreshing ? (

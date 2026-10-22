@@ -57,7 +57,7 @@ beforeEach(() => jest.clearAllMocks());
 describe('updateItem offline (L37)', () => {
   it('snapshots the local row found by id, even with teams on and no active team', async () => {
     mockGetById.mockReturnValue(row);
-    const { result } = renderHook(() => useEquipmentMutations());
+    const { result } = await renderHook(() => useEquipmentMutations());
     const updated = await result.current.updateItem('i1', { name: 'C-Stand 40"' });
 
     expect(mockGetById).toHaveBeenCalledWith('i1');
@@ -73,7 +73,7 @@ describe('updateItem offline (L37)', () => {
 
   it('refuses to queue an update for a row that is not cached', async () => {
     mockGetById.mockReturnValue(null);
-    const { result } = renderHook(() => useEquipmentMutations());
+    const { result } = await renderHook(() => useEquipmentMutations());
     await expect(result.current.updateItem('nope', { name: 'X' })).rejects.toThrow('Item not available offline');
     expect(mockEnqueue).not.toHaveBeenCalled();
     expect(mockUpsert).not.toHaveBeenCalled();
@@ -84,7 +84,7 @@ describe('reportDamage offline (M18)', () => {
   it('uses the current local row, not the caller\'s stale copy', async () => {
     const stale: EquipmentItem = { ...row, name: 'Old name', updated_at: '2026-10-01T00:00:00.000Z' };
     mockGetById.mockReturnValue(row);
-    const { result } = renderHook(() => useEquipmentMutations());
+    const { result } = await renderHook(() => useEquipmentMutations());
     const updated = await result.current.reportDamage(stale, 'bent');
 
     expect(queued(0)).toMatchObject({ id: 'i1', snapshot_updated_at: '2026-10-05T00:00:00.000Z' });
@@ -96,7 +96,7 @@ describe('reportDamage offline (M18)', () => {
 
   it('falls back to the passed item when the row is not cached', async () => {
     mockGetById.mockReturnValue(null);
-    const { result } = renderHook(() => useEquipmentMutations());
+    const { result } = await renderHook(() => useEquipmentMutations());
     await result.current.reportDamage(row, '');
     expect(queued(0).snapshot_updated_at).toBe('2026-10-05T00:00:00.000Z');
   });

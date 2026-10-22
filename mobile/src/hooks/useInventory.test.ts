@@ -23,32 +23,32 @@ describe('useInventory loading (L39)', () => {
     (getEquipmentByOrg as jest.Mock).mockReturnValue([]);
   });
 
-  it('shows the spinner while the first sync runs on an empty cache', () => {
-    const { result, rerender } = renderHook(() => useInventory());
+  it('shows the spinner while the first sync runs on an empty cache', async () => {
+    const { result, rerender } = await renderHook(() => useInventory());
     expect(result.current.loading).toBe(false);
     mockSync.isSyncing = true;
-    rerender({});
+    await rerender({});
     expect(result.current.loading).toBe(true);
   });
 
-  it('clears the spinner when that sync fails (localVersion never bumps)', () => {
-    const { result, rerender } = renderHook(() => useInventory());
+  it('clears the spinner when that sync fails (localVersion never bumps)', async () => {
+    const { result, rerender } = await renderHook(() => useInventory());
     mockSync.isSyncing = true;
-    rerender({});
+    await rerender({});
     expect(result.current.loading).toBe(true);
     mockSync.isSyncing = false; // sync failed: isSyncing false, localVersion unchanged
-    rerender({});
+    await rerender({});
     expect(result.current.loading).toBe(false);
   });
 
-  it('no spinner over cached rows, even when a sync is already running at mount', () => {
+  it('no spinner over cached rows, even when a sync is already running at mount', async () => {
     (getEquipmentByOrg as jest.Mock).mockReturnValue([{ id: 'i1', name: 'C-Stand', category: null, location: 'Truck' }]);
     mockSync.isSyncing = true;
-    const { result, rerender } = renderHook(() => useInventory());
+    const { result, rerender } = await renderHook(() => useInventory());
     expect(result.current.equipment).toHaveLength(1);
     expect(result.current.loading).toBe(false);
     mockSync.isSyncing = false; // that sync failed: localVersion never bumps
-    rerender({});
+    await rerender({});
     expect(result.current.loading).toBe(false);
   });
 });
