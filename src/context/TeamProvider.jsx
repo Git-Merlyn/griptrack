@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useContext, useMemo, useRef } from "r
 import TeamContext from "./TeamContext";
 import UserContext from "./UserContext";
 import { supabase } from "../lib/supabaseClient";
+import { safeGetItem, safeSetItem, safeRemoveItem } from "../lib/safeStorage";
 import { deleteByIds } from "../lib/deleteRows";
 
 const lsKey = (orgId) => `gt_active_team_${orgId}`;
@@ -39,7 +40,7 @@ export const TeamProvider = ({ children }) => {
       setActiveTeamIdState(assignedTeamId ?? null);
       return;
     }
-    const stored = localStorage.getItem(lsKey(orgId));
+    const stored = safeGetItem(lsKey(orgId));
     setActiveTeamIdState(stored || null);
   }, [orgId, canChooseTeam, assignedTeamId]);
 
@@ -50,9 +51,9 @@ export const TeamProvider = ({ children }) => {
       setActiveTeamIdState(id);
       if (orgId) {
         if (id) {
-          localStorage.setItem(lsKey(orgId), id);
+          safeSetItem(lsKey(orgId), id);
         } else {
-          localStorage.removeItem(lsKey(orgId));
+          safeRemoveItem(lsKey(orgId));
         }
       }
     },

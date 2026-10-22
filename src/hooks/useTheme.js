@@ -3,12 +3,13 @@
 // Persists preference to localStorage and applies the .light class to <html>.
 
 import { useEffect, useState } from "react";
+import { safeGetItem, safeSetItem } from "@/lib/safeStorage";
 
 const STORAGE_KEY = "gt_theme";
 
 export default function useTheme() {
   const [theme, setThemeState] = useState(() => {
-    return localStorage.getItem(STORAGE_KEY) || "dark";
+    return safeGetItem(STORAGE_KEY) || "dark";
   });
 
   useEffect(() => {
@@ -18,7 +19,7 @@ export default function useTheme() {
     } else {
       root.classList.remove("light");
     }
-    localStorage.setItem(STORAGE_KEY, theme);
+    safeSetItem(STORAGE_KEY, theme);
   }, [theme]);
 
   const toggleTheme = () => setThemeState((t) => (t === "dark" ? "light" : "dark"));

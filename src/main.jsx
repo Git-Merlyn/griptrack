@@ -59,9 +59,15 @@ if (import.meta.env.VITE_SENTRY_DSN) {
 // chunk is genuinely unreachable (e.g. offline).
 window.addEventListener("vite:preloadError", (event) => {
   const KEY = "gt_chunk_reload_at";
-  const last = Number(sessionStorage.getItem(KEY) || 0);
-  if (Date.now() - last < 30_000) return; // let the error boundary show
-  sessionStorage.setItem(KEY, String(Date.now()));
+  // sessionStorage can throw when storage is blocked (L6). Without it we
+  // cannot prevent a reload loop, so let the error boundary show instead.
+  try {
+    const last = Number(sessionStorage.getItem(KEY) || 0);
+    if (Date.now() - last < 30_000) return; // let the error boundary show
+    sessionStorage.setItem(KEY, String(Date.now()));
+  } catch {
+    return;
+  }
   event.preventDefault();
   window.location.reload();
 });
