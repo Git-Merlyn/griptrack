@@ -49,6 +49,26 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     // two of beta traffic. Bump replaysSessionSampleRate if you upgrade plans.
     replaysSessionSampleRate: 0.1,
     replaysOnErrorSampleRate: 1.0,
+
+    // Sentry v11 replaced sendDefaultPii with dataCollection and, when unset,
+    // collects user IPs, cookies, headers and ALL request/response bodies
+    // (i.e. Supabase payloads: inventory rows, staff emails). Pin the v10
+    // (sendDefaultPii: false) behaviour — values from Sentry's MIGRATION.md
+    // "Upgrading from 10.x to 11.x".
+    dataCollection: {
+      userInfo: false,
+      cookies: false,
+      httpHeaders: {
+        request: { deny: ["forwarded", "-ip", "remote-", "via", "-user"] },
+        response: { deny: ["forwarded", "-ip", "remote-", "via", "-user"] },
+      },
+      httpBodies: [],
+      urlQueryParams: { deny: ["forwarded", "-ip", "remote-", "via", "-user"] },
+      genAI: { inputs: false, outputs: false },
+      databaseQueryData: false,
+      queues: false,
+      graphQL: { document: false, variables: false },
+    },
   });
 }
 
