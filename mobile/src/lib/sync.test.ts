@@ -311,7 +311,7 @@ describe('pullFromSupabase', () => {
     expect(owner.calls.find((c) => c.table === 'equipment_requests')!.filters).toEqual([['org_id', 'org']]);
   });
 
-  it('throws when a query fails and does not touch the local tables after it', async () => {
+  it('throws when a query fails, after still refreshing the other tables (WP11)', async () => {
     const { db } = fakeDb();
     const sb = fakeSupabase((c) =>
       c.table === 'equipment_items' ? { error: { code: '42501', message: 'denied' }, status: 403 } : { data: [] }
@@ -322,7 +322,8 @@ describe('pullFromSupabase', () => {
       })
     ).rejects.toMatchObject({ code: '42501' });
     expect(db.replaceEquipmentForOrg).not.toHaveBeenCalled();
-    expect(db.replaceLocationsForOrg).not.toHaveBeenCalled();
+    expect(db.replaceLocationsForOrg).toHaveBeenCalledTimes(1);
+    expect(db.replaceRequestsForOrg).toHaveBeenCalledTimes(1);
   });
 });
 

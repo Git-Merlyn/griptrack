@@ -16,7 +16,8 @@ const TABLE = 'equipment_requests';
 export interface EquipmentRequest {
   id: string;
   org_id: string;
-  requested_by: string;
+  // NULL once the requester deleted their account (server FK ON DELETE SET NULL).
+  requested_by: string | null;
   requester_name: string | null;
   item_name: string;
   quantity: number;

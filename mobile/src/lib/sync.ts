@@ -446,34 +446,56 @@ export async function pullFromSupabase(
   // optimistic state instead of being reverted/removed by the server copy.
   const pending = pendingRowIds(db.getSyncQueue());
 
+  // Each table refreshes on its own: one failing table (a bad row, an RLS
+  // error) must not leave the others stale. The replace* helpers are
+  // transactional, so a failed table keeps its previous cache. The first
+  // error is rethrown at the end so triggerSync still surfaces it as syncError.
+  let firstError: unknown = null;
+  const pullTable = async (label: string, run: () => Promise<void>): Promise<void> => {
+    try {
+      await run();
+    } catch (e) {
+      console.warn(`[Sync] pull ${label} failed`, e);
+      if (firstError === null) firstError = e;
+    }
+  };
+
   // Equipment items. Teams off → the whole org is one flat pool; teams on →
   // scope to the active team.
-  let itemsQuery = supabase.from('equipment_items').select('*').eq('org_id', orgId);
-  if (teamsEnabled && teamId) itemsQuery = itemsQuery.eq('team_id', teamId);
-  const { data: items, error: itemsErr } = await itemsQuery;
-  if (itemsErr) throw itemsErr;
-  if (items) {
-    if (teamsEnabled && teamId) {
-      db.replaceEquipmentForTeam(orgId, teamId, items as EquipmentItem[], pending.equipment_items);
-    } else {
-      db.replaceEquipmentForOrg(orgId, items as EquipmentItem[], pending.equipment_items);
+  await pullTable('equipment_items', async () => {
+    let itemsQuery = supabase.from('equipment_items').select('*').eq('org_id', orgId);
+    if (teamsEnabled && teamId) itemsQuery = itemsQuery.eq('team_id', teamId);
+    const { data: items, error: itemsErr } = await itemsQuery;
+    if (itemsErr) throw itemsErr;
+    if (items) {
+      if (teamsEnabled && teamId) {
+        db.replaceEquipmentForTeam(orgId, teamId, items as EquipmentItem[], pending.equipment_items);
+      } else {
+        db.replaceEquipmentForOrg(orgId, items as EquipmentItem[], pending.equipment_items);
+      }
     }
-  }
+  });
 
   // Locations — pull ALL (including inactive): the management screen lists
   // deactivated locations, and read paths filter on is_active themselves.
   // Filtering here made every sync erase inactive rows from SQLite.
-  const { data: locs, error: locsErr } = await supabase
-    .from('locations')
-    .select('*')
-    .eq('org_id', orgId);
-  if (locsErr) throw locsErr;
-  if (locs) db.replaceLocationsForOrg(orgId, locs as Location[], pending.locations);
+  await pullTable('locations', async () => {
+    const { data: locs, error: locsErr } = await supabase
+      .from('locations')
+      .select('*')
+      .eq('org_id', orgId);
+    if (locsErr) throw locsErr;
+    if (locs) db.replaceLocationsForOrg(orgId, locs as Location[], pending.locations);
+  });
 
   // Requests — admins see all, crew see their own
-  let reqQuery = supabase.from('equipment_requests').select('*').eq('org_id', orgId);
-  if (!isAdmin) reqQuery = reqQuery.eq('requested_by', userId);
-  const { data: reqs, error: reqsErr } = await reqQuery;
-  if (reqsErr) throw reqsErr;
-  if (reqs) db.replaceRequestsForOrg(orgId, reqs as EquipmentRequest[], pending.equipment_requests);
+  await pullTable('equipment_requests', async () => {
+    let reqQuery = supabase.from('equipment_requests').select('*').eq('org_id', orgId);
+    if (!isAdmin) reqQuery = reqQuery.eq('requested_by', userId);
+    const { data: reqs, error: reqsErr } = await reqQuery;
+    if (reqsErr) throw reqsErr;
+    if (reqs) db.replaceRequestsForOrg(orgId, reqs as EquipmentRequest[], pending.equipment_requests);
+  });
+
+  if (firstError !== null) throw firstError;
 }
