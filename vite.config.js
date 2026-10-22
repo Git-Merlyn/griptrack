@@ -32,20 +32,24 @@ export default defineConfig({
     // "hidden": emit .map files for the Sentry upload without adding
     // sourceMappingURL comments to the served bundles.
     sourcemap: uploadSourceMaps ? "hidden" : false,
-    rollupOptions: {
+    rolldownOptions: {
       output: {
         // Split the stable heavyweight deps out of the app chunk so neither
         // side exceeds Vite's 500 kB advisory and vendor code stays cached
-        // across app-only deploys.
-        manualChunks(id) {
-          if (!id.includes("node_modules")) return undefined;
-          // Group all @sentry/* and @sentry-internal/* (replay/rrweb) together
-          // so replay's weight lives in the cacheable vendor chunk, not the app.
-          if (id.includes("@sentry")) return "sentry";
-          if (/[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom)[\\/]/.test(id))
-            return "react";
-          if (id.includes("@supabase")) return "supabase";
-          return undefined;
+        // across app-only deploys. (Vite 8 / Rolldown replacement for the old
+        // function-form manualChunks; same three groups, same membership.)
+        codeSplitting: {
+          groups: [
+            // All @sentry/* and @sentry-internal/* (replay/rrweb) together so
+            // replay's weight lives in the cacheable vendor chunk, not the app.
+            { name: "sentry", test: /[\\/]node_modules[\\/]@sentry(-internal)?[\\/]/, priority: 30 },
+            {
+              name: "react",
+              test: /[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom)[\\/]/,
+              priority: 20,
+            },
+            { name: "supabase", test: /[\\/]node_modules[\\/]@supabase[\\/]/, priority: 10 },
+          ],
         },
       },
     },
@@ -56,10 +60,5 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
       "@shared": path.resolve(__dirname, "./shared"),
     },
-  },
-
-  test: {
-    environment: "jsdom",
-    setupFiles: "./src/test/setupTests.js",
   },
 });
