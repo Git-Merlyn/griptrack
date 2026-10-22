@@ -10,7 +10,15 @@
  * for web to adopt in the future if consistent server-side parsing is desired.
  *
  * Request body: { fileBase64: string, fileName: string }
- * Response:     ParsedPDFItem[]
+ * Response:     200 ParsedPDFItem[]
+ *               400 bad JSON, missing or invalid fileBase64
+ *               401 not signed in
+ *               402 org is on the Free plan: { error: "Plan limit: …", code: "plan_limit:pdf_import" }
+ *               413 PDF over 10 MB
+ *               415 not a PDF
+ *               422 over 50 pages, password-protected, damaged, or too slow
+ *               500 anything else (generic message; details only in logs)
+ *               Every other error body is { error: string }.
  *
  * Notes:
  * - fileName is accepted for future use (logging, CSV detection) but not
@@ -18,9 +26,9 @@
  * - Auth: the handler verifies a real signed-in user via auth.getUser().
  *   Gateway JWT verification alone is not enough — the public anon key
  *   passes it, so without the in-handler check anyone could burn compute.
- * - Payload size: base64 inflates PDF size by ~33%. Typical rental PDFs are
- *   fine, but very large multi-page documents may approach Edge Function
- *   request limits. Consider streaming or chunking if this becomes an issue.
+ * - Limits (audit L73) live in ./limits.ts: 10 MB decoded, 50 pages, 25 s of
+ *   extraction. The mobile app checks the same 10 MB before uploading
+ *   (mobile/src/hooks/usePDFImport.ts). The document is always destroyed.
  *
  * ParsedPDFItem shape (snake_case to match Supabase schema):
  *   { id, name, category, quantity, source, location, start_date, end_date }
@@ -31,13 +39,24 @@
 // dynamic require, so the deploy bundle ballooned to ~31MB and the platform
 // rejected it with 413. extractPdfText() below reproduces pdf-parse's exact
 // line-reconstruction algorithm so the regex parsers see identical text.
-import { getDocument } from 'npm:pdfjs-serverless';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// Exact pin (audit L77). 1.3.1 bundles pdf.js 6.1.200, which has no
+// eval/new Function code path, so there is no isEvalSupported option to set.
+import { getDocument } from 'npm:pdfjs-serverless@1.3.1';
+import { requireUser } from '../_shared/auth.ts';
+import { createClient } from '../_shared/deps.ts';
+import { corsHeaders, json } from '../_shared/http.ts';
+import {
+  classifyPdfError,
+  decodePdfBase64,
+  MAX_BODY_CHARS,
+  MAX_PAGES,
+  PARSE_DEADLINE_MS,
+  parseRequestBody,
+  PdfRequestError,
+  TOO_LARGE_MESSAGE,
+  TOO_MANY_PAGES_MESSAGE,
+  TOO_SLOW_MESSAGE,
+} from './limits.ts';
 
 // ─── Date helpers (identical to ImportFileModal.jsx) ─────────────────────────
 
@@ -263,29 +282,42 @@ function parseLinesIntoItems(lines: string[], fullText: string): ParsedPDFItem[]
 // regex passes were written against.
 
 async function extractPdfText(bytes: Uint8Array): Promise<string> {
-  const doc = await getDocument({ data: bytes, useSystemFonts: true }).promise;
-  let fullText = '';
-
-  for (let i = 1; i <= doc.numPages; i++) {
-    const page = await doc.getPage(i);
-    const content = await page.getTextContent();
-
-    let lastY: number | undefined;
-    let pageText = '';
-    for (const item of content.items as Array<{ str?: string; transform?: number[] }>) {
-      if (typeof item.str !== 'string') continue;
-      const y = item.transform?.[5];
-      if (lastY === y || lastY === undefined) {
-        pageText += item.str;
-      } else {
-        pageText += '\n' + item.str;
-      }
-      lastY = y;
+  const deadline = Date.now() + PARSE_DEADLINE_MS;
+  const loadingTask = getDocument({ data: bytes, useSystemFonts: true });
+  try {
+    const doc = await loadingTask.promise;
+    if (doc.numPages > MAX_PAGES) {
+      throw new PdfRequestError(422, TOO_MANY_PAGES_MESSAGE);
     }
-    fullText += pageText + '\n';
-  }
 
-  return fullText;
+    let fullText = '';
+    for (let i = 1; i <= doc.numPages; i++) {
+      if (Date.now() > deadline) throw new PdfRequestError(422, TOO_SLOW_MESSAGE);
+      const page = await doc.getPage(i);
+      const content = await page.getTextContent();
+
+      let lastY: number | undefined;
+      let pageText = '';
+      for (const item of content.items as Array<{ str?: string; transform?: number[] }>) {
+        if (typeof item.str !== 'string') continue;
+        const y = item.transform?.[5];
+        if (lastY === y || lastY === undefined) {
+          pageText += item.str;
+        } else {
+          pageText += '\n' + item.str;
+        }
+        lastY = y;
+      }
+      fullText += pageText + '\n';
+      page.cleanup();
+    }
+
+    return fullText;
+  } finally {
+    // Frees the parsed document and its worker-side state on every path,
+    // including password/invalid-PDF errors (audit L73).
+    await loadingTask.destroy().catch(() => {});
+  }
 }
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
@@ -298,27 +330,9 @@ Deno.serve(async (req: Request) => {
 
   try {
     // Require a real signed-in user, not just the (public) anon key.
-    // Gateway JWT verification alone accepts the anon key, which ships in
-    // every client bundle — without this check anyone could burn compute here.
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_ANON_KEY')!,
-      { global: { headers: { Authorization: authHeader } } },
-    );
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    const auth = await requireUser(req);
+    if (auth instanceof Response) return auth;
+    const { user } = auth;
 
     // Plan gate (audit M9): PDF import is not on the Free plan. This text is
     // shown inside the iOS/Android apps, so it stays neutral (no upgrade
@@ -335,48 +349,35 @@ Deno.serve(async (req: Request) => {
     if (planErr) {
       console.error('parse-rental-pdf: plan lookup failed', planErr);
     } else if (effectivePlan === 'free') {
-      return new Response(
-        JSON.stringify({
+      return json(
+        {
           error: "Plan limit: PDF import is not included in this organization's plan.",
           code: 'plan_limit:pdf_import',
-        }),
-        { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        },
+        402,
       );
     }
 
-    const { fileBase64, fileName } = await req.json() as {
-      fileBase64: string;
-      fileName: string;
-    };
-
-    if (!fileBase64) {
-      return new Response(
-        JSON.stringify({ error: 'fileBase64 is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      );
+    // Reject oversized uploads before reading the body (audit L73).
+    const declaredLength = Number(req.headers.get('content-length') ?? '0');
+    if (declaredLength > MAX_BODY_CHARS) {
+      return json({ error: TOO_LARGE_MESSAGE }, 413);
     }
 
-    // Decode base64 → Uint8Array → Buffer (pdf-parse expects a Buffer-like object)
-    const binary = atob(fileBase64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
+    // 400 bad JSON / missing fileBase64, 413 too large, 415 not a PDF.
+    // fileName is accepted for future use but not used in parsing.
+    const { fileBase64 } = parseRequestBody(await req.text());
+    const bytes = decodePdfBase64(fileBase64);
 
     const fullText = await extractPdfText(bytes);
     const lines = textToLines(fullText);
 
     const items = parseLinesIntoItems(lines, fullText);
 
-    return new Response(
-      JSON.stringify(items),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    );
+    return json(items);
   } catch (err) {
-    console.error('parse-rental-pdf error:', err);
-    return new Response(
-      JSON.stringify({ error: (err as Error).message ?? 'Parse failed' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    );
+    const { status, error } = classifyPdfError(err);
+    if (status >= 500) console.error('parse-rental-pdf error:', err);
+    return json({ error }, status);
   }
 });
