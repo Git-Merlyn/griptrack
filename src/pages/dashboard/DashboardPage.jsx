@@ -19,7 +19,7 @@ import AddLocationModal from "./components/AddLocationModal";
 import ExportModal from "./components/ExportModal";
 import SummaryReportModal from "./components/SummaryReportModal";
 import { fetchAndDownloadAuditCsv } from "./utils/auditExport";
-import { lowStockToCsv, downloadCsv } from "./utils/export";
+import { lowStockToCsv, downloadCsv, belowReserveRows } from "./utils/export";
 import useBulkSelection from "./hooks/useBulkSelection";
 import { bulkDeleteOutcome } from "./utils/bulkDelete";
 import useInventoryView from "./hooks/useInventoryView";
@@ -1163,14 +1163,14 @@ const DashboardPage = () => {
   };
 
   const handleExportLowStock = () => {
-    const csv = lowStockToCsv(equipment);
-    // Count rows: split by newline, subtract header, ignore BOM
-    const count = csv.split("\n").length - 2; // -1 header -1 BOM line
-    if (count <= 0) {
+    // Count from the data: the BOM shares the header line, so counting CSV
+    // lines was off by one (a single below-reserve item exported nothing).
+    const count = belowReserveRows(equipment).length;
+    if (count === 0) {
       window.toast?.info?.("No items are currently below their reserve minimum.");
       return;
     }
-    downloadCsv(csv, "griptrack-low-stock");
+    downloadCsv(lowStockToCsv(equipment), "griptrack-low-stock");
     window.toast?.success?.(`Exported ${count} below-reserve item${count !== 1 ? "s" : ""}`);
   };
 

@@ -31,9 +31,16 @@ export function auditToCsv(rows, nameMap = {}) {
     return isNaN(d.getTime()) ? String(ts) : d.toLocaleString();
   };
 
+  // meta is written only by the log_damage_event ({ notes }) and
+  // log_merge_event ({ merged_from_id, merged_into_id }) RPCs; trigger-written
+  // rows (create/update/move/delete) have none.
   const formatMeta = (meta) => {
     if (!meta) return "";
     if (typeof meta === "string") return meta;
+    if (typeof meta === "object") {
+      if (typeof meta.notes === "string" && meta.notes.trim()) return meta.notes.trim();
+      if (meta.merged_from_id) return `Merged from item ${meta.merged_from_id}`;
+    }
     try {
       return JSON.stringify(meta);
     } catch {
@@ -45,7 +52,10 @@ export function auditToCsv(rows, nameMap = {}) {
 
   for (const row of rows) {
     const equipId = String(row.equipment_id || "");
-    const itemName = nameMap[equipId] || "";
+    // Same rule as OrgHistoryTable.resolveItemName: current name, else the
+    // name captured in the row's snapshot (deleted items, other teams' items).
+    const snapshot = row.snapshot_after || row.snapshot_before;
+    const itemName = nameMap[equipId] || snapshot?.name || "";
 
     lines.push(
       [

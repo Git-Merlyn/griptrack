@@ -103,4 +103,41 @@ describe("auditExport.js — auditToCsv", () => {
     const lines = csv.replace("﻿", "").split("\n");
     expect(lines).toHaveLength(3); // header + 2
   });
+
+  it("falls back to the snapshot name for items not in nameMap (L17)", () => {
+    const csv = auditToCsv(
+      [
+        makeSimpleRow({ equipment_id: "gone-1", snapshot_before: { name: "Deleted Flag" } }),
+        makeSimpleRow({ equipment_id: "other-team", snapshot_after: { name: "Other Team Box" } }),
+      ],
+      {},
+    );
+    const lines = csv.replace("﻿", "").split("\n");
+    expect(lines[1].split(",")[2]).toBe("Deleted Flag");
+    expect(lines[2].split(",")[2]).toBe("Other Team Box");
+  });
+
+  it("prefers the current name over the snapshot name", () => {
+    const csv = auditToCsv(
+      [makeSimpleRow({ equipment_id: "eq-1", snapshot_after: { name: "Old Name" } })],
+      nameMap,
+    );
+    expect(csv).toContain("C-Stand");
+    expect(csv).not.toContain("Old Name");
+  });
+
+  it("Notes shows damage notes as plain text (L17)", () => {
+    const csv = auditToCsv([makeSimpleRow({ action: "damage", meta: { notes: "cracked leg" } })], {});
+    const cells = csv.replace("﻿", "").split("\n")[1].split(",");
+    expect(cells[8]).toBe("cracked leg");
+  });
+
+  it("Notes describes merges (L17)", () => {
+    const csv = auditToCsv(
+      [makeSimpleRow({ action: "merge", meta: { merged_from_id: "src-1", merged_into_id: "eq-1" } })],
+      {},
+    );
+    const cells = csv.replace("﻿", "").split("\n")[1].split(",");
+    expect(cells[8]).toBe("Merged from item src-1");
+  });
 });

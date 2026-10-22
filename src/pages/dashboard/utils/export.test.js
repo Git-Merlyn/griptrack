@@ -4,6 +4,8 @@ import {
   rowsToCsv,
   rowsToPrintHtml,
   openPrintWindow,
+  lowStockToCsv,
+  belowReserveRows,
 } from "./export";
 
 describe("export.js", () => {
@@ -167,5 +169,26 @@ describe("export.js", () => {
     expect(doc.open).toHaveBeenCalled();
     expect(doc.write).toHaveBeenCalledWith("<html>hi</html>");
     expect(doc.close).toHaveBeenCalled();
+  });
+});
+
+describe("low-stock export (M5)", () => {
+  const item = (quantity, reserveMin, name = "X") => ({ name, quantity, reserveMin });
+
+  it.each([0, 1, 3])("count and CSV rows agree for %i below-reserve item(s)", (n) => {
+    const below = Array.from({ length: n }, (_, i) => item(0, 2, `Below ${i}`));
+    const equipment = [...below, item(5, 2, "OK"), item(1, 0, "No reserve")];
+
+    expect(belowReserveRows(equipment)).toHaveLength(n);
+    const lines = lowStockToCsv(equipment).replace("\ufeff", "").split("\n");
+    expect(lines).toHaveLength(n + 1); // header + one line per item
+  });
+
+  it("counts an item whose name contains a newline once", () => {
+    expect(belowReserveRows([item(0, 2, "Line 1\nLine 2")])).toHaveLength(1);
+  });
+
+  it("treats qty equal to reserve as not below reserve", () => {
+    expect(belowReserveRows([item(2, 2)])).toHaveLength(0);
   });
 });
