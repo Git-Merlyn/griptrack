@@ -1,1 +1,9 @@
+# Vercel only needs the web app: index.html, src/, shared/, public/ and root configs.
+# Never add shared/ here — the web app imports @shared/roles.
 mobile
+supabase
+screenshots
+TestDocs
+Concept Art
+fix-plan
+AUDIT-*.md

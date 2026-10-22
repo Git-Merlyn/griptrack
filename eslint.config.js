@@ -33,7 +33,7 @@ export default [
   },
   {
     // Build/config files run in Node (they read process.env, __dirname, etc.)
-    files: ['*.config.js', 'vite.mock.config.js'],
+    files: ['*.config.js'],
     languageOptions: {
       globals: globals.node,
     },

@@ -50,3 +50,8 @@ lerna-debug.log*
 # Misc
 # =========================
 *.tsbuildinfo
+
+# Local design/test material — kept outside the repo (public repo; TestDocs held
+# advisor exports with the prod project ref). Never commit these.
+/Concept Art/
+/TestDocs/
