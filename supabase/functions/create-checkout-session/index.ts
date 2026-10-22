@@ -1,4 +1,6 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireUser } from "../_shared/auth.ts";
+import { createClient } from "../_shared/deps.ts";
+import { corsHeaders, getAppUrl, json } from "../_shared/http.ts";
 import Stripe from "npm:stripe@23.0.0";
 import {
   decideCheckout,
@@ -11,17 +13,6 @@ const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, {
   apiVersion: "2026-09-30.endive",
 });
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -29,17 +20,9 @@ Deno.serve(async (req: Request) => {
 
   try {
     // Auth: get calling user's org
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "Unauthorized" }, 401);
-
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } },
-    );
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) return json({ error: "Unauthorized" }, 401);
+    const auth = await requireUser(req);
+    if (auth instanceof Response) return auth;
+    const { user, supabase } = auth;
 
     // Get the user's org
     const { data: memberRow } = await supabase
@@ -144,7 +127,7 @@ Deno.serve(async (req: Request) => {
       if (saveError) throw new Error(`saving stripe_customer_id failed: ${saveError.message}`);
     }
 
-    const appUrl = Deno.env.get("APP_URL") ?? "https://griptrack.app";
+    const appUrl = getAppUrl();
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,

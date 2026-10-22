@@ -1,45 +1,23 @@
 // supabase/functions/invite-staff/index.ts
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireUser } from "../_shared/auth.ts";
+import { createClient } from "../_shared/deps.ts";
+import { corsHeaders, getAppUrl, json } from "../_shared/http.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-    const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    // Identify the caller (401 unless a real signed-in user).
+    const auth = await requireUser(req);
+    if (auth instanceof Response) return auth;
+    const { user } = auth;
+
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
-      return new Response(JSON.stringify({ error: "Missing env" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Client using end-user JWT (to identify caller)
-    const authHeader = req.headers.get("Authorization") || "";
-    const userClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
-    const {
-      data: { user },
-      error: userErr,
-    } = await userClient.auth.getUser();
-
-    if (userErr || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Missing env" }, 500);
     }
 
     const body = await req.json();
@@ -51,22 +29,13 @@ serve(async (req) => {
     const teamId = body?.teamId ? String(body.teamId).trim() : null;
 
     if (!email || !email.includes("@")) {
-      return new Response(JSON.stringify({ error: "Invalid email" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Invalid email" }, 400);
     }
     if (!orgId) {
-      return new Response(JSON.stringify({ error: "Missing orgId" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Missing orgId" }, 400);
     }
     if (!["crew", "department_head", "admin"].includes(role)) {
-      return new Response(JSON.stringify({ error: "Invalid role" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Invalid role" }, 400);
     }
 
     // Service client for privileged operations
@@ -81,18 +50,12 @@ serve(async (req) => {
       .single();
 
     if (memErr || !membership || membership.status !== "active") {
-      return new Response(JSON.stringify({ error: "Forbidden" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Forbidden" }, 403);
     }
 
     const callerRole = String(membership.role || "");
     if (!["owner", "admin"].includes(callerRole)) {
-      return new Response(JSON.stringify({ error: "Admins only" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Admins only" }, 403);
     }
 
     // If a team was specified, it must belong to this org — never let an invite
@@ -106,16 +69,13 @@ serve(async (req) => {
         .maybeSingle();
 
       if (teamErr || !teamRow) {
-        return new Response(JSON.stringify({ error: "Team not found in this organization" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return json({ error: "Team not found in this organization" }, 400);
       }
     }
 
     // Rate limit: cap invite emails per org per hour so a compromised or
-    // careless admin can't burn the email quota or spam inboxes.
-    // record_invite_send counts
+    // careless admin can't burn the email quota, spam inboxes, or probe which
+    // emails have accounts through the 409s below. record_invite_send counts
     // and records in one locked transaction, so concurrent requests cannot all
     // slip under the cap, and it fails closed. Every attempt that passes the
     // checks above counts — including re-invites and refusals.
@@ -129,51 +89,40 @@ serve(async (req) => {
 
     if (rateErr) {
       // Fail closed: if we can't record the send, don't send.
-      return new Response(JSON.stringify({ error: "Could not verify invite rate limit. Please try again." }), {
-        status: 502,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Could not verify invite rate limit. Please try again." }, 502);
     }
     if (underLimit !== true) {
-      return new Response(
-        JSON.stringify({ error: "Invite limit reached (20 per hour). Please try again later." }),
-        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+      return json({ error: "Invite limit reached (20 per hour). Please try again later." }, 429);
     }
 
     // An invite must never touch an existing membership, and an account can
     // belong to only one org (organization_members_one_org_per_user).
     // invite_target_status: no_account | no_org | member | placeholder_org | other_org
     // (placeholder_org = an untouched auto-created org that accepting will dissolve).
-    // Only `member` is reported back: the admin can already see their own
-    // member list, so it reveals nothing. Every other outcome — including
-    // `other_org` — deliberately gets the same { ok: true } and the same
-    // pending invite row, so the response never tells an admin whether an
-    // email has a GripTrack account (Decision 2, Chris 2026-10-21). An
-    // other_org invite simply stays pending (accept_org_invite_for_user leaves
-    // it alone) until the admin revokes it.
     const { data: target, error: targetErr } = await admin.rpc("invite_target_status", {
       p_org: orgId,
       p_email: email,
     });
 
     if (targetErr) {
-      return new Response(JSON.stringify({ error: "Could not check this email. Please try again." }), {
-        status: 502,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Could not check this email. Please try again." }, 502);
     }
     if (target === "member") {
-      return new Response(
-        JSON.stringify({
+      return json(
+        {
           error: "This person is already a member of your organization. Change their role from the member list instead.",
-        }),
-        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        },
+        409,
       );
     }
-    // No branch for `other_org` on purpose (see comment above): fall through,
-    // upsert the pending invite like any other, and let the existing-account
-    // path below return the uniform { ok: true } without sending an email.
+    if (target === "other_org") {
+      return json(
+        {
+          error: "This person already belongs to another GripTrack organization. An account can only be in one organization for now.",
+        },
+        409,
+      );
+    }
 
     // Load org name for invite email metadata.
     const { data: orgRow } = await admin
@@ -215,10 +164,7 @@ serve(async (req) => {
       );
 
     if (inviteRowError) {
-      return new Response(JSON.stringify({ error: inviteRowError.message }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: inviteRowError.message }, 400);
     }
 
     // Invite via Supabase Auth.
@@ -233,7 +179,7 @@ serve(async (req) => {
     // whether an address has an account.
     const { error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
       // IMPORTANT: land invited users on the dedicated invite-accept route.
-      redirectTo: `https://griptrack.app/invite-accept?email=${encodeURIComponent(email)}`,
+      redirectTo: `${getAppUrl()}/invite-accept?email=${encodeURIComponent(email)}`,
       data: {
         org_name: orgName,
         invited_by_name: inviterName,
@@ -250,10 +196,7 @@ serve(async (req) => {
         msg.includes("already been registered");
 
       if (!isAlreadyRegistered) {
-        return new Response(JSON.stringify({ error: inviteErr.message }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return json({ error: inviteErr.message }, 400);
       }
       // Existing account: nothing more to send (see comment above).
     }
@@ -261,13 +204,8 @@ serve(async (req) => {
     // Shipped mobile builds (4/5) still look for the old "already registered"
     // link fields in this body; with them absent they show their plain
     // "Invite sent" alert. Never add a sign-in URL back to this response.
-    return new Response(JSON.stringify({ ok: true }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ ok: true });
   } catch (e) {
-    return new Response(JSON.stringify({ error: e?.message || "Unknown" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ error: (e as Error)?.message || "Unknown" }, 500);
   }
 });

@@ -13,43 +13,25 @@
 // is therefore mirrored below; keep its count and message identical to
 // public.delete_my_account() in supabase/migrations.
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireUser } from "../_shared/auth.ts";
+import { createClient } from "../_shared/deps.ts";
+import { corsHeaders, json } from "../_shared/http.ts";
 import Stripe from "npm:stripe@23.0.0";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, {
   apiVersion: "2026-09-30.endive",
 });
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-
-serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "Unauthorized" }, 401);
-
     // User-scoped client: auth.uid() inside the RPC resolves to the caller.
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } },
-    );
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) return json({ error: "Unauthorized" }, 401);
+    const auth = await requireUser(req);
+    if (auth instanceof Response) return auth;
+    const { user, supabase } = auth;
 
     // organization_members has a UNIQUE(user_id) constraint, so at most one
     // row can ever match — .single() is safe. PGRST116 = no membership row

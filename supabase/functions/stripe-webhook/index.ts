@@ -10,7 +10,7 @@
 // state, and the payload shape (which follows the webhook endpoint's API
 // version in the Stripe dashboard, not the SDK's) does not matter.
 
-import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "../_shared/deps.ts";
 import Stripe from "npm:stripe@23.0.0";
 import { buildPriceToPlan, decideWrite, idOf, subscriptionIdFromInvoice } from "./logic.ts";
 
