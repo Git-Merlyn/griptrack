@@ -1,4 +1,6 @@
-import "@testing-library/jest-dom";
+// Vitest-specific entry: registers jest-dom matchers on vitest's `expect`
+// explicitly (does not depend on `globals: true`).
+import "@testing-library/jest-dom/vitest";
 
 // Node >= 25 defines its own globalThis.localStorage (undefined unless
 // --localstorage-file is set), which shadows jsdom's. vitest.config.js passes
