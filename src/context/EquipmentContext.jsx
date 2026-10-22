@@ -4,6 +4,7 @@ import {
   useEffect,
   useCallback,
   useContext,
+  useRef,
 } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { isOrgAdmin } from "@shared/roles";
@@ -247,6 +248,52 @@ export const EquipmentProvider = ({ children }) => {
     loadLocations();
   }, [loadLocations]);
 
+  // ── Realtime safety net (audit M1) ────────────────────────────────────────
+  // Silent refetch of equipment + locations (no loading flag, no toast). Used
+  // when the realtime channel errors or times out (events may have been
+  // missed) and when the tab comes back after being hidden for a while
+  // (browsers throttle or drop background sockets). The result is dropped if
+  // the scope (team/org) changed while the request was in flight.
+  const loadEquipmentRef = useRef(loadEquipmentFromSupabase);
+  useEffect(() => {
+    loadEquipmentRef.current = loadEquipmentFromSupabase;
+  }, [loadEquipmentFromSupabase]);
+
+  const resyncFromServer = useCallback(async () => {
+    const load = loadEquipmentRef.current;
+    try {
+      const rows = await load();
+      if (loadEquipmentRef.current === load) setEquipmentData(rows);
+    } catch (err) {
+      console.warn("[Realtime] resync failed", err);
+    }
+    loadLocations();
+  }, [loadLocations]);
+
+  // The channel's status callback reads this ref, so the channel is not torn
+  // down and re-created whenever resyncFromServer's identity changes.
+  const resyncRef = useRef(resyncFromServer);
+  useEffect(() => {
+    resyncRef.current = resyncFromServer;
+  }, [resyncFromServer]);
+  const needsResyncRef = useRef(false);
+
+  useEffect(() => {
+    if (!orgId) return undefined;
+    let hiddenAt = null;
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        hiddenAt = Date.now();
+        return;
+      }
+      const wasHiddenLong = hiddenAt !== null && Date.now() - hiddenAt >= 30_000;
+      hiddenAt = null;
+      if (wasHiddenLong) resyncRef.current?.();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [orgId]);
+
   // ── Realtime subscriptions ────────────────────────────────────────────────
   // Supabase broadcasts row-level changes to all connected clients in the org.
   // Each event is merged into local state so the UI updates without a reload.
@@ -307,20 +354,24 @@ export const EquipmentProvider = ({ children }) => {
           );
         },
       )
-      // Equipment deletes from other clients
+      // Equipment deletes from other clients. NO filter on purpose (audit
+      // M1): Realtime can only filter DELETE events on a table with REPLICA
+      // IDENTITY FULL (otherwise the old record carries only the primary
+      // key), so the old org_id filter meant this handler never fired. Do NOT
+      // "fix" that with REPLICA IDENTITY FULL: Realtime does not apply RLS to
+      // DELETE events, so every subscriber would receive whole deleted rows
+      // from every org. Unfiltered, each client receives only the id of each
+      // equipment_items row deleted anywhere and ignores ids it doesn't hold.
       .on(
         "postgres_changes",
-        {
-          event: "DELETE",
-          schema: "public",
-          table: EQUIPMENT_TABLE,
-          filter: `org_id=eq.${orgId}`,
-        },
+        { event: "DELETE", schema: "public", table: EQUIPMENT_TABLE },
         (payload) => {
-          const deletedId = String(payload.old?.id);
-          setEquipmentData((prev) =>
-            prev.filter((x) => String(x.id) !== deletedId),
-          );
+          const deletedId = payload.old?.id;
+          if (deletedId == null) return;
+          setEquipmentData((prev) => {
+            const next = prev.filter((x) => String(x.id) !== String(deletedId));
+            return next.length === prev.length ? prev : next;
+          });
         },
       )
       // Locations: any change → just reload (simpler than merging location objects)
@@ -336,9 +387,31 @@ export const EquipmentProvider = ({ children }) => {
           loadLocations();
         },
       )
+      // Location deletes: unfiltered for the same reason as equipment DELETE
+      // above (the filtered "*" listener never receives DELETE events).
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "locations" },
+        (payload) => {
+          const deletedId = payload.old?.id;
+          if (deletedId == null) return;
+          setLocations((prev) => {
+            const next = prev.filter((l) => String(l.id) !== String(deletedId));
+            return next.length === prev.length ? prev : next;
+          });
+        },
+      )
       .subscribe((status) => {
-        if (status === "CHANNEL_ERROR") {
-          console.warn("[Realtime] equipment channel error — falling back to polling");
+        // There is no polling fallback. After an error or timeout, refetch
+        // now and once more when the client has rejoined, so events missed
+        // while disconnected are not lost.
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.warn(`[Realtime] equipment channel ${status}; resyncing from server`);
+          needsResyncRef.current = true;
+          resyncRef.current?.();
+        } else if (status === "SUBSCRIBED" && needsResyncRef.current) {
+          needsResyncRef.current = false;
+          resyncRef.current?.();
         }
       });
 
