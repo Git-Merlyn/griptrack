@@ -1,93 +1,90 @@
 # Shipping the mobile app
 
 EAS project: [@cbenwell/griptrack-mobile](https://expo.dev/accounts/cbenwell/projects/griptrack-mobile)
-(`eas-cli` is authenticated on this machine; all commands run from `mobile/`.)
+(`eas-cli` is authenticated on Chris's Mac.)
 
-`EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_ANON_KEY` are stored as EAS
-project env vars for the `preview` and `production` environments — builds get
-them automatically; the local `.env` is only for `expo start`.
+> ⚠️ Run EAS commands from `mobile/`, or through the root `npm run mobile:*`
+> scripts, which `cd mobile` first. Run from the repo root, `eas-cli` treats the
+> web app as a new Expo project and creates a duplicate EAS project.
 
-## Android — available now (no store account needed)
+`EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_ANON_KEY` are EAS project
+env vars for the `preview` and `production` environments. Builds get them
+automatically; the local `mobile/.env` is only for `expo start`.
 
-```bash
-npx eas-cli build --profile preview --platform android   # from mobile/
-npm run mobile:apk                                        # or from the repo root
-```
+## Current state (Oct 2026)
 
-> ⚠️ EAS commands must run from `mobile/` (or via the root `mobile:apk`
-> script). Run from the repo root, `eas-cli` will treat the web app as a new
-> Expo project and create a duplicate EAS project that fails to build.
+| Platform | Channel | Latest build |
+|---|---|---|
+| iOS | TestFlight (App Store Connect app `6788005208`, team `XB4R5BXJ7S`) | 1.0.0 (5), 2026-07-20 |
+| Android | Google Play **internal testing** track (`com.griptrack.mobile`) | 1.0.0 (versionCode 2), 2026-10-17 |
 
-Produces an installable APK with an "internal distribution" link — send it to
-crew, they tap it on their phone, done. The Android keystore is managed by EAS
-(generated automatically on the first build).
+**No over-the-air updates.** `expo-updates` is not installed. Every JS change
+reaches testers only through a new store build, so batch fixes into a build.
+Shipped builds stay in testers' hands for weeks. Backend changes (RPCs, edge
+functions, RLS) must keep working for the builds already out there: add
+overloads and never change a signature or response shape that an old build
+uses.
 
-For the Play Store later: create a Google Play Console account ($25 one-time),
-then `--profile production` (app-bundle) + `eas submit`.
+## Versioning
 
-## iOS — needs an Apple Developer account ($99/yr)
+`eas.json` sets `appVersionSource: "remote"` and `production.autoIncrement`, so
+EAS owns the iOS build number and the Android versionCode and bumps them on
+every production build. `app.json` deliberately has no `buildNumber` /
+`versionCode`. To ship a new user-facing version, bump `expo.version` in
+`app.json` (e.g. `1.0.0` → `1.1.0`).
 
-Bundle id `com.griptrack.mobile`; `ITSAppUsesNonExemptEncryption: false` is
-set in app.json (skips the export-compliance prompt); production builds
-auto-increment the build number. `eas.json` → `submit.production.ios` is
-intentionally `{}` so the first submit runs interactively and captures the
-IDs (see step 4).
+## Release checklist
 
-Run all commands from `mobile/`. First-time flow, once enrollment is approved:
-
-1. **Build.** `npx eas-cli build --profile production --platform ios`
-   — first run is interactive: sign in with the Apple ID, and EAS generates
-   and stores the distribution certificate + provisioning profile for you.
-2. **Submit to TestFlight.** `npx eas-cli submit --platform ios --latest`
-   — interactive: signs in, **auto-creates the App Store Connect app record**
-   for `com.griptrack.mobile`, uploads the build.
-3. **Add testers.** In App Store Connect → GripTrack → TestFlight, add crew by
-   email (internal testers get it immediately; external needs a one-time
-   lightweight Apple review).
-4. **Make future submits one-command (optional).** After the first submit,
-   grab the three values and paste them into `eas.json` →
-   `submit.production.ios` so CI/non-interactive submits work:
-   - `appleId` — the Apple ID email you enrolled with
-   - `appleTeamId` — App Store Connect → membership, or `eas credentials`
-   - `ascAppId` — App Store Connect → GripTrack → App Information → "Apple ID"
-     (a number), or the id EAS printed during the first submit
-   ```json
-   "ios": { "appleId": "you@example.com", "appleTeamId": "XXXXXXXXXX", "ascAppId": "1234567890" }
-   ```
-
-## Google Play — device verification gate (2024+)
-
-Personal Play Console accounts must verify access to an Android device before
-publishing: install the **Google Play Console** app on any Android device,
-sign in with the developer Google account (owner only), and confirm. One-time,
-~2 min — a borrowed phone works; skip emulators. Until then, Android crew stay
-on the internal-distribution APK links above.
-
-## Distribution plan (decided July 2026)
-
-Both store accounts get set up together (~$125 total): Google Play Console
-($25 one-time) + Apple Developer ($99/yr). Until then, Android crews install
-via internal-distribution APK links and re-install per update — acceptable at
-beta scale. Once the store accounts exist, crews install once from the store
-and updates arrive automatically.
-
-## Over-the-air updates (optional extra on top of the stores)
-
-`expo-updates` ships JS-only fixes without a store round-trip:
+1. Pushed SQL / edge-function changes the build depends on are already deployed
+   (`supabase db push`, `supabase functions deploy <name>`).
+2. `cd mobile && npx jest --ci && npx tsc --noEmit` pass.
+3. Build and submit (from the repo root):
 
 ```bash
-npx expo install expo-updates
-npx eas-cli update:configure
-# after a JS change:
-npx eas-cli update --branch preview --message "fix: …"
+npm run mobile:ios              # production iOS build
+npm run mobile:ios:submit       # upload latest iOS build to TestFlight
+npm run mobile:android          # production Android app bundle (.aab)
+npm run mobile:android:submit   # upload latest .aab to the Play internal track
 ```
 
-Native changes (new packages with native code, app.json plugin changes) still
-require a full rebuild — EAS prints a warning when an update can't apply.
+4. iOS: the build appears in App Store Connect → TestFlight after processing
+   (~10–30 min). Internal testers get it straight away. External testers need
+   Apple's beta review for a new version.
+5. Android: the internal track rolls out to the tester list as soon as Play
+   finishes processing.
+
+### Submit credentials
+
+- **iOS** — `eas.json` → `submit.production.ios` has `appleTeamId` + `ascAppId`.
+  With the App Store Connect API key that EAS stores, submits run without a
+  login. If `eas-cli` asks for an Apple ID, it reads `EXPO_APPLE_ID` from the
+  environment (`export EXPO_APPLE_ID=…` in `~/.zshrc`). Never commit a personal
+  Apple ID to `eas.json`: this repo is public.
+- **Android** — `submit.production.android` reads the Google Play service-account
+  JSON from `mobile/google-play-key.json` (gitignored; never commit it). Put
+  the file there before `mobile:android:submit`, or upload it to EAS
+  (`npx eas-cli credentials -p android` → Google Service Account) and remove
+  `serviceAccountKeyPath` from `eas.json`. Track: `internal`.
+
+## Side-loadable Android APK (no store)
+
+```bash
+npm run mobile:apk              # preview profile → installable .apk + internal-distribution link
+```
+
+Useful for a device that is not on the Play tester list. The keystore is
+managed by EAS and shared with production builds.
+
+## Development builds
+
+`eas.json` → `development` (dev client; iOS simulator). Run it from `mobile/`:
+`npx eas-cli build --profile development --platform ios`. Native changes (new
+native packages, `app.json` plugin changes, an Expo SDK upgrade) need a fresh
+dev build.
 
 ## Notes
 
-- The monorepo is handled automatically: EAS archives the git repo, so the
-  shared `../shared` folder is included in builds.
-- Version bumps for production builds are automatic (`appVersionSource:
-  "remote"` + `autoIncrement`).
+- EAS archives the git repo, so the shared `../shared` folder is included in
+  builds (Metro watch folder).
+- Personal Play Console accounts had to pass Google's one-time
+  device-verification gate; that is done.
