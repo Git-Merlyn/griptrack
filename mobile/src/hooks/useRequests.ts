@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../context/AuthContext';
 import { useSyncContext } from '../context/SyncContext';
-import { canManageInventory } from '../lib/types';
+import { canReviewRequests } from '../lib/types';
 import {
   upsertRequest,
   getRequestsForOrg,
@@ -41,7 +41,10 @@ interface UseRequestsReturn {
 export function useRequests(): UseRequestsReturn {
   const { profile, session } = useAuthContext();
   const { isOnline, localVersion, bumpLocalVersion, triggerSync } = useSyncContext();
-  const isAdmin = profile?.role != null && canManageInventory(profile.role);
+  // Reviewer = owner/admin, matching RLS "admins can review requests".
+  // Department heads are requesters like crew: they see their own requests
+  // and get the submit FAB. (Was canManageInventory, which included dept heads.)
+  const isAdmin = profile?.role != null && canReviewRequests(profile.role);
 
   const [requests, setRequests] = useState<EquipmentRequest[]>([]);
   const [loading, setLoading] = useState(false);
@@ -153,11 +156,10 @@ export function useRequests(): UseRequestsReturn {
         reviewed_at: new Date().toISOString(),
       };
 
-      // Apply to SQLite immediately
-      const existing = requests.find((r) => r.id === requestId);
-      if (existing) upsertRequest({ ...existing, ...patch });
-
       if (isOnline) {
+        // Server first: only mirror into SQLite what the server stored. An
+        // RLS-refused UPDATE returns zero rows, which .single() reports as
+        // PGRST116; before, SQLite had already been marked approved/denied.
         const { data, error: sbError } = await supabase
           .from(TABLE)
           .update(patch)
@@ -166,9 +168,17 @@ export function useRequests(): UseRequestsReturn {
           .select()
           .single();
 
-        if (sbError) throw sbError;
+        if (sbError) {
+          if (sbError.code === 'PGRST116') {
+            throw new Error('You do not have permission to review this request, or it no longer exists.');
+          }
+          throw sbError;
+        }
         upsertRequest(data as EquipmentRequest);
       } else {
+        // Offline: optimistic local write + queued replay.
+        const existing = requests.find((r) => r.id === requestId);
+        if (existing) upsertRequest({ ...existing, ...patch });
         enqueueOp({ table_name: TABLE, operation: 'update', payload: JSON.stringify({ id: requestId, patch }) });
       }
 

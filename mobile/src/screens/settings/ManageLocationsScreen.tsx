@@ -14,7 +14,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Location } from '../../lib/types';
+import { Location, canDeleteLocations } from '../../lib/types';
 import { getAllLocationsByOrg } from '../../lib/db';
 import { useLocationMutations } from '../../hooks/useLocationMutations';
 import { useAuthContext } from '../../context/AuthContext';
@@ -25,6 +25,9 @@ export default function ManageLocationsScreen() {
   const { profile } = useAuthContext();
   const { localVersion } = useSyncContext();
   const { addLocation, renameLocation, toggleLocation, deleteLocation } = useLocationMutations();
+  // RLS lets department heads add, rename and (de)activate locations, but
+  // only owner/admin may delete them — so dept heads get no trash button.
+  const canDelete = profile?.role != null && canDeleteLocations(profile.role);
 
   const [locations, setLocations] = useState<Location[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -190,14 +193,16 @@ export default function ManageLocationsScreen() {
                 onValueChange={(v) => handleToggle(loc, v)}
               />
 
-              {/* Delete */}
-              <TouchableOpacity
-                onPress={() => confirmDelete(loc)}
-                hitSlop={8}
-                className="p-1"
-              >
-                <Ionicons name="trash-outline" size={16} color="#ff4d4d" />
-              </TouchableOpacity>
+              {/* Delete — owner/admin only */}
+              {canDelete && (
+                <TouchableOpacity
+                  onPress={() => confirmDelete(loc)}
+                  hitSlop={8}
+                  className="p-1"
+                >
+                  <Ionicons name="trash-outline" size={16} color="#ff4d4d" />
+                </TouchableOpacity>
+              )}
             </View>
           )}
         />

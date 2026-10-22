@@ -295,6 +295,16 @@ describe('pullFromSupabase', () => {
     expect(db.replaceEquipmentForTeam).not.toHaveBeenCalled();
   });
 
+  it('department heads pull only their own requests — they do not review (M12)', async () => {
+    const dh = sbWithRows();
+    await pullFromSupabase({ supabase: dh.client, db: fakeDb().db }, {
+      orgId: 'org', teamId: null, teamsEnabled: false, userId: 'user-1', role: 'department_head',
+    });
+    expect(dh.calls.find((c) => c.table === 'equipment_requests')!.filters).toEqual([
+      ['org_id', 'org'], ['requested_by', 'user-1'],
+    ]);
+  });
+
   it('crew only pull their own requests; owners pull all', async () => {
     const crew = sbWithRows();
     await pullFromSupabase({ supabase: crew.client, db: fakeDb().db }, {

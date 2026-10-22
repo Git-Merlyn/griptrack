@@ -28,7 +28,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { deleteById } from './deleteById';
-import { canManageInventory } from './types';
+import { canReviewRequests } from './types';
 import type { EquipmentItem, Location, Role } from './types';
 import type { SyncQueueEntry } from './db';
 import type { EquipmentRequest } from '../hooks/useRequests';
@@ -440,7 +440,10 @@ export async function pullFromSupabase(
 ): Promise<void> {
   const { supabase, db } = deps;
   const { orgId, teamId, teamsEnabled, userId, role } = params;
-  const isAdmin = canManageInventory(role);
+  // Owner/admin pull every request (they review them; RLS "admins can review
+  // requests"). Department heads and crew pull only their own, the same split
+  // useRequests shows. (Was canManageInventory, which included dept heads.)
+  const isAdmin = canReviewRequests(role);
 
   // Rows with ops still queued (a drain that partly failed) keep their local,
   // optimistic state instead of being reverted/removed by the server copy.
