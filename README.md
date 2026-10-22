@@ -22,7 +22,7 @@ One repo, two apps, one Supabase backend.
 Stack:
 
 - **Frontend**: React + Vite (web), Expo / React Native (mobile)
-- **Styling**: Tailwind CSS (custom design system)
+- **Styling**: Tailwind CSS 4 on web (theme tokens in `src/index.css`, no `tailwind.config.js`); the mobile app stays on Tailwind 3 via NativeWind 4
 - **Backend**: Supabase (Postgres, Auth, Edge Functions, RLS)
 - **Email**: Resend (SMTP)
 
