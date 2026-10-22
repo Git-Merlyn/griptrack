@@ -75,7 +75,7 @@ Deno.serve(async (req: Request) => {
 
     // Rate limit: cap invite emails per org per hour so a compromised or
     // careless admin can't burn the email quota, spam inboxes, or probe which
-    // emails have accounts through the 409s below. record_invite_send counts
+    // addresses are members through the 409 below. record_invite_send counts
     // and records in one locked transaction, so concurrent requests cannot all
     // slip under the cap, and it fails closed. Every attempt that passes the
     // checks above counts — including re-invites and refusals.
@@ -99,6 +99,11 @@ Deno.serve(async (req: Request) => {
     // belong to only one org (organization_members_one_org_per_user).
     // invite_target_status: no_account | no_org | member | placeholder_org | other_org
     // (placeholder_org = an untouched auto-created org that accepting will dissolve).
+    // Only `member` is reported back: the admin can already see their own
+    // member list, so it reveals nothing. Every other outcome, including
+    // `other_org`, deliberately gets the same { ok: true } and the same
+    // pending invite row, so the response never tells an admin whether an
+    // email has a GripTrack account (D12 deferred, Chris 2026-10-21).
     const { data: target, error: targetErr } = await admin.rpc("invite_target_status", {
       p_org: orgId,
       p_email: email,
@@ -115,14 +120,11 @@ Deno.serve(async (req: Request) => {
         409,
       );
     }
-    if (target === "other_org") {
-      return json(
-        {
-          error: "This person already belongs to another GripTrack organization. An account can only be in one organization for now.",
-        },
-        409,
-      );
-    }
+    // No branch for `other_org` on purpose: fall through, upsert the pending
+    // invite like any other, and let the existing-account path below return
+    // the uniform { ok: true } without sending an email. An other_org invite
+    // simply stays pending (accept_org_invite_for_user leaves it alone) until
+    // the admin revokes it.
 
     // Load org name for invite email metadata.
     const { data: orgRow } = await admin
