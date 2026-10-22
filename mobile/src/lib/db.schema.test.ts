@@ -245,3 +245,73 @@ d('replace* helpers', () => {
   });
 });
 
+d('local data ownership (M14)', () => {
+  function seed(m: DbModule) {
+    m.upsertEquipmentItem(item() as any);
+    m.upsertLocation({ id: 'l1', org_id: 'org1', name: 'Truck', is_active: true } as any);
+    m.upsertRequest(request() as any);
+    m.enqueueOp({ table_name: 'equipment_items', operation: 'update', payload: '{"id":"i1"}' });
+    m.setSyncMeta('last_synced', '2026-10-20T00:00:00Z');
+  }
+
+  it('adopts an unowned DB (upgrade from a build without ownership) without wiping', () => {
+    const m = loadDb();
+    m.initDB();
+    seed(m);
+    expect(m.claimLocalDataFor('user-a')).toBe(false);
+    expect(m.getSyncMeta('owner_user_id')).toBe('user-a');
+    expect(m.getSyncQueueCount()).toBe(1);
+    expect(m.getEquipmentByOrg('org1')).toHaveLength(1);
+  });
+
+  it('keeps everything when the same user signs in again', () => {
+    const m = loadDb();
+    m.initDB();
+    m.claimLocalDataFor('user-a');
+    seed(m);
+    expect(m.claimLocalDataFor('user-a')).toBe(false);
+    expect(m.getSyncQueueCount()).toBe(1);
+  });
+
+  it("wipes the previous user's cache AND queue when a different user signs in", () => {
+    const m = loadDb();
+    m.initDB();
+    m.claimLocalDataFor('user-a');
+    seed(m);
+    expect(m.claimLocalDataFor('user-b')).toBe(true);
+    expect(m.getSyncQueueCount()).toBe(0);
+    expect(m.getEquipmentByOrg('org1')).toEqual([]);
+    expect(m.getAllLocationsByOrg('org1')).toEqual([]);
+    expect(m.getRequestsForOrg('org1')).toEqual([]);
+    expect(m.getSyncMeta('last_synced')).toBeNull();
+    expect(m.getSyncMeta('owner_user_id')).toBe('user-b');
+  });
+
+  it('clearCachedData drops cached rows but keeps the queue and owner', () => {
+    const m = loadDb();
+    m.initDB();
+    m.claimLocalDataFor('user-a');
+    seed(m);
+    m.clearCachedData();
+    expect(m.getEquipmentByOrg('org1')).toEqual([]);
+    expect(m.getAllLocationsByOrg('org1')).toEqual([]);
+    expect(m.getRequestsForOrg('org1')).toEqual([]);
+    expect(m.getSyncMeta('last_synced')).toBeNull();
+    expect(m.getSyncQueueCount()).toBe(1);
+    expect(m.getSyncMeta('owner_user_id')).toBe('user-a');
+    // Same user back: queue still there to drain.
+    expect(m.claimLocalDataFor('user-a')).toBe(false);
+    expect(m.getSyncQueueCount()).toBe(1);
+  });
+
+  it('clearLocalData wipes everything, and the next user adopts the empty DB', () => {
+    const m = loadDb();
+    m.initDB();
+    m.claimLocalDataFor('user-a');
+    seed(m);
+    m.clearLocalData();
+    expect(m.getSyncQueueCount()).toBe(0);
+    expect(m.getSyncMeta('owner_user_id')).toBeNull();
+    expect(m.claimLocalDataFor('user-b')).toBe(false);
+  });
+});

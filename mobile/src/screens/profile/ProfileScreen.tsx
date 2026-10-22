@@ -4,6 +4,7 @@ import {
   Text,
   TouchableOpacity,
   Alert,
+  AlertButton,
   TextInput,
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -13,9 +14,11 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../../lib/supabase';
 import { useAuthContext } from '../../context/AuthContext';
+import { useSyncContext } from '../../context/SyncContext';
 
 export default function ProfileScreen() {
   const { profile, signOut, session } = useAuthContext();
+  const { pendingOps, isOnline, triggerSync, discardLocalData } = useSyncContext();
 
   const [changingPassword, setChangingPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -91,6 +94,22 @@ export default function ProfileScreen() {
   }
 
   function confirmSignOut() {
+    if (pendingOps > 0) {
+      const changes = `${pendingOps} change${pendingOps === 1 ? '' : 's'}`;
+      const buttons: AlertButton[] = [{ text: 'Cancel', style: 'cancel' }];
+      if (isOnline) buttons.push({ text: 'Sync now', onPress: () => { void triggerSync(); } });
+      buttons.push({ text: 'Sign out anyway', style: 'destructive', onPress: signOut });
+      Alert.alert(
+        'Unsynced changes',
+        `${changes} on this phone ${pendingOps === 1 ? "hasn't" : "haven't"} synced yet` +
+          (isOnline ? '. Sync now before signing out?' : " and you're offline.") +
+          ' If you sign out anyway, they upload the next time you sign in on this phone. ' +
+          'If someone else signs in here first, they are discarded.',
+        buttons,
+        { cancelable: true }
+      );
+      return;
+    }
     Alert.alert('Sign out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Sign out', style: 'destructive', onPress: signOut },
@@ -133,6 +152,9 @@ export default function ProfileScreen() {
                       Alert.alert('Cannot delete yet', msg);
                       return;
                     }
+                    // The account is gone: its queued changes can never sync.
+                    // Wipe before signing out so a failing sign-out can't skip it.
+                    discardLocalData();
                     await signOut();
                   } catch (e: any) {
                     // Network failure or an unexpected throw from

@@ -476,3 +476,56 @@ export function getSyncMeta(key: string): string | null {
 export function setSyncMeta(key: string, value: string): void {
   db.runSync('INSERT OR REPLACE INTO sync_meta (key, value) VALUES (?, ?)', [key, value]);
 }
+
+// ─── Local data ownership ─────────────────────────────────────────────────────
+//
+// The DB belongs to one user at a time (sync_meta 'owner_user_id'). Queued ops
+// carry no user id and replay under whatever token is current, so another
+// user's queue must never be drained — it is wiped instead.
+
+const OWNER_KEY = 'owner_user_id';
+const CACHE_TABLES = ['equipment_items', 'locations', 'equipment_requests'] as const;
+
+function deleteCachedRows(): void {
+  for (const table of CACHE_TABLES) db.runSync(`DELETE FROM ${table}`);
+  db.runSync(`DELETE FROM sync_meta WHERE key = 'last_synced'`);
+}
+
+/**
+ * Explicit sign-out: drop the cached org data (items, locations, requests).
+ * Keeps sync_queue and the owner id, so this user's unsynced changes upload
+ * the next time they sign in here (and are wiped if someone else does).
+ */
+export function clearCachedData(): void {
+  db.withTransactionSync(deleteCachedRows);
+}
+
+/** Wipe everything, including queued offline changes and the owner id. */
+export function clearLocalData(): void {
+  db.withTransactionSync(() => {
+    deleteCachedRows();
+    db.runSync('DELETE FROM sync_queue');
+    db.runSync('DELETE FROM sync_meta');
+  });
+}
+
+/**
+ * Makes `userId` the owner of the local DB. If a DIFFERENT user owned it, all
+ * local data — including their unsynced queue — is wiped first. A DB with no
+ * owner (created before ownership tracking, or just wiped) is adopted as-is so
+ * an upgrading user keeps their queue. Returns true when data was wiped.
+ */
+export function claimLocalDataFor(userId: string): boolean {
+  const owner = getSyncMeta(OWNER_KEY);
+  if (owner === userId) return false;
+  const wipe = owner !== null;
+  db.withTransactionSync(() => {
+    if (wipe) {
+      deleteCachedRows();
+      db.runSync('DELETE FROM sync_queue');
+      db.runSync('DELETE FROM sync_meta');
+    }
+    db.runSync('INSERT OR REPLACE INTO sync_meta (key, value) VALUES (?, ?)', [OWNER_KEY, userId]);
+  });
+  return wipe;
+}

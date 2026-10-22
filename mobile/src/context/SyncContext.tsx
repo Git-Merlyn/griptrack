@@ -35,6 +35,10 @@ import {
   replaceLocationsForOrg,
   replaceRequestsForOrg,
   setSyncMeta,
+  getSyncMeta,
+  claimLocalDataFor,
+  clearCachedData,
+  clearLocalData,
   upsertEquipmentItem,
   deleteEquipmentItemLocal,
 } from '../lib/db';
@@ -45,6 +49,9 @@ import { useTeamContext } from './TeamContext';
 import { useOrgContext } from './OrgContext';
 
 const AUDIT_TABLE = 'equipment_audit';
+
+/** Foreground resumes within this window of a successful sync skip the full pull (L36). */
+const FOREGROUND_RESYNC_MIN_MS = 60_000;
 
 // Real implementations injected into the sync engine (tests pass fakes).
 const SYNC_DEPS: SyncDeps = {
@@ -82,6 +89,11 @@ interface SyncContextValue {
   bumpLocalVersion: () => void;
   /** Resolves true when a sync actually started, false when skipped. */
   triggerSync: () => Promise<boolean>;
+  /**
+   * Wipe ALL local data, including unsynced changes. For account deletion —
+   * a plain sign-out already drops the cache and keeps the queue.
+   */
+  discardLocalData: () => void;
 }
 
 const SyncContext = createContext<SyncContextValue>({
@@ -94,6 +106,7 @@ const SyncContext = createContext<SyncContextValue>({
   localVersion: 0,
   bumpLocalVersion: () => {},
   triggerSync: async () => false,
+  discardLocalData: () => {},
 });
 
 export function useSyncContext() {
@@ -145,6 +158,50 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     setPendingOps(getSyncQueueCount());
   }, []);
 
+  // Local data was wiped: forget sync state derived from it and re-read.
+  const resetAfterWipe = useCallback(() => {
+    lastSyncedTeamRef.current = null;
+    setLastSyncedAt(null);
+    setSyncError(null);
+    bumpLocalVersion();
+  }, [bumpLocalVersion]);
+
+  // ─── Ownership — one user's data per device ─────────────────────────────────
+  // The DB belongs to one user (sync_meta owner_user_id). Sign-in by a
+  // different user wipes everything, queue included; sign-out drops the cached
+  // org data but keeps the queue, so the same user's unsynced changes upload
+  // when they sign in here again.
+  // Must stay ABOVE the initial-sync effect: effects run in declaration order,
+  // so a different user's queue is wiped before anything can drain it.
+  const userId = session?.user.id ?? null;
+  const prevUserIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const prev = prevUserIdRef.current;
+    prevUserIdRef.current = userId;
+    try {
+      if (userId) {
+        if (claimLocalDataFor(userId)) resetAfterWipe();
+      } else if (prev) {
+        // Real sign-out (explicit, or the refresh token was revoked). The
+        // null session during cold-start loading has no prev, so it never
+        // gets here.
+        clearCachedData();
+        resetAfterWipe();
+      }
+    } catch (e) {
+      console.error('[Sync] local data ownership check failed', e);
+    }
+  }, [userId, resetAfterWipe]);
+
+  const discardLocalData = useCallback(() => {
+    try {
+      clearLocalData();
+    } catch (e) {
+      console.error('[Sync] wiping local data failed', e);
+    }
+    resetAfterWipe();
+  }, [resetAfterWipe]);
+
   // Returns true when a sync actually started (false when skipped because one
   // is already running or auth/team state isn't ready).
   const triggerSync = useCallback(async (): Promise<boolean> => {
@@ -158,6 +215,13 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     setSyncError(null);
 
     try {
+      // Belt and braces for the ownership effect: never replay another user's
+      // queued ops under this session's token.
+      if (claimLocalDataFor(session.user.id)) {
+        lastSyncedTeamRef.current = null;
+        bumpLocalVersion(); // screens + pending badge re-read the wiped DB even if the sync below fails
+      }
+
       const stats = await drainQueue(SYNC_DEPS, AUDIT_TABLE);
 
       // Tell the user when offline changes didn't make it: either someone
@@ -291,6 +355,18 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
       if (state === 'active' && isOnlineRef.current) {
+        // Returning from the file picker / camera / a quick app switch: skip
+        // the full pull when nothing is queued and the last successful sync
+        // is under a minute old. Reconnects and scope changes always sync.
+        let recent = false;
+        try {
+          const last = getSyncMeta('last_synced');
+          const age = last === null ? NaN : Date.now() - Date.parse(last);
+          recent = age >= 0 && age < FOREGROUND_RESYNC_MIN_MS && getSyncQueueCount() === 0;
+        } catch {
+          // Local DB unreadable: fall through and sync.
+        }
+        if (recent) return;
         triggerSync();
       }
     });
@@ -326,6 +402,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         localVersion,
         bumpLocalVersion,
         triggerSync,
+        discardLocalData,
       }}
     >
       {children}
