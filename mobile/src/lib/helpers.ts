@@ -45,3 +45,20 @@ export function formatDateTime(isoStr: string | null | undefined): string {
   if (isNaN(d.getTime())) return isoStr;
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
+
+/**
+ * One or two uppercase initials for an avatar: from the name when it has any
+ * words, else the first character of the email, else '?'. Never throws on
+ * empty strings (a profile row can hold email = '').
+ */
+export function getInitials(
+  fullName: string | null | undefined,
+  email: string | null | undefined
+): string {
+  const words = (fullName ?? '').trim().split(/\s+/).filter(Boolean);
+  if (words.length > 0) {
+    return words.slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+  }
+  const first = (email ?? '').trim()[0];
+  return first ? first.toUpperCase() : '?';
+}

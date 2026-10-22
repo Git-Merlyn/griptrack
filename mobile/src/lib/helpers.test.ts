@@ -1,4 +1,4 @@
-import { statusColor, getQty, qtyColor, formatDate, formatDateTime } from './helpers';
+import { statusColor, getQty, qtyColor, formatDate, formatDateTime, getInitials } from './helpers';
 import type { EquipmentItem } from './types';
 
 const base: EquipmentItem = {
@@ -132,5 +132,25 @@ describe('formatDateTime', () => {
 
   it('returns the original string for an invalid timestamp', () => {
     expect(formatDateTime('bad-timestamp')).toBe('bad-timestamp');
+  });
+});
+
+describe('getInitials', () => {
+  it('uses the first letters of up to two name words', () => {
+    expect(getInitials('Ada Lovelace', 'ada@example.com')).toBe('AL');
+    expect(getInitials('  jean  luc picard ', null)).toBe('JL');
+    expect(getInitials('Cher', null)).toBe('C');
+  });
+
+  it('falls back to the email when the name is empty or blank', () => {
+    expect(getInitials(null, 'grip@example.com')).toBe('G');
+    expect(getInitials('', 'grip@example.com')).toBe('G');
+    expect(getInitials('   ', 'grip@example.com')).toBe('G');
+  });
+
+  it('returns ? instead of throwing when both are empty', () => {
+    expect(getInitials(null, '')).toBe('?');
+    expect(getInitials('', '  ')).toBe('?');
+    expect(getInitials(undefined, undefined)).toBe('?');
   });
 });
