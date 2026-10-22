@@ -9,7 +9,7 @@ import { supabase } from "@/lib/supabaseClient";
  * Never throws. Returns { localOnly: true } when the server sign-out failed.
  */
 export async function signOutWithLocalFallback() {
-  let error = null;
+  let error;
   try {
     ({ error } = await supabase.auth.signOut());
   } catch (e) {
