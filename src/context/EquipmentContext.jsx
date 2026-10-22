@@ -181,22 +181,43 @@ export const EquipmentProvider = ({ children }) => {
   });
 
   const loadEquipmentFromSupabase = useCallback(async () => {
-    let query = supabase.from(EQUIPMENT_TABLE).select("*");
+    let scopeColumn;
+    let scopeValue;
 
     if (teamsEnabled) {
       // Teams on: a team must be selected before inventory is shown.
       if (!effectiveTeamId) return [];
-      query = query.eq("team_id", effectiveTeamId);
+      scopeColumn = "team_id";
+      scopeValue = effectiveTeamId;
     } else {
       // Teams off: one flat pool scoped to the org (RLS enforces membership).
       if (!orgId) return [];
-      query = query.eq("org_id", orgId);
+      scopeColumn = "org_id";
+      scopeValue = orgId;
     }
 
-    const { data, error } = await query.order("created_at", { ascending: false });
+    // PostgREST silently truncates every response at max_rows (1000 in
+    // supabase/config.toml and on the hosted project), so page until a short
+    // page comes back. PAGE_SIZE must not exceed max_rows. The id tie-breaker
+    // keeps pages stable when created_at values are equal.
+    const PAGE_SIZE = 1000;
+    const all = [];
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from(EQUIPMENT_TABLE)
+        .select("*")
+        .eq(scopeColumn, scopeValue)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+        .range(from, from + PAGE_SIZE - 1);
 
-    if (error) throw error;
-    return (data ?? []).map(normalizeRowFromDb);
+      if (error) throw error;
+      const page = data ?? [];
+      all.push(...page);
+      if (page.length < PAGE_SIZE) break;
+    }
+
+    return all.map(normalizeRowFromDb);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teamsEnabled, effectiveTeamId, orgId]);
 

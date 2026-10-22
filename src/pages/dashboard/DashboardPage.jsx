@@ -30,6 +30,7 @@ import useExport from "./hooks/useExport";
 import { matchFileItemsToEquipment } from "./utils/pdfSelect";
 import { validateItemForm } from "./utils/itemValidation";
 import { buildImportRows } from "./utils/importRows";
+import { fetchTeamItemCounts } from "./utils/teamCounts";
 import { planAllows, planLimitMessage, proFeatureMessage } from "@/lib/plan";
 import { bulkMoveToLocation } from "./utils/bulkMove";
 import useFilterPresets from "./hooks/useFilterPresets";
@@ -609,24 +610,16 @@ const OrgOverview = () => {
   const [counts, setCounts] = useState({});
 
   useEffect(() => {
-    const fetchCounts = async () => {
-      if (!teams.length) return;
-      const ids = teams.map((t) => t.id);
-      const { data, error } = await supabase
-        .from("equipment_items")
-        .select("team_id")
-        .in("team_id", ids);
-
-      if (error || !data) return;
-
-      const c = {};
-      for (const row of data) {
-        c[row.team_id] = (c[row.team_id] || 0) + 1;
-      }
-      setCounts(c);
+    if (!teams.length) return undefined;
+    let cancelled = false;
+    fetchTeamItemCounts(supabase, teams.map((t) => t.id))
+      .then((c) => {
+        if (!cancelled) setCounts(c);
+      })
+      .catch((e) => console.error("[OrgOverview] team counts failed", e));
+    return () => {
+      cancelled = true;
     };
-
-    fetchCounts();
   }, [teams]);
 
   const activeTeams   = teams.filter((t) => t.status !== "archived");

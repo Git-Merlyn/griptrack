@@ -21,7 +21,7 @@ vi.mock("@/lib/supabaseClient", () => {
   h.del = vi.fn();
   const chain = (result) => {
     const c = {};
-    for (const m of ["select", "eq", "order", "single", "in"]) c[m] = vi.fn(() => c);
+    for (const m of ["select", "eq", "order", "single", "in", "range"]) c[m] = vi.fn(() => c);
     c.update = (...a) => { h.update(...a); return c; };
     c.insert = (...a) => { h.insert(...a); return c; };
     c.delete = (...a) => { h.del(...a); return c; };

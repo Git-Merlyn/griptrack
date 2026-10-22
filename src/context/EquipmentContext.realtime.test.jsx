@@ -18,6 +18,7 @@ const h = vi.hoisted(() => {
       eq: () => b,
       in: () => b,
       order: () => b,
+      range: () => b,
       then: (resolve, reject) =>
         Promise.resolve({ data: state.rows[table] ?? [], error: null }).then(resolve, reject),
     };
