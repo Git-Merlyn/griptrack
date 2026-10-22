@@ -1,4 +1,12 @@
-import { canManageInventory, canSwitchTeams, isOrgAdmin } from './types';
+import {
+  canManageInventory,
+  canSwitchTeams,
+  isOrgAdmin,
+  canReviewRequests,
+  canManageTeams,
+  canEditLocations,
+  canDeleteLocations,
+} from './types';
 import type { Role } from './types';
 
 const ALL_ROLES: Role[] = ['owner', 'admin', 'department_head', 'crew'];
@@ -51,5 +59,25 @@ describe('isOrgAdmin', () => {
   it('covers all roles', () => {
     const results = ALL_ROLES.map(isOrgAdmin);
     expect(results).toEqual([true, true, false, false]);
+  });
+});
+
+// These mirror specific RLS policies (see the comments in shared/roles.ts).
+// ALL_ROLES order: owner, admin, department_head, crew.
+describe('RLS-matching helpers', () => {
+  it('canReviewRequests: owner/admin only — department heads cannot review (M12)', () => {
+    expect(ALL_ROLES.map(canReviewRequests)).toEqual([true, true, false, false]);
+  });
+
+  it('canManageTeams: owner/admin only (L24)', () => {
+    expect(ALL_ROLES.map(canManageTeams)).toEqual([true, true, false, false]);
+  });
+
+  it('canEditLocations: owner/admin/department_head (dept-head insert/update policies)', () => {
+    expect(ALL_ROLES.map(canEditLocations)).toEqual([true, true, true, false]);
+  });
+
+  it('canDeleteLocations: owner/admin only — no dept-head DELETE policy (L40)', () => {
+    expect(ALL_ROLES.map(canDeleteLocations)).toEqual([true, true, false, false]);
   });
 });

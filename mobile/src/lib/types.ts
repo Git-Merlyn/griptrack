@@ -8,6 +8,10 @@ export {
   canManageInventory,
   canSwitchTeams,
   isOrgAdmin,
+  canReviewRequests,
+  canManageTeams,
+  canEditLocations,
+  canDeleteLocations,
   ASSIGNABLE_ROLES,
 } from '../../../shared/roles';
 export type { Role } from '../../../shared/roles';
