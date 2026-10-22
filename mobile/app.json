@@ -9,14 +9,12 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.griptrack.mobile",
-      "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "com.griptrack.mobile",
-      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1a1d23"
