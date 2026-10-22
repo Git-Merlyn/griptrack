@@ -17,6 +17,8 @@
     "test:coverage": "vitest run --coverage",
     "test:db": "supabase test db supabase/tests/database",
     "mobile:apk": "cd mobile && npx eas-cli build --profile preview --platform android",
+    "mobile:android": "cd mobile && npx eas-cli build --profile production --platform android",
+    "mobile:android:submit": "cd mobile && npx eas-cli submit --platform android --latest",
     "mobile:ios": "cd mobile && npx eas-cli build --profile production --platform ios",
     "mobile:ios:submit": "cd mobile && npx eas-cli submit --platform ios --latest"
   },
