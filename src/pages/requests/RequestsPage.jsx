@@ -39,7 +39,7 @@ const RequestCard = ({ request, isAdmin, onApprove, onDeny, busy }) => {
     <div className="bg-surface border border-gray-700 rounded-xl p-4 flex flex-col gap-2">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="flex flex-col gap-0.5">
-          <span className="font-semibold text-white text-sm">
+          <span className="font-semibold text-heading text-sm">
             {request.item_name}
           </span>
           <span className="text-xs text-gray-400">
@@ -241,7 +241,7 @@ const RequestsPage = () => {
     <div className="max-w-2xl mx-auto px-4 py-8">
       {/* Page header */}
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white mb-1">
+        <h1 className="text-2xl font-bold text-heading mb-1">
           Equipment Requests
           {isAdmin && pendingCount > 0 && (
             <span className="ml-2 text-sm font-semibold bg-yellow-700/40 text-yellow-300 px-2 py-0.5 rounded-full align-middle">

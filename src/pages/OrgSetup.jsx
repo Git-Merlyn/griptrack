@@ -64,7 +64,7 @@ export default function OrgSetup() {
 
   if (orgId && role && role !== "owner") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="bg-surface rounded-2xl p-6 w-[92%] max-w-md shadow-lg">
           <h1 className="text-2xl font-bold text-accent mb-1">
             Organization setup
@@ -92,7 +92,7 @@ export default function OrgSetup() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-black">
+    <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="bg-surface rounded-2xl p-6 w-[92%] max-w-md shadow-lg">
         <h1 className="text-2xl font-bold text-accent mb-1">
           Organization setup

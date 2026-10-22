@@ -17,6 +17,21 @@
   --color-warning:    255, 214, 0;
   --color-danger:     255, 77, 77;
   --color-success:    46, 204, 113;
+  /* Headings and primary text on surfaces (replaces hard-coded text-white) */
+  --color-heading:    255, 255, 255;
+
+  /* Themed gray ramp (see tailwind.config.js). Dark = Tailwind's defaults. */
+  --gray-50:  249, 250, 251;
+  --gray-100: 243, 244, 246;
+  --gray-200: 229, 231, 235;
+  --gray-300: 209, 213, 219;
+  --gray-400: 156, 163, 175;
+  --gray-500: 107, 114, 128;
+  --gray-600: 75, 85, 99;
+  --gray-700: 55, 65, 81;
+  --gray-800: 31, 41, 55;
+  --gray-900: 17, 24, 39;
+  --gray-950: 3, 7, 18;
 }
 
 :root.light {
@@ -27,6 +42,20 @@
   --color-warning:    180, 83, 9;
   --color-danger:     220, 38, 38;
   --color-success:    22, 163, 74;
+  --color-heading:    15, 23, 42;
+
+  /* Inverted slate ramp: low numbers dark, high numbers light (M11). */
+  --gray-50:  2, 6, 23;
+  --gray-100: 15, 23, 42;
+  --gray-200: 30, 41, 59;
+  --gray-300: 51, 65, 85;
+  --gray-400: 71, 85, 105;
+  --gray-500: 100, 116, 139;
+  --gray-600: 148, 163, 184;
+  --gray-700: 203, 213, 225;
+  --gray-800: 226, 232, 240;
+  --gray-900: 241, 245, 249;
+  --gray-950: 248, 250, 252;
 }
 
 body {
@@ -121,5 +150,30 @@ body {
 
   .date-badge-overdue {
     @apply border-red-400/25 bg-red-400/10 text-red-100;
+  }
+
+  /* Light theme (M11): the pale -100/-200 text above is unreadable on white
+     surfaces. Same structure, darker shades. */
+  :root.light .btn-danger,
+  :root.light .btn-danger-sm {
+    @apply text-red-700 border-red-600/30 hover:bg-red-600/10 hover:text-red-800;
+  }
+  :root.light .btn-edit,
+  :root.light .btn-edit-sm {
+    @apply text-blue-700 border-blue-600/30 hover:bg-blue-600/10 hover:text-blue-800;
+  }
+  :root.light .btn-move,
+  :root.light .btn-move-sm {
+    @apply text-amber-700 border-amber-600/30 hover:bg-amber-600/10 hover:text-amber-800;
+  }
+  :root.light .btn-disabled,
+  :root.light .btn-disabled-sm {
+    @apply bg-slate-200 text-slate-500 border-slate-300;
+  }
+  :root.light .date-badge-warn {
+    @apply text-amber-800;
+  }
+  :root.light .date-badge-overdue {
+    @apply text-red-800;
   }
 }

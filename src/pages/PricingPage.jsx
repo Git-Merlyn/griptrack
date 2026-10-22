@@ -14,7 +14,7 @@ const plans = [
     monthly: { display: "$0", period: "forever" },
     description: "Get started and see if GripTrack fits your workflow.",
     cta: "Get started free",
-    ctaStyle: "border border-gray-700 text-white hover:border-gray-500",
+    ctaStyle: "border border-gray-700 text-heading hover:border-gray-500",
     features: [
       "Up to 50 equipment items",
       "1 active location",
@@ -112,7 +112,7 @@ const PricingPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background text-white">
+    <div className="min-h-screen bg-background text-heading">
       {/* Nav */}
       <header className="border-b border-gray-800 sticky top-0 z-50 bg-background/95 backdrop-blur">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
@@ -129,7 +129,7 @@ const PricingPage = () => {
               </Link>
             ) : (
               <>
-                <Link to="/auth" className="text-sm text-gray-400 hover:text-white transition-colors px-2 py-1">
+                <Link to="/auth" className="text-sm text-gray-400 hover:text-heading transition-colors px-2 py-1">
                   Sign in
                 </Link>
                 <Link
@@ -183,10 +183,10 @@ const PricingPage = () => {
                 )}
 
                 <div className="mb-6">
-                  <h3 className="text-lg font-bold text-white mb-1">{p.name}</h3>
+                  <h3 className="text-lg font-bold text-heading mb-1">{p.name}</h3>
 
                   <div className="flex items-baseline gap-1 mb-1">
-                    <span className="text-4xl font-bold text-white">{pricing.display}</span>
+                    <span className="text-4xl font-bold text-heading">{pricing.display}</span>
                     <span className="text-gray-500 text-sm">/{pricing.period}</span>
                   </div>
 

@@ -47,7 +47,7 @@ const steps = [
 
 const LandingPage = () => {
   return (
-    <div className="min-h-screen bg-background text-white">
+    <div className="min-h-screen bg-background text-heading">
       {/* Nav */}
       <header className="border-b border-gray-800 sticky top-0 z-50 bg-background/95 backdrop-blur">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
@@ -56,13 +56,13 @@ const LandingPage = () => {
           <nav className="flex items-center gap-2 sm:gap-4">
             <Link
               to="/pricing"
-              className="hidden sm:block text-sm text-gray-400 hover:text-white transition-colors px-2 py-1"
+              className="hidden sm:block text-sm text-gray-400 hover:text-heading transition-colors px-2 py-1"
             >
               Pricing
             </Link>
             <Link
               to="/auth"
-              className="hidden sm:block text-sm text-gray-400 hover:text-white transition-colors px-2 py-1"
+              className="hidden sm:block text-sm text-gray-400 hover:text-heading transition-colors px-2 py-1"
             >
               Sign in
             </Link>
@@ -83,7 +83,7 @@ const LandingPage = () => {
           Built for grip &amp; electric departments
         </div>
 
-        <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-tight mb-6 text-white">
+        <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold leading-tight mb-6 text-heading">
           Inventory management that keeps up{" "}
           <span className="text-accent">with your shoot</span>
         </h1>
@@ -103,7 +103,7 @@ const LandingPage = () => {
           </Link>
           <Link
             to="/pricing"
-            className="bg-surface border border-gray-700 text-white font-semibold px-8 py-3 rounded-lg hover:border-gray-500 transition-colors text-base"
+            className="bg-surface border border-gray-700 text-heading font-semibold px-8 py-3 rounded-lg hover:border-gray-500 transition-colors text-base"
           >
             See pricing
           </Link>
@@ -128,7 +128,7 @@ const LandingPage = () => {
                 className="bg-background rounded-xl p-6 border border-gray-800 hover:border-accent/30 transition-colors"
               >
                 <div className="text-3xl mb-4">{f.icon}</div>
-                <h3 className="font-semibold text-white mb-2">{f.title}</h3>
+                <h3 className="font-semibold text-heading mb-2">{f.title}</h3>
                 <p className="text-sm text-gray-400 leading-relaxed">
                   {f.description}
                 </p>
@@ -151,7 +151,7 @@ const LandingPage = () => {
               <div className="text-5xl font-bold text-accent/20 mb-4">
                 {s.number}
               </div>
-              <h3 className="font-semibold text-white text-lg mb-2">
+              <h3 className="font-semibold text-heading text-lg mb-2">
                 {s.title}
               </h3>
               <p className="text-gray-400 text-sm leading-relaxed">
@@ -183,7 +183,7 @@ const LandingPage = () => {
             </Link>
             <Link
               to="/pricing"
-              className="border border-gray-700 text-white font-semibold px-8 py-3 rounded-lg hover:border-gray-500 transition-colors"
+              className="border border-gray-700 text-heading font-semibold px-8 py-3 rounded-lg hover:border-gray-500 transition-colors"
             >
               View pricing
             </Link>

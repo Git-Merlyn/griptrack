@@ -173,7 +173,7 @@ export default function InviteAccept() {
   };
 
   return authUser && !loadingOrg && needsProfileSetup ? (
-    <div className="min-h-screen flex items-center justify-center bg-black text-gray-200">
+    <div className="min-h-screen flex items-center justify-center bg-background text-gray-200">
       <div className="bg-surface rounded-2xl p-6 w-[92%] max-w-md shadow-lg">
         <h1 className="text-2xl font-bold text-accent mb-2">
           Finish joining your team
@@ -241,7 +241,7 @@ export default function InviteAccept() {
       </div>
     </div>
   ) : (
-    <div className="min-h-screen flex items-center justify-center bg-black text-gray-200">
+    <div className="min-h-screen flex items-center justify-center bg-background text-gray-200">
       <div className="bg-surface rounded-2xl p-6 w-[92%] max-w-md shadow-lg text-center">
         <h1 className="text-2xl font-bold text-accent mb-2">
           Joining your team…

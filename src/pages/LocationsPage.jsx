@@ -158,7 +158,7 @@ const LocationsPage = () => {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold text-white mb-1">Locations</h1>
+      <h1 className="text-2xl font-bold text-heading mb-1">Locations</h1>
       <p className="text-gray-400 text-sm mb-8">
         Manage the locations available to your org — trucks, stages, storage, etc.
       </p>
@@ -260,7 +260,7 @@ const LocationsPage = () => {
                   ) : (
                     <>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-white">
+                        <span className="font-semibold text-heading">
                           {loc.name}
                         </span>
                         {!loc.is_active && (
@@ -287,7 +287,7 @@ const LocationsPage = () => {
                     <button
                       type="button"
                       onClick={() => startRename(loc)}
-                      className="text-xs text-gray-400 hover:text-white transition-colors px-2 py-1"
+                      className="text-xs text-gray-400 hover:text-heading transition-colors px-2 py-1"
                     >
                       Rename
                     </button>
@@ -295,7 +295,7 @@ const LocationsPage = () => {
                     <button
                       type="button"
                       onClick={() => handleToggleActive(loc)}
-                      className="text-xs text-gray-400 hover:text-white transition-colors px-2 py-1"
+                      className="text-xs text-gray-400 hover:text-heading transition-colors px-2 py-1"
                     >
                       {loc.is_active ? "Deactivate" : "Reactivate"}
                     </button>
@@ -314,7 +314,7 @@ const LocationsPage = () => {
                           <button
                             type="button"
                             onClick={() => setConfirmDeleteId(null)}
-                            className="text-xs text-gray-400 hover:text-white px-2 py-1"
+                            className="text-xs text-gray-400 hover:text-heading px-2 py-1"
                           >
                             No
                           </button>

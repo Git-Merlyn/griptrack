@@ -30,7 +30,7 @@ const PaywallGate = ({ requiredPlan = "pro", featureName, children }) => {
   return (
     <div className="rounded-xl border border-accent/20 bg-accent/5 p-6 text-center">
       <div className="text-2xl mb-3" aria-hidden="true">🔒</div>
-      <h3 className="font-semibold text-white mb-1">
+      <h3 className="font-semibold text-heading mb-1">
         {featureName ? `${featureName} is a ${planLabel} feature` : `${planLabel} plan required`}
       </h3>
       {role === "owner" ? (

@@ -36,7 +36,7 @@ import { SpeedInsights } from "@vercel/speed-insights/react";
 
 // Branded fallback shown while a lazy chunk loads
 const PageLoader = () => (
-  <div className="min-h-screen flex flex-col items-center justify-center bg-black gap-3">
+  <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-3">
     <span className="text-2xl font-bold text-accent">GripTrack</span>
     <span className="text-gray-500 text-sm animate-pulse">Loading…</span>
   </div>
@@ -64,7 +64,7 @@ const App = () => {
         // a session exists would let the unauthenticated "*" catch-all rewrite
         // deep links (e.g. a refresh on /staff) to /auth and bounce the user
         // back to the dashboard.
-        <div className="min-h-screen flex flex-col items-center justify-center bg-black gap-3">
+        <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-3">
           <span className="text-2xl font-bold text-accent">GripTrack</span>
           <span className="text-gray-500 text-sm animate-pulse">Loading…</span>
         </div>
