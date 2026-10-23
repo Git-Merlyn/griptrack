@@ -96,7 +96,10 @@ jobs:
           version: 2.109.1
 
       - name: Start Supabase (db + auth only; applies every migration)
-        run: supabase start -x analytics,edge-runtime,functions,imgproxy,inbucket,kong,meta,realtime,rest,storage,studio,vector
+        # kong and rest must run: supabase start's final health check calls
+        # http://127.0.0.1:54321/rest-admin/v1/ready through kong, and fails
+        # (after applying every migration) when either is excluded.
+        run: supabase start -x analytics,edge-runtime,functions,imgproxy,inbucket,meta,realtime,storage,studio,vector
 
       - name: pgTAP (supabase/tests/database)
         run: supabase test db supabase/tests/database
@@ -135,6 +138,11 @@ jobs:
           deno-version: v2.1.x
 
       - name: deno check every function
+        # The repo root has a package.json, so Deno 2 would switch to
+        # node_modules resolution and fail on every npm: import. The
+        # functions are standalone Deno code: ignore package.json.
+        env:
+          DENO_NO_PACKAGE_JSON: "1"
         run: |
           fail=0
           for dir in supabase/functions/*/; do
