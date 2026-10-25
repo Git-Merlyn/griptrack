@@ -62,6 +62,14 @@
         "projectId": "ad29aeec-a31b-453b-9650-26ec41236a9e"
       }
     },
-    "owner": "cbenwell"
+    "owner": "cbenwell",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/ad29aeec-a31b-453b-9650-26ec41236a9e",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    }
   }
 }

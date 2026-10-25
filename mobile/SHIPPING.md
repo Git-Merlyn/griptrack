@@ -18,8 +18,32 @@ automatically; the local `mobile/.env` is only for `expo start`.
 | iOS | TestFlight (App Store Connect app `6788005208`, team `XB4R5BXJ7S`) | 1.0.0 (5), 2026-07-20 |
 | Android | Google Play **internal testing** track (`com.griptrack.mobile`) | 1.0.0 (versionCode 2), 2026-10-17 |
 
-**No over-the-air updates.** `expo-updates` is not installed. Every JS change
-reaches testers only through a new store build, so batch fixes into a build.
+**Over-the-air updates (EAS Update), from the SDK 58 build on.** `expo-updates`
+is installed. Builds made from the `production` profile listen on the
+`production` channel, `preview` builds on `preview`. An installed app checks
+for an update when it launches, downloads it in the background, and applies it
+on the next launch (`checkAutomatically: ON_LOAD`, `fallbackToCacheTimeout: 0`).
+
+- **What can ship this way:** JavaScript and asset changes only. Anything
+  native (a new or upgraded native module, `app.json` permissions, an SDK bump)
+  still needs a store build. `runtimeVersion` uses the `fingerprint` policy, so
+  an update only reaches builds with identical native code; a native change
+  gives new builds a new runtime and old builds simply never see the update.
+- **Publish** (from `mobile/`, on the commit you want to ship; the
+  `--environment` flag bakes in the same `EXPO_PUBLIC_*` values as the build):
+
+  ```bash
+  npx eas-cli update --channel production --environment production --message "<what changed>"
+  ```
+
+  Test it first on `preview` builds with `--channel preview --environment preview`.
+- **Roll back:** `npx eas-cli update:republish --channel production` (pick the
+  previous update group), or `npx eas-cli update:roll-back-to-embedded --channel
+  production` to return phones to the code inside their store build.
+- Store builds still go through TestFlight and Play review as before. Keep
+  over-the-air changes to fixes and small improvements, within store rules.
+- Only the first store build that includes `expo-updates` (the SDK 58 build)
+  and later ones receive updates. Builds 4 to 6 never do.
 Shipped builds stay in testers' hands for weeks. Backend changes (RPCs, edge
 functions, RLS) must keep working for the builds already out there: add
 overloads and never change a signature or response shape that an old build
