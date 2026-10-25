@@ -64,7 +64,7 @@
     },
     "owner": "cbenwell",
     "runtimeVersion": {
-      "policy": "fingerprint"
+      "policy": "appVersion"
     },
     "updates": {
       "url": "https://u.expo.dev/ad29aeec-a31b-453b-9650-26ec41236a9e",

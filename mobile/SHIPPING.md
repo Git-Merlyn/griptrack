@@ -26,9 +26,14 @@ on the next launch (`checkAutomatically: ON_LOAD`, `fallbackToCacheTimeout: 0`).
 
 - **What can ship this way:** JavaScript and asset changes only. Anything
   native (a new or upgraded native module, `app.json` permissions, an SDK bump)
-  still needs a store build. `runtimeVersion` uses the `fingerprint` policy, so
-  an update only reaches builds with identical native code; a native change
-  gives new builds a new runtime and old builds simply never see the update.
+  still needs a store build. `runtimeVersion` uses the `appVersion` policy: an
+  update reaches every build whose `expo.version` matches (today `1.0.0`).
+  **Rule: whenever a change touches native code, raise `expo.version` in
+  `app.json` (for example to `1.1.0`) before the store build.** Then builds with
+  the old native code never receive updates meant for the new one. (The
+  `fingerprint` policy was tried first and blocked every EAS build: EAS
+  generates the native folders and injects build numbers before hashing, so the
+  local and EAS fingerprints never matched.)
 - **Publish** (from `mobile/`, on the commit you want to ship; the
   `--environment` flag bakes in the same `EXPO_PUBLIC_*` values as the build):
 
