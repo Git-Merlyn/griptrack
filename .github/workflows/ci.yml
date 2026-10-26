@@ -90,12 +90,22 @@ jobs:
     name: DB (migrations, pgTAP, behavior scripts)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # packages: read lets the job's GITHUB_TOKEN pull from ghcr.io.
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v7
 
       - uses: supabase/setup-cli@v3
         with:
           version: 2.109.1
+
+      # supabase start pulls its images from ghcr.io. Anonymous pulls from
+      # shared runners hit "toomanyrequests: Data limit exceeded"
+      # (2026-10-26); authenticated pulls with the job token do not.
+      - name: Log in to ghcr.io
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Start Supabase (db + auth only; applies every migration)
         # kong and rest must run: supabase start's final health check calls
