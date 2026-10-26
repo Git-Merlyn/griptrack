@@ -3,6 +3,10 @@ import { Alert } from 'react-native';
 import { render, screen, fireEvent, act } from '@testing-library/react-native';
 import NewLocationModal from './NewLocationModal';
 
+// The first render loads React Native's Modal/KeyboardAvoidingView stack; on
+// CI's 2-core runners that alone took over the default 5 s (2026-10-26).
+jest.setTimeout(15000);
+
 const mockAddLocation = jest.fn();
 jest.mock('@expo/vector-icons', () => ({ Ionicons: () => null }));
 jest.mock('../context/AuthContext', () => ({ useAuthContext: () => ({ profile: { org_id: 'org-1', role: 'owner' } }) }));
