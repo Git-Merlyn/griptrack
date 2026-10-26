@@ -10,6 +10,7 @@ import PaywallGate from "@/components/PaywallGate";
 import { planLimitMessage } from "@/lib/plan";
 import { ASSIGNABLE_ROLES as SHARED_ASSIGNABLE_ROLES } from "@shared/roles";
 import { revokeInvite, resendInviteBody } from "@/lib/orgInvites";
+import useConfirm from "@/hooks/useConfirm";
 
 // Role options available when inviting or changing an existing member.
 // The list itself is shared with mobile (owner is never assignable);
@@ -126,6 +127,7 @@ function MemberRow({ member, teams, onChangeRole, onChangeTeam, onRemove, isSelf
 export default function Staff() {
   const { orgId, authUser, isCoordinator, ghostReadOnly } = useUser();
   const { teams, loadingTeams, activeTeamId } = useTeam();
+  const [confirm, confirmDialog] = useConfirm();
 
   const [members, setMembers]           = useState([]);
   const [invites, setInvites]           = useState([]);
@@ -277,7 +279,12 @@ export default function Staff() {
       setError("You cannot remove your own account.");
       return;
     }
-    if (!confirm(`Remove ${name || "this member"} from the org?`)) return;
+    if (!(await confirm({
+      title: "Remove member?",
+      message: `Remove ${name || "this member"} from the organization? They lose access straight away.`,
+      confirmLabel: "Remove",
+      danger: true,
+    }))) return;
 
     setError("");
     setSuccess("");
@@ -297,7 +304,12 @@ export default function Staff() {
   };
 
   const handleRevokeInvite = async (inv) => {
-    if (!confirm(`Revoke the invite for ${inv.email}?`)) return;
+    if (!(await confirm({
+      title: "Revoke invite?",
+      message: `Revoke the invite for ${inv.email}? The link in their email stops working.`,
+      confirmLabel: "Revoke",
+      danger: true,
+    }))) return;
     setError("");
     setSuccess("");
     setInviteBusyId(inv.id);
@@ -483,6 +495,7 @@ export default function Staff() {
           </div>
         </div>
       )}
+      {confirmDialog}
     </div>
   );
 }

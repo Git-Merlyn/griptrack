@@ -7,8 +7,7 @@ import useUser from "@/context/useUser";
 import useTrial from "@/hooks/useTrial";
 import useTeam from "@/context/useTeam";
 import useTheme from "@/hooks/useTheme";
-import { supabase } from "@/lib/supabaseClient";
-import { signOutWithLocalFallback } from "@/lib/signOut";
+import { ChangePasswordDialog, DeleteAccountDialog } from "@/components/dialogs/AccountDialogs";
 
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -51,63 +50,11 @@ const Icons = {
 };
 
 // ── SettingsPanel ─────────────────────────────────────────────────────────────
-function SettingsPanel({ collapsed, onClose }) {
+function SettingsPanel({ collapsed, onClose, onAccountDialog }) {
   const { logout, profile, role } = useUser();
   const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const isOwner = role === "owner";
-
-  const [view, setView] = useState("menu"); // "menu" | "password" | "delete"
-  const [pwState, setPwState] = useState({ next: "", confirm: "", busy: false, err: "", ok: false });
-  const [delState, setDelState] = useState({ confirm: "", busy: false, err: "" });
-
-  const handleDeleteAccount = async (e) => {
-    e.preventDefault();
-    if (delState.confirm !== "DELETE") return;
-    setDelState((s) => ({ ...s, busy: true, err: "" }));
-    try {
-      // Edge function: auto-cancels any active Stripe subscription, then runs
-      // the delete_my_account RPC. Blocked cases (org still has other
-      // members) come back as an error message.
-      const { data, error } = await supabase.functions.invoke("delete-account");
-      if (error || data?.error) {
-        let msg = data?.error || error?.message || "Account deletion failed.";
-        // functions.invoke wraps non-2xx as a generic FunctionsHttpError; the
-        // real message is in the response body when available.
-        if (error?.context?.json) {
-          try { msg = (await error.context.json())?.error || msg; } catch { /* keep msg */ }
-        }
-        setDelState((s) => ({ ...s, busy: false, err: msg }));
-        return;
-      }
-      // Account is gone server-side; clear the local session and leave.
-      await signOutWithLocalFallback();
-      window.location.href = "/";
-    } catch (e2) {
-      // Network failure or an unexpected throw from functions.invoke — without
-      // this, busy stayed true forever with no way to retry.
-      setDelState((s) => ({ ...s, busy: false, err: e2?.message || "Account deletion failed. Please try again." }));
-    }
-  };
-
-  const handlePasswordSave = async (e) => {
-    e.preventDefault();
-    if (pwState.next !== pwState.confirm) {
-      setPwState((s) => ({ ...s, err: "Passwords don't match" }));
-      return;
-    }
-    if (pwState.next.length < 8) {
-      setPwState((s) => ({ ...s, err: "Password must be at least 8 characters" }));
-      return;
-    }
-    setPwState((s) => ({ ...s, busy: true, err: "" }));
-    const { error } = await supabase.auth.updateUser({ password: pwState.next });
-    if (error) {
-      setPwState((s) => ({ ...s, busy: false, err: error.message }));
-    } else {
-      setPwState((s) => ({ ...s, busy: false, ok: true, next: "", confirm: "" }));
-    }
-  };
 
   // Panel positioning: above the settings button, left-aligned with the sidebar
   const panelClass = collapsed ? "left-16 bottom-2" : "left-2 bottom-14";
@@ -117,7 +64,6 @@ function SettingsPanel({ collapsed, onClose }) {
 
   return (
     <div className={`fixed ${panelClass} z-50 w-72 bg-surface border border-text/15 rounded-xl shadow-2xl`}>
-      {view === "menu" ? (
         <div className="flex flex-col">
           {/* Profile header */}
           <div className="px-4 py-3 border-b border-text/10">
@@ -145,7 +91,7 @@ function SettingsPanel({ collapsed, onClose }) {
             </button>
 
             {/* Change password */}
-            <button type="button" onClick={() => setView("password")} className={menuItemClass}>
+            <button type="button" onClick={() => { onAccountDialog("password"); onClose(); }} className={menuItemClass}>
               <Icons.Password />
               <span>Change password</span>
             </button>
@@ -189,7 +135,7 @@ function SettingsPanel({ collapsed, onClose }) {
             {/* Delete account — required by App Store 5.1.1(v) / GDPR / PIPEDA */}
             <button
               type="button"
-              onClick={() => setView("delete")}
+              onClick={() => { onAccountDialog("delete"); onClose(); }}
               className="flex items-center gap-2.5 px-4 py-2.5 hover:bg-danger/10 transition text-danger/70 hover:text-danger text-xs"
             >
               <span className="pl-0.5">Delete account…</span>
@@ -207,77 +153,6 @@ function SettingsPanel({ collapsed, onClose }) {
             </div>
           </div>
         </div>
-      ) : view === "delete" ? (
-        /* Delete account confirmation */
-        <div className="flex flex-col">
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-text/10">
-            <button type="button" onClick={() => { setView("menu"); setDelState({ confirm: "", busy: false, err: "" }); }} className="text-text/50 hover:text-text transition">
-              ←
-            </button>
-            <p className="text-danger font-medium text-sm">Delete account</p>
-          </div>
-          <form onSubmit={handleDeleteAccount} className="flex flex-col gap-3 p-4">
-            <p className="text-text/70 text-xs leading-relaxed">
-              {isOwner
-                ? "This permanently deletes your account AND your organization — all equipment, history, locations, and settings. Any active subscription is cancelled automatically. This cannot be undone."
-                : "This permanently deletes your account. Your organization's data is not affected. This cannot be undone."}
-            </p>
-            <p className="text-text/70 text-xs">
-              Type <span className="font-mono font-bold text-danger">DELETE</span> to confirm:
-            </p>
-            <input
-              type="text"
-              placeholder="DELETE"
-              value={delState.confirm}
-              onChange={(e) => setDelState((s) => ({ ...s, confirm: e.target.value, err: "" }))}
-              className="w-full px-3 py-2 rounded bg-background text-text border border-danger/30 text-sm placeholder:text-text/30 focus:outline-hidden focus:ring-2 focus:ring-danger/40"
-              autoComplete="off"
-            />
-            {delState.err && <p className="text-danger text-xs">{delState.err}</p>}
-            <button
-              type="submit"
-              disabled={delState.confirm !== "DELETE" || delState.busy}
-              className={delState.confirm !== "DELETE" || delState.busy ? "btn-disabled" : "btn-danger"}
-            >
-              {delState.busy ? "Deleting…" : "Permanently delete my account"}
-            </button>
-          </form>
-        </div>
-      ) : (
-        /* Change password form */
-        <div className="flex flex-col">
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-text/10">
-            <button type="button" onClick={() => setView("menu")} className="text-text/50 hover:text-text transition">
-              ←
-            </button>
-            <p className="text-text font-medium text-sm">Change password</p>
-          </div>
-          <form onSubmit={handlePasswordSave} className="flex flex-col gap-3 p-4">
-            <input
-              type="password"
-              placeholder="New password"
-              value={pwState.next}
-              onChange={(e) => setPwState((s) => ({ ...s, next: e.target.value, err: "", ok: false }))}
-              className="w-full px-3 py-2 rounded bg-background text-text border border-text/15 text-sm placeholder:text-text/40 focus:outline-hidden focus:ring-2 focus:ring-accent/40"
-              required
-              minLength={8}
-            />
-            <input
-              type="password"
-              placeholder="Confirm new password"
-              value={pwState.confirm}
-              onChange={(e) => setPwState((s) => ({ ...s, confirm: e.target.value, err: "", ok: false }))}
-              className="w-full px-3 py-2 rounded bg-background text-text border border-text/15 text-sm placeholder:text-text/40 focus:outline-hidden focus:ring-2 focus:ring-accent/40"
-              required
-            />
-            {pwState.err && <p className="text-danger text-xs">{pwState.err}</p>}
-            {pwState.ok  && <p className="text-success text-xs">Password updated!</p>}
-            <button type="submit" disabled={pwState.busy} className={pwState.busy ? "btn-disabled" : "btn-accent"}>
-              {pwState.busy ? "Saving…" : "Save password"}
-            </button>
-          </form>
-        </div>
-      )}
     </div>
   );
 }
@@ -295,6 +170,9 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Change password / Delete account open as centred dialogs held here, so
+  // they survive the corner menu (and the mobile drawer) closing.
+  const [accountDialog, setAccountDialog] = useState(null); // null | "password" | "delete"
   // One ref per Settings area: the desktop sidebar (always in the DOM, hidden
   // by CSS below md) and the mobile drawer. The outside-click check must look
   // at both, or a tap on a drawer menu item counts as "outside" and closes the
@@ -466,7 +344,7 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
       </button>
 
       {settingsOpen && (
-        <SettingsPanel collapsed={navCollapsed} onClose={() => setSettingsOpen(false)} />
+        <SettingsPanel collapsed={navCollapsed} onClose={() => setSettingsOpen(false)} onAccountDialog={setAccountDialog} />
       )}
     </div>
   );
@@ -538,7 +416,7 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
                   <span className="text-sm">Settings</span>
                 </button>
                 {settingsOpen && (
-                  <SettingsPanel collapsed={false} onClose={() => { setSettingsOpen(false); closeDrawer(); }} />
+                  <SettingsPanel collapsed={false} onClose={() => { setSettingsOpen(false); closeDrawer(); }} onAccountDialog={setAccountDialog} />
                 )}
               </div>
             </div>
@@ -562,6 +440,8 @@ const Sidebar = ({ collapsed = false, onToggleCollapsed }) => {
       {isMobile ? MobileShell() : null}
       {DesktopSidebar()}
       <FeedbackModal isOpen={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
+      <ChangePasswordDialog isOpen={accountDialog === "password"} onClose={() => setAccountDialog(null)} />
+      <DeleteAccountDialog isOpen={accountDialog === "delete"} onClose={() => setAccountDialog(null)} isOwner={isOwner} />
     </>
   );
 };

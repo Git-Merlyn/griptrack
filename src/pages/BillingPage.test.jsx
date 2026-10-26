@@ -103,12 +103,11 @@ describe("BillingPage — plan states", () => {
   it("free org: Upgrade to Pro starts Checkout without a confirm and without confirmSwitch", async () => {
     const user = userEvent.setup();
     setUser({ subscription: FREE_ROW });
-    vi.spyOn(window, "confirm");
     vi.mocked(redirectToCheckout).mockResolvedValue({ redirected: true });
     renderAt();
 
     await user.click(screen.getByRole("button", { name: /Upgrade to Pro/ }));
-    expect(window.confirm).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(redirectToCheckout).toHaveBeenCalledWith("pro", { confirmSwitch: false });
   });
 
@@ -133,14 +132,17 @@ describe("BillingPage — Pro to Team switch", () => {
   it("confirms, switches in place and polls until the row shows Team", async () => {
     const user = userEvent.setup();
     setUser({ subscription: PRO_ROW });
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     vi.mocked(redirectToCheckout).mockResolvedValue({ updated: true, plan: "team" });
     refreshSubscription.mockResolvedValue({ ...PRO_ROW, plan: "team" });
     renderAt();
 
     await user.click(screen.getByRole("button", { name: "Upgrade to Team" }));
 
-    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("Switch to Team ($89/month)"));
+    // In-app dialog, not the browser's window.confirm (TODO 9.18).
+    const dialog = screen.getByRole("dialog", { name: "Switch to Team?" });
+    expect(dialog).toHaveTextContent("Switch to Team ($89/month)");
+    expect(redirectToCheckout).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Switch to Team" }));
     expect(redirectToCheckout).toHaveBeenCalledWith("team", { confirmSwitch: true });
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("You're now on Team."));
     expect(refreshSubscription).toHaveBeenCalledWith({ silent: true });
@@ -149,17 +151,17 @@ describe("BillingPage — Pro to Team switch", () => {
   it("does nothing when the confirm is declined", async () => {
     const user = userEvent.setup();
     setUser({ subscription: PRO_ROW });
-    vi.spyOn(window, "confirm").mockReturnValue(false);
     renderAt();
 
     await user.click(screen.getByRole("button", { name: "Upgrade to Team" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(redirectToCheckout).not.toHaveBeenCalled();
   });
 
   it("shows the server's 409 message and re-reads the subscription", async () => {
     const user = userEvent.setup();
     setUser({ subscription: PRO_ROW });
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     const err = Object.assign(new Error("Your last payment failed. Update your payment method under Manage subscription first."), {
       status: 409,
       code: "payment_required",
@@ -168,6 +170,7 @@ describe("BillingPage — Pro to Team switch", () => {
     renderAt();
 
     await user.click(screen.getByRole("button", { name: "Upgrade to Team" }));
+    await user.click(screen.getByRole("button", { name: "Switch to Team" }));
     expect(await screen.findByText(/Your last payment failed\. Update your payment method under Manage/)).toBeInTheDocument();
     expect(refreshSubscription).toHaveBeenCalledWith({ silent: true });
   });

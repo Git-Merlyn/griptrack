@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import useUser from "@/context/useUser";
+import useConfirm from "@/hooks/useConfirm";
 import { redirectToCheckout, redirectToCustomerPortal } from "@/lib/stripe";
 import {
   PLAN_LABELS,
@@ -49,6 +50,7 @@ const STILL_PENDING =
 const BillingPage = () => {
   const { plan, role, subscription, loadingSubscription, refreshSubscription } = useUser();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [confirm, confirmDialog] = useConfirm();
   const [upgrading, setUpgrading] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
   const [error, setError] = useState("");
@@ -102,9 +104,11 @@ const BillingPage = () => {
     const isSwitch = plan !== "free";
     if (
       isSwitch &&
-      !window.confirm(
-        `Switch to ${PLAN_LABELS[targetPlan]} (${PLAN_PRICES[targetPlan]})? The prorated difference is added to your next invoice.`,
-      )
+      !(await confirm({
+        title: `Switch to ${PLAN_LABELS[targetPlan]}?`,
+        message: `Switch to ${PLAN_LABELS[targetPlan]} (${PLAN_PRICES[targetPlan]})? The prorated difference is added to your next invoice.`,
+        confirmLabel: `Switch to ${PLAN_LABELS[targetPlan]}`,
+      }))
     ) {
       return;
     }
@@ -313,6 +317,7 @@ const BillingPage = () => {
           </p>
         </>
       )}
+      {confirmDialog}
     </div>
   );
 };

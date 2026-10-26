@@ -58,7 +58,7 @@ export default function GhostBar() {
       await fn();
       window.location.reload();
     } catch (e) {
-      alert(e?.message || "Ghost action failed");
+      window.toast?.error?.(e?.message || "Ghost action failed");
       setBusy(false);
     }
   };
