@@ -431,3 +431,22 @@ describe('useAuth — setFeatures', () => {
     );
   });
 });
+
+describe('useAuth — password reset link', () => {
+  it('sends the reset email with the web reset page as redirectTo (not the Site URL / dashboard)', async () => {
+    const resetMock = supabase.auth.resetPasswordForEmail as jest.Mock;
+    resetMock.mockResolvedValue({ data: {}, error: null });
+    const { result } = await renderHook(() => useAuth());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let out: { error: string | null } | undefined;
+    await act(async () => {
+      out = await result.current.sendPasswordReset('chris@example.test');
+    });
+
+    expect(resetMock).toHaveBeenCalledWith('chris@example.test', {
+      redirectTo: 'https://griptrack.app/reset-password',
+    });
+    expect(out).toEqual({ error: null });
+  });
+});

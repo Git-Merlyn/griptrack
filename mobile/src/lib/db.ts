@@ -6,6 +6,7 @@
  * replayed to Supabase when connectivity is restored.
  */
 
+import * as Crypto from 'expo-crypto';
 import * as SQLite from 'expo-sqlite';
 import { EquipmentItem, Location } from './types';
 import type { EquipmentRequest } from '../hooks/useRequests';
@@ -230,8 +231,11 @@ export function initDB(): void {
 
 // ─── UUID ─────────────────────────────────────────────────────────────────────
 
+// Expo SDK 58's runtime has no global `crypto` (SDK 55's did), so
+// crypto.randomUUID() threw "Property 'crypto' doesn't exist" on device.
+// expo-crypto's randomUUID uses the platform's secure random source.
 export function generateId(): string {
-  return crypto.randomUUID();
+  return Crypto.randomUUID();
 }
 
 // ─── Equipment items ──────────────────────────────────────────────────────────

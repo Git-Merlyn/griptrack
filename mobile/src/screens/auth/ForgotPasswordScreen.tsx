@@ -8,10 +8,12 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useAuthContext } from '../../context/AuthContext';
 
 export default function ForgotPasswordScreen() {
   const { sendPasswordReset } = useAuthContext();
+  const navigation = useNavigation();
 
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -46,6 +48,13 @@ export default function ForgotPasswordScreen() {
             We've sent a password reset link to{' '}
             <Text className="text-accent">{email}</Text>.
           </Text>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            accessibilityRole="button"
+            className="mt-6 bg-accent rounded-lg px-6 py-3 self-stretch items-center"
+          >
+            <Text className="text-background font-semibold">Back to sign in</Text>
+          </TouchableOpacity>
         </View>
       </View>
     );

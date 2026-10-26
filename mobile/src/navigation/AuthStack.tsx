@@ -16,6 +16,7 @@ export default function AuthStack() {
         options={{
           headerShown: true,
           title: 'Reset Password',
+          headerBackTitle: 'Sign in',
           headerStyle: { backgroundColor: '#1a1d23' },
           headerTintColor: '#4debf9',
           headerTitleStyle: { color: '#f1f5f9' },

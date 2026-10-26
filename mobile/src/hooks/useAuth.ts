@@ -41,6 +41,9 @@ import {
   writeCachedIdentity,
 } from '../lib/authCache';
 
+// Must be in Supabase Auth > URL Configuration > Redirect URLs.
+export const PASSWORD_RESET_URL = 'https://griptrack.app/reset-password';
+
 export interface UseAuthReturn {
   /** Live session, or the stored (maybe expired) one while `offline`. */
   session: Session | null;
@@ -390,7 +393,12 @@ export function useAuth(): UseAuthReturn {
   }, [resetToSignedOut]);
 
   const sendPasswordReset = useCallback(async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    // Without redirectTo, Supabase links to the Site URL (the web home page):
+    // the link signs the user in and lands on the Dashboard with no way to set
+    // a new password. Send them to the web reset page, as Auth.jsx does.
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: PASSWORD_RESET_URL,
+    });
     return { error: error?.message ?? null };
   }, []);
 
