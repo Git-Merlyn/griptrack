@@ -82,7 +82,9 @@ jobs:
         run: npx expo export --platform ios --platform android --output-dir "$RUNNER_TEMP/expo-export"
 
       - name: expo-doctor
-        run: npx --yes expo-doctor@sdk-58
+        # No per-SDK dist-tag exists after sdk-56; pin the release verified
+        # against Expo SDK 58 (20/20 locally on 2026-10-26).
+        run: npx --yes expo-doctor@1.21.5
 
   db:
     name: DB (migrations, pgTAP, behavior scripts)
