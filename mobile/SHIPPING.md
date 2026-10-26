@@ -43,8 +43,16 @@ on the next launch (`checkAutomatically: ON_LOAD`, `fallbackToCacheTimeout: 0`).
 
   Test it first on `preview` builds with `--channel preview --environment preview`.
 - **Roll back:** `npx eas-cli update:republish --channel production` (pick the
-  previous update group), or `npx eas-cli update:roll-back-to-embedded --channel
-  production` to return phones to the code inside their store build.
+  previous update group), or return phones to the code inside their store build:
+
+  ```bash
+  npx eas-cli update:roll-back-to-embedded --channel production --runtime-version 1.0.0 --message "Roll back"
+  ```
+
+  (`--runtime-version` must match `expo.version`; it is required in non-interactive mode.)
+- Phones pick an update up on the second launch: the first launch downloads it
+  in the background. Verified end to end on 2026-10-26 on the `preview` channel
+  (publish, receive, roll back).
 - Store builds still go through TestFlight and Play review as before. Keep
   over-the-air changes to fixes and small improvements, within store rules.
 - Only the first store build that includes `expo-updates` (the SDK 58 build)
