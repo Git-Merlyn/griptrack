@@ -170,15 +170,20 @@ const PricingPage = () => {
                     : "border-gray-800 bg-surface"
                 }`}
               >
-                {p.badge && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-accent text-black text-xs font-bold px-3 py-1 rounded-full">
-                    {p.badge}
-                  </div>
-                )}
-
-                {isCurrentPlan && (
-                  <div className="absolute -top-3 right-4 bg-gray-700 text-gray-200 text-xs font-semibold px-3 py-1 rounded-full">
-                    Current plan
+                {(p.badge || isCurrentPlan) && (
+                  // One centred row: the two pills used to be pinned separately
+                  // and overlapped on narrow cards (TODO 9.19).
+                  <div className="absolute -top-3 inset-x-4 flex flex-wrap justify-center gap-2">
+                    {p.badge && (
+                      <span className="bg-accent text-black text-xs font-bold px-3 py-1 rounded-full">
+                        {p.badge}
+                      </span>
+                    )}
+                    {isCurrentPlan && (
+                      <span className="bg-gray-700 text-gray-200 light:bg-slate-700 light:text-white text-xs font-semibold px-3 py-1 rounded-full">
+                        Current plan
+                      </span>
+                    )}
                   </div>
                 )}
 

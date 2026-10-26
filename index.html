@@ -6,13 +6,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="GripTrack — Film production inventory management for grip and electric departments." />
     <title>GripTrack</title>
-    <!-- Apply saved theme before React mounts to prevent flash of wrong theme -->
+    <!-- Apply the theme before React mounts (no flash). Same rules as
+         src/hooks/useTheme.js: gt_theme_mode = system | light | dark; an old
+         gt_theme="light" counts as light; anything else means System. -->
     <script>
       (function () {
+        var mode = "system";
         try {
-          var t = localStorage.getItem("gt_theme");
-          if (t === "light") document.documentElement.classList.add("light");
+          var m = localStorage.getItem("gt_theme_mode");
+          if (m === "system" || m === "light" || m === "dark") mode = m;
+          else if (localStorage.getItem("gt_theme") === "light") mode = "light";
         } catch (e) {}
+        var light = mode === "light";
+        if (mode === "system") {
+          try { light = window.matchMedia("(prefers-color-scheme: light)").matches; } catch (e) {}
+        }
+        if (light) document.documentElement.classList.add("light");
       })();
     </script>
   </head>

@@ -39,8 +39,8 @@ const NOTICE_STYLES = {
 };
 
 const BADGE_STYLES = {
-  good: "bg-green-900/50 text-green-400",
-  warn: "bg-yellow-900/50 text-yellow-400",
+  good: "bg-green-900/50 text-green-400 light:bg-green-100 light:text-green-800",
+  warn: "bg-yellow-900/50 text-yellow-400 light:bg-amber-100 light:text-amber-800",
   neutral: "bg-gray-800 text-gray-400",
 };
 

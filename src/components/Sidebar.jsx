@@ -52,7 +52,7 @@ const Icons = {
 // ── SettingsPanel ─────────────────────────────────────────────────────────────
 function SettingsPanel({ collapsed, onClose, onAccountDialog }) {
   const { logout, profile, role } = useUser();
-  const { isDark, toggleTheme } = useTheme();
+  const { isDark, mode, setMode } = useTheme();
   const navigate = useNavigate();
   const isOwner = role === "owner";
 
@@ -74,21 +74,26 @@ function SettingsPanel({ collapsed, onClose, onAccountDialog }) {
           </div>
 
           <div className="flex flex-col py-1">
-            {/* Theme toggle */}
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-text/10 transition text-left"
-            >
+            {/* Theme: System (follows the computer) / Light / Dark (TODO 9.19) */}
+            <div className="flex items-center justify-between gap-3 px-4 py-2.5">
               <div className="flex items-center gap-2.5 text-text text-sm">
                 {isDark ? <Icons.Moon /> : <Icons.Sun />}
-                <span>{isDark ? "Dark mode" : "Light mode"}</span>
+                <span id="theme-label">Theme</span>
               </div>
-              {/* Toggle pill — accent when on, muted when off */}
-              <div className={`relative w-9 h-5 rounded-full transition-colors ${isDark ? "bg-accent/40" : "bg-text/20"}`}>
-                <span className={`absolute top-0.5 w-4 h-4 rounded-full transition-all ${isDark ? "left-4 bg-accent" : "left-0.5 bg-text/50"}`} />
+              <div role="group" aria-labelledby="theme-label" className="flex rounded-lg border border-text/15 overflow-hidden text-xs">
+                {[["system", "System"], ["light", "Light"], ["dark", "Dark"]].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={mode === value}
+                    onClick={() => setMode(value)}
+                    className={`px-2 py-1 transition ${mode === value ? "bg-accent/20 text-accent font-semibold" : "text-text/70 hover:bg-text/10"}`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
-            </button>
+            </div>
 
             {/* Change password */}
             <button type="button" onClick={() => { onAccountDialog("password"); onClose(); }} className={menuItemClass}>
