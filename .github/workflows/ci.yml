@@ -90,6 +90,10 @@ jobs:
     name: DB (migrations, pgTAP, behavior scripts)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # packages: read lets the job's GITHUB_TOKEN pull from ghcr.io.
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v7
 
@@ -97,11 +101,29 @@ jobs:
         with:
           version: 2.109.1
 
+      # supabase start pulls from public.ecr.aws by default, and anonymous
+      # pulls from shared runners hit "toomanyrequests: Data limit exceeded"
+      # (2026-10-26). The start step switches the CLI to ghcr.io, pulled
+      # with the job token.
+      - name: Log in to ghcr.io
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
       - name: Start Supabase (db + auth only; applies every migration)
+        env:
+          SUPABASE_INTERNAL_IMAGE_REGISTRY: ghcr.io
         # kong and rest must run: supabase start's final health check calls
         # http://127.0.0.1:54321/rest-admin/v1/ready through kong, and fails
         # (after applying every migration) when either is excluded.
-        run: supabase start -x analytics,edge-runtime,functions,imgproxy,inbucket,meta,realtime,storage,studio,vector
+        # ghcr.io also rate-limits per minute; pulled images stay cached, so
+        # a retry after a short wait picks up where the last attempt stopped.
+        run: |
+          for attempt in 1 2 3; do
+            supabase start -x analytics,edge-runtime,functions,imgproxy,inbucket,meta,realtime,storage,studio,vector && exit 0
+            echo "supabase start failed (attempt $attempt); retrying in 60s"
+            supabase stop --no-backup || true
+            sleep 60
+          done
+          exit 1
 
       - name: pgTAP (supabase/tests/database)
         run: supabase test db supabase/tests/database

@@ -148,7 +148,7 @@ const LandingPage = () => {
         <div className="grid sm:grid-cols-3 gap-8">
           {steps.map((s) => (
             <div key={s.number} className="text-center">
-              <div className="text-5xl font-bold text-accent/20 mb-4">
+              <div className="text-5xl font-bold text-accent/20 light:text-accent/50 mb-4">
                 {s.number}
               </div>
               <h3 className="font-semibold text-heading text-lg mb-2">

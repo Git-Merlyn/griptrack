@@ -19,7 +19,7 @@ vi.mock("@/context/useTeam", () => ({
   default: () => ({ activeTeam: null, activeTeamId: null, canSwitchTeams: false }),
 }));
 vi.mock("@/hooks/useTheme", () => ({
-  default: () => ({ isDark: true, toggleTheme: vi.fn() }),
+  default: () => ({ isDark: true, mode: "system", setMode: vi.fn(), toggleTheme: vi.fn() }),
 }));
 vi.mock("@/lib/supabaseClient", () => ({ supabase: { functions: { invoke: vi.fn() }, auth: {} } }));
 vi.mock("./feedback/FeedbackModal", () => ({ default: () => null }));

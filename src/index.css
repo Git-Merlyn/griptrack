@@ -5,6 +5,10 @@
 @source "../index.html";
 @source "../src";
 
+/* `light:` utilities apply only in light mode, e.g. `text-blue-300 light:text-blue-800`
+   (TODO 9.19). Light mode = `.light` on <html>, set by useTheme / index.html. */
+@custom-variant light (&:where(.light, .light *));
+
 /*
  * Theme tokens (Tailwind v4). Each --color-* is a full colour; v4 builds
  * opacity modifiers with color-mix(), e.g. bg-accent/20 →
@@ -230,5 +234,14 @@ body {
   }
   :root.light .date-badge-overdue {
     @apply text-red-800;
+  }
+}
+
+/* Light mode (TODO 9.19): 39 form fields use bare `bg-white text-black`, which
+   vanished on white cards in light mode. Give them a visible slate border
+   in one place instead of touching every field. Dark mode is unchanged. */
+@layer base {
+  :root.light :is(input, select, textarea).bg-white {
+    border: 1px solid rgb(148 163 184);
   }
 }
