@@ -1,7 +1,10 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import {
+  assertHasText,
   classifyPdfError,
+  NO_TEXT_CODE,
+  NO_TEXT_MESSAGE,
   decodePdfBase64,
   MAX_BODY_CHARS,
   MAX_PDF_BYTES,
@@ -89,5 +92,29 @@ describe("classifyPdfError", () => {
     expect(r.error).not.toContain("internal detail");
     expect(classifyPdfError("weird").status).toBe(500);
     expect(classifyPdfError(null).status).toBe(500);
+  });
+});
+
+describe("assertHasText (WP26 Phase 1)", () => {
+  it("rejects a scan with no text as 422 pdf_no_text", () => {
+    let err: unknown;
+    try {
+      assertHasText("\n\n  \n");
+    } catch (e) {
+      err = e;
+    }
+    expect(classifyPdfError(err)).toEqual({ status: 422, error: NO_TEXT_MESSAGE, code: NO_TEXT_CODE });
+  });
+
+  it("treats a stray page number as no text", () => {
+    expect(() => assertHasText("1\n2\n")).toThrow(NO_TEXT_MESSAGE);
+  });
+
+  it("accepts a PDF with real text", () => {
+    expect(() => assertHasText("RENTAL ORDER\n2 Baby Stand\n4 Apple Box\n")).not.toThrow();
+  });
+
+  it("other request errors carry no code", () => {
+    expect(classifyPdfError(new PdfRequestError(413, "too big"))).toEqual({ status: 413, error: "too big" });
   });
 });

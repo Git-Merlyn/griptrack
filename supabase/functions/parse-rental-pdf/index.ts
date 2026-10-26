@@ -16,7 +16,8 @@
  *               402 org is on the Free plan: { error: "Plan limit: …", code: "plan_limit:pdf_import" }
  *               413 PDF over 10 MB
  *               415 not a PDF
- *               422 over 50 pages, password-protected, damaged, or too slow
+ *               422 over 50 pages, password-protected, damaged, or too slow;
+ *                   a scan with no text: { error, code: "pdf_no_text" }
  *               500 anything else (generic message; details only in logs)
  *               Every other error body is { error: string }.
  *
@@ -46,6 +47,7 @@ import { requireUser } from '../_shared/auth.ts';
 import { createClient } from '../_shared/deps.ts';
 import { corsHeaders, json } from '../_shared/http.ts';
 import {
+  assertHasText,
   classifyPdfError,
   decodePdfBase64,
   MAX_BODY_CHARS,
@@ -370,14 +372,16 @@ Deno.serve(async (req: Request) => {
     const bytes = decodePdfBase64(fileBase64);
 
     const fullText = await extractPdfText(bytes);
+    // 422 pdf_no_text for an image-only scan (WP26 Phase 1).
+    assertHasText(fullText);
     const lines = textToLines(fullText);
 
     const items = parseLinesIntoItems(lines, fullText);
 
     return json(items);
   } catch (err) {
-    const { status, error } = classifyPdfError(err);
+    const { status, error, code } = classifyPdfError(err);
     if (status >= 500) console.error('parse-rental-pdf error:', err);
-    return json({ error }, status);
+    return json(code ? { error, code } : { error }, status);
   }
 });
