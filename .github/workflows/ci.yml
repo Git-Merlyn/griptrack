@@ -101,13 +101,16 @@ jobs:
         with:
           version: 2.109.1
 
-      # supabase start pulls its images from ghcr.io. Anonymous pulls from
-      # shared runners hit "toomanyrequests: Data limit exceeded"
-      # (2026-10-26); authenticated pulls with the job token do not.
+      # supabase start pulls from public.ecr.aws by default, and anonymous
+      # pulls from shared runners hit "toomanyrequests: Data limit exceeded"
+      # (2026-10-26). The start step switches the CLI to ghcr.io, pulled
+      # with the job token.
       - name: Log in to ghcr.io
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Start Supabase (db + auth only; applies every migration)
+        env:
+          SUPABASE_INTERNAL_IMAGE_REGISTRY: ghcr.io
         # kong and rest must run: supabase start's final health check calls
         # http://127.0.0.1:54321/rest-admin/v1/ready through kong, and fails
         # (after applying every migration) when either is excluded.
