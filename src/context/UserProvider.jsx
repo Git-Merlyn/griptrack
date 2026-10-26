@@ -29,6 +29,9 @@ const UserProvider = ({ children }) => {
   // this bootstrap accepted an org invite (InviteAccept, L28).
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [inviteAccepted, setInviteAccepted] = useState(false);
+  // Signed up as crew ("I work on a team") and not in any org yet: App
+  // shows the waiting-for-an-invite page instead of org setup (WP25).
+  const [awaitingInvite, setAwaitingInvite] = useState(false);
   // Latest ensureOrg from the auth effect, so rebootstrap() can re-run it.
   const ensureOrgRef = useRef(null);
 
@@ -79,6 +82,7 @@ const UserProvider = ({ children }) => {
     setBootstrapError(null);
     setIsPlatformAdmin(false);
     setInviteAccepted(false);
+    setAwaitingInvite(false);
 
     // Never throws; clears the stored session itself if /logout is unreachable (L31).
     await signOutWithLocalFallback();
@@ -145,6 +149,7 @@ const UserProvider = ({ children }) => {
         setBootstrapError(null);
         setIsPlatformAdmin(false);
         setInviteAccepted(false);
+        setAwaitingInvite(false);
         return;
       }
 
@@ -182,6 +187,7 @@ const UserProvider = ({ children }) => {
         setFeatures({ teams_enabled: false, requests_enabled: false });
         setIsPlatformAdmin(false);
         setInviteAccepted(false);
+        setAwaitingInvite(false);
         // App shows BootstrapErrorScreen (Try again / Sign out) while this is
         // set, instead of rendering the app with orgId null (L3).
         setBootstrapError(bootError);
@@ -190,6 +196,8 @@ const UserProvider = ({ children }) => {
       }
 
       const nextOrgId = boot.org_id ?? null;
+      const awaiting = !nextOrgId && boot.signup_role === "crew";
+      setAwaitingInvite(awaiting);
       setIsPlatformAdmin(boot.is_platform_admin === true);
       setInviteAccepted(boot.invite_accepted === true);
       setOrgId(nextOrgId);
@@ -209,7 +217,7 @@ const UserProvider = ({ children }) => {
         });
       } else {
         setOrgName("");
-        setNeedsOrgSetup(true);
+        setNeedsOrgSetup(!awaiting);
       }
 
       setSubscription(boot.subscription ?? null);
@@ -374,6 +382,7 @@ const UserProvider = ({ children }) => {
       rebootstrap,
       isPlatformAdmin,
       inviteAccepted,
+      awaitingInvite,
       // Subscription
       subscription,
       plan,
@@ -416,6 +425,7 @@ const UserProvider = ({ children }) => {
       rebootstrap,
       isPlatformAdmin,
       inviteAccepted,
+      awaitingInvite,
       applyOrgName,
       applyProfile,
       devRoleOverride,

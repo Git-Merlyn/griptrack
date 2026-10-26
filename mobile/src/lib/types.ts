@@ -83,7 +83,8 @@ export type RootStackParamList = {
 };
 
 export type AuthStackParamList = {
-  SignIn: undefined;
+  SignIn: { email?: string; notice?: string } | undefined;
+  SignUp: undefined;
   ForgotPassword: undefined;
 };
 

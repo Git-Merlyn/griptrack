@@ -15,13 +15,24 @@ import { useAuthContext } from '../../context/AuthContext';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'SignIn'>;
 
-export default function SignInScreen({ navigation }: Props) {
+export default function SignInScreen({ navigation, route }: Props) {
   const { signIn } = useAuthContext();
 
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(route.params?.email ?? '');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Set by SignUpScreen when the account needs email confirmation first.
+  const notice = route.params?.notice ?? null;
+
+  // SignUpScreen navigates back here with the new email: fill it in. (The
+  // screen stays mounted under SignUp, so useState's initial value is stale.)
+  const paramEmail = route.params?.email;
+  const [lastParamEmail, setLastParamEmail] = useState(paramEmail);
+  if (paramEmail !== lastParamEmail) {
+    setLastParamEmail(paramEmail);
+    if (paramEmail) setEmail(paramEmail);
+  }
 
   async function handleSignIn() {
     if (!email.trim() || !password) {
@@ -61,6 +72,12 @@ export default function SignInScreen({ navigation }: Props) {
             <Text className="text-slate-100 text-xl font-semibold mb-6">
               Sign in
             </Text>
+
+            {notice && !error && (
+              <View className="bg-accent/10 border border-accent/30 rounded-lg px-4 py-3 mb-4">
+                <Text className="text-slate-100 text-sm">{notice}</Text>
+              </View>
+            )}
 
             {/* Error banner */}
             {error && (
@@ -129,6 +146,18 @@ export default function SignInScreen({ navigation }: Props) {
               activeOpacity={0.7}
             >
               <Text className="text-accent text-sm">Forgot password?</Text>
+            </TouchableOpacity>
+
+            {/* Crew sign-up (WP25) */}
+            <TouchableOpacity
+              className="mt-4 items-center"
+              onPress={() => navigation.navigate('SignUp')}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+            >
+              <Text className="text-text text-sm">
+                New to GripTrack? <Text className="text-accent">Create an account</Text>
+              </Text>
             </TouchableOpacity>
           </View>
         </View>

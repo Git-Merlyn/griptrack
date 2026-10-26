@@ -105,4 +105,26 @@ describe("UserProvider bootstrap", () => {
       ["bootstrap_session"],
     ]);
   });
+
+  it("WP25: a crew sign-up with no org is awaiting an invite, not sent to org setup", async () => {
+    h.rpc.mockResolvedValueOnce({
+      data: { ...BOOT, org_id: null, role: null, org: null, signup_role: "crew" },
+      error: null,
+    });
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("org=none err=no"));
+    expect(ctx.awaitingInvite).toBe(true);
+    expect(ctx.needsOrgSetup).toBe(false);
+  });
+
+  it("WP25: an owner (or older account) with no org still goes to org setup", async () => {
+    h.rpc.mockResolvedValueOnce({
+      data: { ...BOOT, org_id: null, role: null, org: null, signup_role: null },
+      error: null,
+    });
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("org=none err=no"));
+    expect(ctx.awaitingInvite).toBe(false);
+    expect(ctx.needsOrgSetup).toBe(true);
+  });
 });
