@@ -22,6 +22,7 @@ const Staff           = lazy(() => import("./pages/Staff"));
 const NotFound        = lazy(() => import("./pages/NotFound"));
 const CompleteProfile = lazy(() => import("./pages/CompleteProfile"));
 const OrgSetup        = lazy(() => import("./pages/OrgSetup"));
+const WaitingForInvite = lazy(() => import("./pages/WaitingForInvite"));
 const InviteAccept    = lazy(() => import("./pages/InviteAccept"));
 const PricingPage     = lazy(() => import("./pages/PricingPage"));
 const BillingPage     = lazy(() => import("./pages/BillingPage"));
@@ -69,6 +70,10 @@ const RedirectAfterAuth = () => {
 // must reach the reset form before anything else.
 const ONBOARDING_EXEMPT = new Set(["/invite-accept", "/reset-password"]);
 
+// Pages a crew sign-up still waiting for an invite may open (WP25); every
+// other authenticated path sends them to /waiting.
+const WAITING_ALLOWED = new Set(["/waiting", "/pricing", "/privacy", "/terms"]);
+
 const App = () => {
   const location = useLocation();
   // needsOrgSetup / needsProfileSetup update in place after OrgSetup /
@@ -78,6 +83,7 @@ const App = () => {
     loadingOrg,
     needsOrgSetup,
     needsProfileSetup,
+    awaitingInvite,
     features,
     bootstrapError,
     rebootstrap,
@@ -127,7 +133,12 @@ const App = () => {
         <>
           {/* Platform-admin tool; non-admins never mount it (L7) */}
           {isPlatformAdmin && <GhostBar />}
-          {needsOrgSetup &&
+          {awaitingInvite ? (
+            !WAITING_ALLOWED.has(location.pathname) &&
+            !ONBOARDING_EXEMPT.has(location.pathname) ? (
+              <Navigate to="/waiting" replace />
+            ) : null
+          ) : needsOrgSetup &&
           location.pathname !== "/org-setup" &&
           !ONBOARDING_EXEMPT.has(location.pathname) ? (
             <Navigate to="/org-setup" replace />
@@ -154,6 +165,7 @@ const App = () => {
 
               {/* Onboarding */}
               <Route path="/org-setup" element={<OrgSetup />} />
+              <Route path="/waiting" element={<WaitingForInvite />} />
               <Route path="/complete-profile" element={<CompleteProfile />} />
               <Route path="/invite-accept" element={<InviteAccept />} />
 

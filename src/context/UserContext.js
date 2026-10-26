@@ -19,6 +19,7 @@ const UserContext = createContext({
   rebootstrap: async () => {},
   isPlatformAdmin: false,   // from bootstrap_session; gates the GhostBar
   inviteAccepted: false,    // true when this bootstrap accepted an org invite
+  awaitingInvite: false,    // signed up as crew, no org yet: App shows /waiting (WP25)
 
   // Team (the user's assigned department team)
   teamId: null,        // from organization_members.team_id

@@ -42,6 +42,13 @@ export interface BootstrapPayload {
   ghost_write?: boolean;
   org: { name?: string | null; trial_ends_at?: string | null; features?: unknown } | null;
   profile: { id?: string; email?: string | null; full_name?: string | null } | null;
+  /** 'owner' | 'crew' | null (WP25). */
+  signup_role?: string | null;
+}
+
+/** Signed up as crew and in no org yet: waiting for an invite (WP25). */
+export function isAwaitingInvite(boot: BootstrapPayload | null | undefined): boolean {
+  return !!boot && !boot.org_id && boot.signup_role === 'crew';
 }
 
 type AuthUserLike = {

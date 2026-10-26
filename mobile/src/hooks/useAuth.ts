@@ -35,6 +35,7 @@ import {
   OrgFeatures,
   clearAuthCache,
   identityFromBootstrap,
+  isAwaitingInvite,
   readCachedIdentity,
   readStoredSession,
   removeStoredSession,
@@ -56,6 +57,11 @@ export interface UseAuthReturn {
   offline: boolean;
   /** Why a signed-in user has no profile (shown by OrgUnavailableScreen). */
   bootError: string | null;
+  /**
+   * Signed up as crew and not in any org yet (WP25): RootNavigator shows
+   * WaitingForInviteScreen. Re-checked on every foreground.
+   */
+  awaitingInvite: boolean;
   /** Re-check the session and re-run bootstrap_session now. */
   retryBootstrap: () => Promise<void>;
   /** Replace the org feature flags locally and in the cache (OrgContext). */
@@ -83,6 +89,7 @@ export function useAuth(): UseAuthReturn {
   const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(false);
   const [bootError, setBootError] = useState<string | null>(null);
+  const [awaitingInvite, setAwaitingInviteState] = useState(false);
 
   // Refs mirror state for the async callbacks below (no stale closures).
   const identityRef = useRef<Identity | null>(null);
@@ -96,6 +103,12 @@ export function useAuth(): UseAuthReturn {
   const inflightRef = useRef<{ userId: string; promise: Promise<void> } | null>(null);
   /** Set by a local-only sign-out (L31); cleared by the next sign-in. */
   const forcedSignOutRef = useRef(false);
+  const awaitingInviteRef = useRef(false);
+
+  const setAwaitingInvite = useCallback((value: boolean) => {
+    awaitingInviteRef.current = value;
+    setAwaitingInviteState(value);
+  }, []);
 
   const applyIdentity = useCallback((next: Identity | null) => {
     const prev = identityRef.current;
@@ -133,9 +146,10 @@ export function useAuth(): UseAuthReturn {
     applySession(null);
     applyOffline(false);
     setBootError(null);
+    setAwaitingInvite(false);
     clearAuthCache();
     setLoading(false);
-  }, [applyIdentity, applySession, applyOffline]);
+  }, [applyIdentity, applySession, applyOffline, setAwaitingInvite]);
 
   const bootstrap = useCallback(
     (user: User): Promise<void> => {
@@ -145,13 +159,16 @@ export function useAuth(): UseAuthReturn {
       const promise = (async () => {
         let next: Identity | null = null;
         let errorMessage: string | null = null;
+        let awaiting = false;
         try {
           const { data, error } = await supabase.rpc('bootstrap_session');
           if (error) {
             errorMessage = error.message || 'Could not load your organization.';
           } else {
-            next = identityFromBootstrap(data as BootstrapPayload | null, user);
-            if (!next) errorMessage = NO_ORG_MESSAGE;
+            const boot = data as BootstrapPayload | null;
+            next = identityFromBootstrap(boot, user);
+            awaiting = !next && isAwaitingInvite(boot);
+            if (!next && !awaiting) errorMessage = NO_ORG_MESSAGE;
           }
         } catch (e) {
           errorMessage = e instanceof Error ? e.message : String(e);
@@ -163,9 +180,19 @@ export function useAuth(): UseAuthReturn {
         if (next) {
           bootstrappedUserIdRef.current = user.id;
           lastBootAtRef.current = Date.now();
+          setAwaitingInvite(false);
           applyIdentity(next);
           writeCachedIdentity(next);
           setBootError(null);
+        } else if (awaiting) {
+          // A real answer, not a failure: no org yet. Drop any cached org
+          // (e.g. removed from it) so the waiting screen shows.
+          bootstrappedUserIdRef.current = user.id;
+          lastBootAtRef.current = Date.now();
+          applyIdentity(null);
+          clearAuthCache();
+          setBootError(null);
+          setAwaitingInvite(true);
         } else {
           console.warn('[useAuth] bootstrap_session failed:', errorMessage);
           // Keep what is on screen for this user. Otherwise use the cache.
@@ -189,7 +216,7 @@ export function useAuth(): UseAuthReturn {
       });
       return promise;
     },
-    [applyIdentity]
+    [applyIdentity, setAwaitingInvite]
   );
 
   const acceptSession = useCallback(
@@ -200,6 +227,7 @@ export function useAuth(): UseAuthReturn {
         applyIdentity(null);
         bootstrappedUserIdRef.current = null;
       }
+      if (userIdRef.current !== uid) setAwaitingInvite(false);
       userIdRef.current = uid;
       applySession(next);
       applyOffline(false);
@@ -209,7 +237,7 @@ export function useAuth(): UseAuthReturn {
       if (!identityRef.current) setLoading(true);
       void bootstrap(next.user);
     },
-    [applyIdentity, applySession, applyOffline, bootstrap]
+    [applyIdentity, applySession, applyOffline, bootstrap, setAwaitingInvite]
   );
 
   /** The stored session cannot be refreshed right now (H7). */
@@ -316,7 +344,8 @@ export function useAuth(): UseAuthReturn {
         const wasBootstrapped = bootstrappedUserIdRef.current === uid;
         acceptSession(data.session); // bootstraps if this user never did
         const stale = Date.now() - lastBootAtRef.current > FOREGROUND_REFRESH_MS;
-        if (wasBootstrapped && (force || stale)) {
+        // Waiting for an invite: check on every foreground (WP25).
+        if (wasBootstrapped && (force || stale || awaitingInviteRef.current)) {
           await bootstrap(data.session.user);
         } else if (inflightRef.current) {
           await inflightRef.current.promise;
@@ -409,6 +438,7 @@ export function useAuth(): UseAuthReturn {
     loading,
     offline,
     bootError,
+    awaitingInvite,
     retryBootstrap,
     setFeatures,
     signIn,

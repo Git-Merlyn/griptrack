@@ -28,7 +28,7 @@ jest.mock('@react-native-community/netinfo', () => ({
 }));
 
 import { renderHook, act, waitFor } from '@testing-library/react-native';
-import { Alert } from 'react-native';
+import { Alert, AppState } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { supabase } from '../lib/supabase';
 import {
@@ -346,6 +346,72 @@ describe('useAuth — no org (L59)', () => {
     });
     expect(result.current.profile?.org_id).toBe('org-1');
     expect(result.current.bootError).toBeNull();
+  });
+});
+
+describe('useAuth — waiting for an invite (WP25)', () => {
+  const crewNoOrg = () => ({
+    ...boot(),
+    org_id: null,
+    role: null,
+    team_id: null,
+    org: null,
+    signup_role: 'crew',
+  });
+
+  it('crew sign-up with no org -> awaitingInvite, not a boot error', async () => {
+    auth.getSession.mockResolvedValue({ data: { session: makeSession('u1') }, error: null });
+    rpc.mockResolvedValue({ data: crewNoOrg(), error: null });
+    const { result } = await renderHook(() => useAuth());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.awaitingInvite).toBe(true);
+    expect(result.current.profile).toBeNull();
+    expect(result.current.bootError).toBeNull();
+    expect(mockWriteCache).not.toHaveBeenCalled();
+    expect(mockClearCache).toHaveBeenCalled();
+  });
+
+  it('no org without the crew role is still an error', async () => {
+    auth.getSession.mockResolvedValue({ data: { session: makeSession('u1') }, error: null });
+    rpc.mockResolvedValue({ data: { ...crewNoOrg(), signup_role: null }, error: null });
+    const { result } = await renderHook(() => useAuth());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.awaitingInvite).toBe(false);
+    expect(result.current.bootError).toBeTruthy();
+  });
+
+  it('re-checks on every foreground and leaves the waiting state once invited', async () => {
+    auth.getSession.mockResolvedValue({ data: { session: makeSession('u1') }, error: null });
+    rpc.mockResolvedValue({ data: crewNoOrg(), error: null });
+    const { result } = await renderHook(() => useAuth());
+    await waitFor(() => expect(result.current.awaitingInvite).toBe(true));
+    expect(rpc).toHaveBeenCalledTimes(1);
+
+    // The react-native jest preset mocks AppState.addEventListener; take the
+    // latest 'change' listener the hook registered.
+    const calls = (AppState.addEventListener as unknown as jest.Mock).mock.calls.filter(
+      ([type]) => type === 'change'
+    );
+    const onAppState = calls[calls.length - 1][1] as (s: string) => void;
+
+    rpc.mockResolvedValue({ data: boot(), error: null });
+    await act(async () => {
+      onAppState('active');
+    });
+    await waitFor(() => expect(result.current.profile?.org_id).toBe('org-1'));
+    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(result.current.awaitingInvite).toBe(false);
+  });
+
+  it('sign-out clears the waiting state', async () => {
+    auth.getSession.mockResolvedValue({ data: { session: makeSession('u1') }, error: null });
+    rpc.mockResolvedValue({ data: crewNoOrg(), error: null });
+    const { result } = await renderHook(() => useAuth());
+    await waitFor(() => expect(result.current.awaitingInvite).toBe(true));
+    await act(async () => {
+      await result.current.signOut();
+    });
+    expect(result.current.awaitingInvite).toBe(false);
   });
 });
 

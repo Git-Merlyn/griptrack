@@ -25,6 +25,8 @@ vi.mock("./pages/Staff", () => ({ default: () => <div>staff-page</div> }));
 vi.mock("./pages/CompleteProfile", () => ({ default: () => <div>complete-profile-page</div> }));
 vi.mock("./pages/OrgSetup", () => ({ default: () => <div>org-setup-page</div> }));
 vi.mock("./pages/InviteAccept", () => ({ default: () => <div>invite-accept-page</div> }));
+vi.mock("./pages/WaitingForInvite", () => ({ default: () => <div>waiting-page</div> }));
+vi.mock("./pages/PricingPage", () => ({ default: () => <div>pricing-page</div> }));
 
 import App from "./App";
 
@@ -146,5 +148,29 @@ describe("L7 GhostBar gate", () => {
     mock.user = { ...signedIn, isPlatformAdmin: true };
     renderAt("/");
     expect(await screen.findByText("ghost-bar")).toBeInTheDocument();
+  });
+});
+
+describe("WP25 waiting for an invite", () => {
+  const waiting = () => ({ ...signedIn, awaitingInvite: true, needsProfileSetup: false });
+
+  it("sends a crew sign-up with no org to /waiting from any app page", async () => {
+    mock.user = waiting();
+    renderAt("/staff");
+    expect(await screen.findByText("waiting-page")).toBeInTheDocument();
+    expect(screen.getByTestId("where")).toHaveTextContent("/waiting");
+  });
+
+  it("never sends them to org setup, even if needsOrgSetup were set", async () => {
+    mock.user = { ...waiting(), needsOrgSetup: true };
+    renderAt("/");
+    expect(await screen.findByText("waiting-page")).toBeInTheDocument();
+  });
+
+  it("still lets them open the public pages", async () => {
+    mock.user = waiting();
+    renderAt("/pricing");
+    expect(await screen.findByText("pricing-page")).toBeInTheDocument();
+    expect(screen.getByTestId("where")).toHaveTextContent("/pricing");
   });
 });

@@ -2,9 +2,17 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
 
+// Sign-up role (WP25, TODO 9.17). Stored on the profile by handle_new_user():
+// "owner" gets an organization on first sign-in, "crew" waits for an invite.
+const SIGNUP_ROLES = [
+  { value: "owner", label: "I run a team", hint: "Set up your company and invite your crew." },
+  { value: "crew", label: "I work on a team", hint: "Join the team your company already set up." },
+];
+
 export default function Auth({ mode: entryMode = "normal" }) {
   const [authMode, setAuthMode] = useState("signin"); // signin | signup | forgot
   const [fullName, setFullName] = useState("");
+  const [signupRole, setSignupRole] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -44,6 +52,12 @@ export default function Auth({ mode: entryMode = "normal" }) {
       }
 
       if (authMode === "signup") {
+        // Invite links are always crew: if the invite was revoked meanwhile,
+        // they wait for a new one instead of getting a placeholder org.
+        const role = entryMode === "invite" ? "crew" : signupRole;
+        if (!role) {
+          throw new Error("Choose whether you run a team or work on one");
+        }
         const trimmedName = fullName.trim();
         if (!trimmedName) {
           throw new Error("Full name is required");
@@ -58,7 +72,7 @@ export default function Auth({ mode: entryMode = "normal" }) {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { full_name: trimmedName } },
+          options: { data: { full_name: trimmedName, signup_role: role } },
         });
         if (error) throw error;
 
@@ -117,6 +131,33 @@ export default function Auth({ mode: entryMode = "normal" }) {
         <p className="text-gray-300 mb-6">{subtext}</p>
 
         <form onSubmit={submit} className="flex flex-col gap-3">
+          {authMode === "signup" && !isInviteMode && (
+            <fieldset>
+              <legend className="text-sm text-gray-300 mb-1">How will you use GripTrack?</legend>
+              <div className="grid grid-cols-2 gap-2">
+                {SIGNUP_ROLES.map((r) => {
+                  const selected = signupRole === r.value;
+                  return (
+                    <button
+                      key={r.value}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => { setErr(""); setSuccess(""); setSignupRole(r.value); }}
+                      className={`flex flex-col items-start justify-start text-left rounded-lg border px-3 py-2.5 transition-colors ${
+                        selected
+                          ? "border-accent ring-2 ring-accent bg-accent/10 light:bg-accent/15"
+                          : "border-gray-700 hover:border-gray-500"
+                      }`}
+                    >
+                      <span className="block text-sm font-semibold text-heading">{r.label}</span>
+                      <span className="block text-xs text-gray-400 mt-0.5">{r.hint}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+          )}
+
           {authMode === "signup" && (
             <div>
               <label className="text-sm text-gray-300">Full name</label>
