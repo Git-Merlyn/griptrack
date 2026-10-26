@@ -9,6 +9,7 @@ import { EquipmentProvider } from "./context/EquipmentContext";
 import App from "./App";
 import ErrorBoundary from "./components/ErrorBoundary";
 import Toaster from "./components/Toaster";
+import AccountDeletedOverlay from "./components/dialogs/AccountDeletedOverlay";
 import { installGlobalToast } from "./lib/toast";
 import "./index.css";
 
@@ -112,5 +113,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     </BrowserRouter>
     {/* Outside the ErrorBoundary so toasts still render on the crash screen */}
     <Toaster />
+    {/* Covers the app while a deleted account signs out (no sign-in flash) */}
+    <AccountDeletedOverlay />
   </React.StrictMode>,
 );
