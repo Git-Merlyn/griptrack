@@ -5,18 +5,14 @@ import SettingsScreen from '../screens/settings/SettingsScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import ManageMembersScreen from '../screens/settings/ManageMembersScreen';
 import ManageLocationsScreen from '../screens/settings/ManageLocationsScreen';
+import { STACK_HEADER } from './stackHeader';
 
 const Stack = createNativeStackNavigator<SettingsStackParamList>();
 
-const HEADER = {
-  headerStyle: { backgroundColor: '#1a1d23' },
-  headerTintColor: '#4debf9',
-  headerTitleStyle: { color: '#f1f5f9', fontWeight: '600' as const },
-};
 
 export default function SettingsStack() {
   return (
-    <Stack.Navigator screenOptions={HEADER}>
+    <Stack.Navigator screenOptions={STACK_HEADER}>
       <Stack.Screen
         name="SettingsHome"
         component={SettingsScreen}
