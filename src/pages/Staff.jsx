@@ -22,7 +22,7 @@ const ASSIGNABLE_ROLES = SHARED_ASSIGNABLE_ROLES.map((value) => ({
 
 function roleBadgeClass(role) {
   switch (role) {
-    case "owner":           return "bg-accent/20 text-accent";
+    case "owner":           return "bg-accent/20 text-accent light:bg-cyan-100 light:text-cyan-800";
     case "admin":           return "bg-blue-500/20 text-blue-300 light:bg-blue-100 light:text-blue-800";
     case "department_head": return "bg-purple-500/20 text-purple-300 light:bg-purple-100 light:text-purple-800";
     case "crew":            return "bg-gray-600 text-gray-300 light:bg-slate-200 light:text-slate-700";

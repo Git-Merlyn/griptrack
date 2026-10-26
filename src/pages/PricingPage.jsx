@@ -170,21 +170,18 @@ const PricingPage = () => {
                     : "border-gray-800 bg-surface"
                 }`}
               >
-                {(p.badge || isCurrentPlan) && (
-                  // One centred row: the two pills used to be pinned separately
-                  // and overlapped on narrow cards (TODO 9.19).
-                  <div className="absolute -top-3 inset-x-4 flex flex-wrap justify-center gap-2">
-                    {p.badge && (
-                      <span className="bg-accent text-black text-xs font-bold px-3 py-1 rounded-full">
-                        {p.badge}
-                      </span>
-                    )}
-                    {isCurrentPlan && (
-                      <span className="bg-gray-700 text-gray-200 light:bg-slate-700 light:text-white text-xs font-semibold px-3 py-1 rounded-full">
-                        Current plan
-                      </span>
-                    )}
+                {p.badge && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap bg-accent text-black text-xs font-bold px-3 py-1 rounded-full">
+                    {p.badge}
                   </div>
+                )}
+
+                {/* In the card's flow, above the plan name: pinned to the top
+                    edge it collided with "Most popular" (TODO 9.19, Chris). */}
+                {isCurrentPlan && (
+                  <span className={`self-start mb-3 ${p.badge ? "mt-2" : ""} bg-gray-700 text-gray-200 light:bg-slate-700 light:text-white text-xs font-semibold px-3 py-1 rounded-full`}>
+                    Current plan
+                  </span>
                 )}
 
                 <div className="mb-6">
