@@ -6,18 +6,14 @@ import ItemDetailScreen from '../screens/inventory/ItemDetailScreen';
 import ItemFormScreen from '../screens/inventory/ItemFormScreen';
 import AuditLogScreen from '../screens/inventory/AuditLogScreen';
 import PDFReviewScreen from '../screens/inventory/PDFReviewScreen';
+import { STACK_HEADER } from './stackHeader';
 
 const Stack = createNativeStackNavigator<InventoryStackParamList>();
 
-const HEADER = {
-  headerStyle: { backgroundColor: '#1a1d23' },
-  headerTintColor: '#4debf9',
-  headerTitleStyle: { color: '#f1f5f9', fontWeight: '600' as const },
-};
 
 export default function InventoryStack() {
   return (
-    <Stack.Navigator screenOptions={HEADER}>
+    <Stack.Navigator screenOptions={STACK_HEADER}>
       <Stack.Screen
         name="InventoryList"
         component={InventoryListScreen}

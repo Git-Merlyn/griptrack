@@ -13,12 +13,15 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
-import { InventoryStackParamList, CORE_STATUSES } from '../../lib/types';
+import { InventoryStackParamList, CORE_STATUSES, canEditLocations } from '../../lib/types';
 import { useEquipmentMutations, ItemFields } from '../../hooks/useEquipmentMutations';
 import { useLocations } from '../../hooks/useLocations';
 import { useInventory } from '../../hooks/useInventory';
 import PickerModal, { stringOptions } from '../../components/PickerModal';
 import { isIsoDate } from '../../lib/validation';
+import { useAuthContext } from '../../context/AuthContext';
+import NewLocationModal from '../../components/NewLocationModal';
+import { NEW_LOCATION_KEY, locationPickerOptions } from '../../lib/locationOptions';
 
 type Props = NativeStackScreenProps<InventoryStackParamList, 'ItemForm'>;
 
@@ -103,6 +106,9 @@ export default function ItemFormScreen({ route, navigation }: Props) {
 
   const { addItem, updateItem } = useEquipmentMutations();
   const { locationNames } = useLocations();
+  const { profile } = useAuthContext();
+  // Owners, admins and dept heads may create locations; crew may not (D22).
+  const canAddLocation = profile?.role != null && canEditLocations(profile.role);
   const { equipment } = useInventory();
 
   // Derive status and category options from existing inventory (same as web app)
@@ -126,6 +132,7 @@ export default function ItemFormScreen({ route, navigation }: Props) {
 
   // Picker visibility
   const [locationPickerOpen, setLocationPickerOpen] = useState(false);
+  const [newLocationOpen, setNewLocationOpen] = useState(false);
   const [statusPickerOpen, setStatusPickerOpen] = useState(false);
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
 
@@ -319,11 +326,27 @@ export default function ItemFormScreen({ route, navigation }: Props) {
       <PickerModal
         visible={locationPickerOpen}
         title="Location"
-        options={stringOptions(locationNames)}
+        options={locationPickerOptions(locationNames, canAddLocation)}
         selectedKey={location}
-        onSelect={setLocation}
+        onSelect={(key) => {
+          if (key === NEW_LOCATION_KEY) {
+            // Let the picker's slide-out finish first: iOS will not present a
+            // second modal while the first is still dismissing.
+            setTimeout(() => setNewLocationOpen(true), Platform.OS === 'ios' ? 450 : 0);
+            return;
+          }
+          setLocation(key);
+        }}
         onClose={() => setLocationPickerOpen(false)}
         emptyText="No locations set up yet. Add one in Settings › Manage Locations."
+      />
+      <NewLocationModal
+        visible={newLocationOpen}
+        onClose={() => setNewLocationOpen(false)}
+        onCreated={(newName) => {
+          setLocation(newName);
+          setNewLocationOpen(false);
+        }}
       />
       <PickerModal
         visible={categoryPickerOpen}
