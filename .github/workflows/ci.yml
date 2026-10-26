@@ -114,7 +114,16 @@ jobs:
         # kong and rest must run: supabase start's final health check calls
         # http://127.0.0.1:54321/rest-admin/v1/ready through kong, and fails
         # (after applying every migration) when either is excluded.
-        run: supabase start -x analytics,edge-runtime,functions,imgproxy,inbucket,meta,realtime,storage,studio,vector
+        # ghcr.io also rate-limits per minute; pulled images stay cached, so
+        # a retry after a short wait picks up where the last attempt stopped.
+        run: |
+          for attempt in 1 2 3; do
+            supabase start -x analytics,edge-runtime,functions,imgproxy,inbucket,meta,realtime,storage,studio,vector && exit 0
+            echo "supabase start failed (attempt $attempt); retrying in 60s"
+            supabase stop --no-backup || true
+            sleep 60
+          done
+          exit 1
 
       - name: pgTAP (supabase/tests/database)
         run: supabase test db supabase/tests/database
