@@ -16,16 +16,33 @@ export const MAX_BODY_CHARS = Math.ceil(MAX_PDF_BYTES / 3) * 4 + 64 * 1024;
 /** A client-caused failure with the HTTP status to return. */
 export class PdfRequestError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  /** Machine-readable reason for the client (e.g. "pdf_no_text"). */
+  code?: string;
+  constructor(status: number, message: string, code?: string) {
     super(message);
     this.name = "PdfRequestError";
     this.status = status;
+    this.code = code;
   }
 }
 
 export const TOO_LARGE_MESSAGE = "This PDF is too large. The limit is 10 MB.";
 export const TOO_MANY_PAGES_MESSAGE = `This PDF has too many pages. The limit is ${MAX_PAGES}.`;
 export const TOO_SLOW_MESSAGE = "This PDF took too long to read. Try a smaller file.";
+
+// WP26 Phase 1: an image-only (scanned) PDF has no text layer. Same wording
+// and threshold as the web (src/lib/importRows.js).
+export const NO_TEXT_CODE = "pdf_no_text";
+export const NO_TEXT_MESSAGE =
+  "This PDF looks like a scan (images only), so there is no text to read. Ask the supplier for the original PDF, or add the items by hand.";
+export const MIN_PDF_TEXT_CHARS = 20;
+
+/** Throws PdfRequestError(422, pdf_no_text) when the extracted text is (almost) empty. */
+export function assertHasText(fullText: string): void {
+  if (fullText.replace(/\s+/g, "").length < MIN_PDF_TEXT_CHARS) {
+    throw new PdfRequestError(422, NO_TEXT_MESSAGE, NO_TEXT_CODE);
+  }
+}
 
 /** Parse the JSON body. Throws PdfRequestError(400/413). */
 export function parseRequestBody(text: string): { fileBase64: string; fileName: string } {
@@ -74,8 +91,12 @@ export function decodePdfBase64(fileBase64: string): Uint8Array {
  * recognised by `name` (the bundle's classes are not exported as values).
  * 5xx bodies never echo internal messages.
  */
-export function classifyPdfError(err: unknown): { status: number; error: string } {
-  if (err instanceof PdfRequestError) return { status: err.status, error: err.message };
+export function classifyPdfError(err: unknown): { status: number; error: string; code?: string } {
+  if (err instanceof PdfRequestError) {
+    return err.code
+      ? { status: err.status, error: err.message, code: err.code }
+      : { status: err.status, error: err.message };
+  }
   const name = (err as { name?: unknown } | null)?.name;
   if (name === "PasswordException") {
     return { status: 422, error: "This PDF is password-protected. Remove the password and try again." };

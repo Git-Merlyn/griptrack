@@ -4,6 +4,14 @@ import useDialog from "@/hooks/useDialog";
 import EquipmentContext from "../context/EquipmentContext";
 import useUser from "@/context/useUser";
 import { planAllows, PDF_IMPORT_PRO_MESSAGE } from "@/lib/plan";
+import {
+  SCANNED_PDF_MESSAGE,
+  isScannedPdf,
+  newImportRow,
+  rowProblems,
+  stripRowKeys,
+  withRowKeys,
+} from "@/lib/importRows";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorker from "pdfjs-dist/build/pdf.worker?url";
 
@@ -64,6 +72,12 @@ const ImportFileModal = ({
   ).sort();
 
   const [parsedData, setParsedData] = useState([]);
+  // Rows the last Submit refused (empty name, quantity under 1); cleared as
+  // soon as they are fixed.
+  const [showRowProblems, setShowRowProblems] = useState(false);
+  const problemRows = new Set(
+    showRowProblems ? rowProblems(parsedData).map((p) => p.index) : [],
+  );
   const [defaultLocation, setDefaultLocation] = useState("");
   const [defaultSource, setDefaultSource] = useState("");
   const [showSpinner, setShowSpinner] = useState(false);
@@ -235,7 +249,8 @@ const ImportFileModal = ({
       }
 
       if (items.length > 0) {
-        setParsedData(items);
+        setShowRowProblems(false);
+        setParsedData(withRowKeys(items));
         setPdfParsingStatus && setPdfParsingStatus("done");
       } else {
         setPdfParsingStatus && setPdfParsingStatus("error");
@@ -331,6 +346,15 @@ const ImportFileModal = ({
         const page = await pdf.getPage(i);
         const lineObjs = await pageToLines(page, i);
         allLineObjs = allLineObjs.concat(lineObjs);
+      }
+
+      // A scanned (image-only) PDF has no text layer: say so instead of
+      // "no items found" (WP26 Phase 1).
+      if (isScannedPdf(allLineObjs.map((l) => l.text))) {
+        setPdfParsingStatus && setPdfParsingStatus("error");
+        setErrorMessage(SCANNED_PDF_MESSAGE);
+        window.toast?.error?.(SCANNED_PDF_MESSAGE);
+        return;
       }
 
       // Ignore indented sub-items (even if they have codes) using robust baselines PER PAGE.
@@ -628,7 +652,8 @@ const ImportFileModal = ({
       }
 
       if (items.length > 0) {
-        setParsedData(items);
+        setShowRowProblems(false);
+        setParsedData(withRowKeys(items));
         setPdfParsingStatus && setPdfParsingStatus("done");
       } else {
         setPdfParsingStatus && setPdfParsingStatus("error");
@@ -665,6 +690,35 @@ const ImportFileModal = ({
       return;
     }
     return extractDataFromPDF(file);
+  };
+
+  // Editable preview (WP26 Phase 1): every parsed value can be corrected,
+  // junk rows deleted and missed rows added before anything is saved.
+  const updateRow = (index, patch) => {
+    setErrorMessage("");
+    setParsedData((prev) => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], ...patch };
+      return copy;
+    });
+  };
+
+  const deleteRow = (index) => {
+    setErrorMessage("");
+    setParsedData((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const addRow = () => {
+    setErrorMessage("");
+    setParsedData((prev) => [
+      ...prev,
+      newImportRow({
+        location: mode === "import" ? defaultLocation : "",
+        source: mode === "import" ? defaultSource : "",
+        startDate: prev[0]?.startDate ?? "",
+        endDate: prev[0]?.endDate ?? "",
+      }),
+    ]);
   };
 
   const handleLocationChange = (index, value) => {
@@ -741,7 +795,7 @@ const ImportFileModal = ({
     setPdfParsingStatus && setPdfParsingStatus("uploading");
     if (setImportInProgress) setImportInProgress(true);
     try {
-      await onUpload(parsedData);
+      await onUpload(stripRowKeys(parsedData));
 
       setParsedData([]);
       setDefaultLocation("");
@@ -759,6 +813,16 @@ const ImportFileModal = ({
     }
   };
   const handleSubmit = () => {
+    const problems = rowProblems(parsedData);
+    setShowRowProblems(problems.length > 0);
+    if (problems.length > 0) {
+      setErrorMessage(
+        problems.length === 1
+          ? `Row ${problems[0].index + 1}: ${problems[0].message}`
+          : `${problems.length} rows need fixing (highlighted below). Row ${problems[0].index + 1}: ${problems[0].message}`,
+      );
+      return;
+    }
     if (mode === "import") {
       const missing = parsedData.some(
         (r) => !r.location || r.location.trim() === "",
@@ -942,7 +1006,9 @@ const ImportFileModal = ({
               </div>
             )}
 
-            <div className="overflow-x-auto max-h-[60vh] overflow-y-auto">
+            {/* relative: contains the sr-only "Delete" header, which otherwise
+                positions against the dialog and widens its scroll area. */}
+            <div className="relative overflow-x-auto max-h-[60vh] overflow-y-auto">
               <table className="w-full text-left border">
                 <thead>
                   <tr className="bg-gray-200 text-gray-800">
@@ -954,14 +1020,35 @@ const ImportFileModal = ({
                     {mode === "import" && <th className="p-2">Start Date</th>}
                     {mode === "import" && <th className="p-2">End Date</th>}
                     {mode === "import" && <th className="p-2">Location</th>}
+                    <th className="p-2"><span className="sr-only">Delete</span></th>
                   </tr>
                 </thead>
 
                 <tbody>
-                  {parsedData.map((item, index) => (
-                    <tr key={`${item.id || item.name}-${index}`}>
-                      <td className="p-2">{item.name}</td>
-                      <td className="p-2">{item.category || "-"}</td>
+                  {parsedData.map((item, index) => {
+                    const bad = problemRows.has(index);
+                    return (
+                    <tr
+                      key={item._rowKey || `${item.id || item.name}-${index}`}
+                      className={bad ? "bg-danger/10" : undefined}
+                      data-testid={`import-row-${index}`}
+                    >
+                      <td className="p-2">
+                        <input
+                          className={`border px-2 py-1 w-full min-w-48 ${bad && !String(item.name || "").trim() ? "border-danger" : ""}`}
+                          aria-label={`Description, row ${index + 1}`}
+                          value={item.name || ""}
+                          onChange={(e) => updateRow(index, { name: e.target.value })}
+                        />
+                      </td>
+                      <td className="p-2">
+                        <input
+                          className="border px-2 py-1 w-full min-w-32"
+                          aria-label={`Category, row ${index + 1}`}
+                          value={item.category || ""}
+                          onChange={(e) => updateRow(index, { category: e.target.value })}
+                        />
+                      </td>
                       <td className="p-2">{item.status || "-"}</td>
 
                       {mode === "import" && (
@@ -991,7 +1078,21 @@ const ImportFileModal = ({
                         </td>
                       )}
 
-                      <td className="p-2">{item.quantity}</td>
+                      <td className="p-2">
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          min={1}
+                          step={1}
+                          className={`border px-2 py-1 w-20 ${bad && !(item.quantity >= 1) ? "border-danger" : ""}`}
+                          aria-label={`Quantity, row ${index + 1}`}
+                          value={item.quantity === "" || item.quantity == null ? "" : item.quantity}
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(/[^0-9]/g, "");
+                            updateRow(index, { quantity: raw === "" ? "" : parseInt(raw, 10) });
+                          }}
+                        />
+                      </td>
 
                       {mode === "import" && (
                         <td className="p-2">{item.startDate}</td>
@@ -1026,13 +1127,28 @@ const ImportFileModal = ({
                           </select>
                         </td>
                       )}
+                      <td className="p-2">
+                        <button
+                          type="button"
+                          onClick={() => deleteRow(index)}
+                          className="text-gray-500 hover:text-danger px-1"
+                          aria-label={`Delete row ${index + 1}`}
+                          title="Delete row"
+                        >
+                          ✕
+                        </button>
+                      </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
 
-            <div className="flex justify-end mt-4">
+            <div className="flex justify-between items-center mt-4">
+              <button type="button" onClick={addRow} className="btn-secondary-sm">
+                + Add row
+              </button>
               <button
                 type="button"
                 onClick={handleSubmit}

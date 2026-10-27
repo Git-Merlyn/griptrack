@@ -18,6 +18,8 @@ import { useEquipmentMutations } from '../../hooks/useEquipmentMutations';
 import { useSyncContext } from '../../context/SyncContext';
 import { UNASSIGNED_LOCATION } from '../../lib/importFile';
 import { sanitizeQtyInput } from '../../lib/validation';
+import { generateId } from '../../lib/db';
+import { newParsedItem, parsedItemProblems } from '../../lib/importRows';
 import IconButton from '../../components/IconButton';
 import { GapMd } from '../../components/ListSeparators';
 
@@ -37,6 +39,19 @@ export default function PDFReviewScreen({ navigation, route }: Props) {
 
   function deleteItem(id: string) {
     setItems((prev) => prev.filter((i) => i.id !== id));
+  }
+
+  // WP26 Phase 1: add a row the parser missed. It takes the assign-all
+  // location and the dates of the parsed rows.
+  function addItem() {
+    setItems((prev) => [
+      ...prev,
+      newParsedItem(generateId(), {
+        location: assignLocation.trim(),
+        start_date: prev[0]?.start_date ?? null,
+        end_date: prev[0]?.end_date ?? null,
+      }),
+    ]);
   }
 
   function applyLocationToAll() {
@@ -68,6 +83,16 @@ export default function PDFReviewScreen({ navigation, route }: Props) {
     }
     if (items.length === 0) {
       Alert.alert('No Items', 'There are no items to import.');
+      return;
+    }
+    const problems = parsedItemProblems(items);
+    if (problems.length > 0) {
+      const first = problems[0];
+      Alert.alert(
+        'Fix these rows first',
+        `Item ${first.index + 1}: ${first.message}` +
+          (problems.length > 1 ? ` (${problems.length} items need fixing.)` : '')
+      );
       return;
     }
 
@@ -141,6 +166,17 @@ export default function PDFReviewScreen({ navigation, route }: Props) {
             onDelete={() => deleteItem(item.id)}
           />
         )}
+        ListFooterComponent={
+          <TouchableOpacity
+            onPress={addItem}
+            className="mt-3 border border-dashed border-white/20 rounded-xl py-3 items-center"
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Add row"
+          >
+            <Text className="text-accent text-sm font-medium">+ Add row</Text>
+          </TouchableOpacity>
+        }
         ListEmptyComponent={
           <View className="items-center pt-20">
             <Ionicons name="document-outline" size={40} color="#374151" />
