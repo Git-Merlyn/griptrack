@@ -10,11 +10,11 @@ vi.mock("@/context/useUser");
 vi.mock("@/lib/supabaseClient", () => ({ supabase: {} }));
 // Keep pdf.js out of jsdom: getDocument rejects, so a permitted PDF ends in
 // the modal's own "error reading the PDF" message.
-vi.mock("pdfjs-dist", () => ({
+vi.mock("pdfjs-dist/legacy/build/pdf.mjs", () => ({
   GlobalWorkerOptions: {},
   getDocument: vi.fn(() => ({ promise: Promise.reject(new Error("no pdf in jsdom")) })),
 }));
-vi.mock("pdfjs-dist/build/pdf.worker?url", () => ({ default: "worker.js" }));
+vi.mock("pdfjs-dist/legacy/build/pdf.worker.mjs?url", () => ({ default: "worker.js" }));
 
 // Stable array: the modal's `allLocations = []` default is a fresh array each
 // render and re-runs its sync effect forever (WP15 fixes that default).

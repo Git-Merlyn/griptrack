@@ -2,7 +2,7 @@
  * parse-rental-pdf — Supabase Edge Function
  *
  * Accepts a base64-encoded PDF, extracts pdf.js text items via
- * pdfjs-serverless (no browser APIs required), then runs the parser shared
+ * unpdf (no browser APIs required), then runs the parser shared
  * with the web importer (../_shared/pdf/rows.js, WP26 Phase 2) to produce
  * structured rental line items.
  *
@@ -37,13 +37,13 @@
  *   { id, name, category, quantity, source, location, start_date, end_date }
  */
 
-// pdfjs-serverless is a single slim pdf.js build for Deno/workers. The old
-// npm:pdf-parse dependency vendored FOUR full pdf.js copies selected by a
-// dynamic require, so the deploy bundle ballooned to ~31MB and the platform
-// rejected it with 413.
-// Exact pin (audit L77). 1.3.1 bundles pdf.js 6.1.200, which has no
-// eval/new Function code path, so there is no isEvalSupported option to set.
-import { getDocument } from 'npm:pdfjs-serverless@1.3.1';
+// unpdf ships a single serverless pdf.js build for Deno/workers. (The old
+// npm:pdf-parse dependency vendored FOUR full pdf.js copies, so the deploy
+// bundle hit ~31MB and was rejected with 413.) Exact pin (audit L77): 1.9.1
+// bundles pdf.js 6.4.299, the same version the web importer uses
+// (pdfjs-dist 6.4.299), so both read a PDF's text identically (WP26).
+// It replaced pdfjs-serverless 1.3.1 (pdf.js 6.1.200) in 2026-10.
+import { getResolvedPDFJS } from 'npm:unpdf@1.9.1';
 import { requireUser } from '../_shared/auth.ts';
 import { linesFromPages, rowsFromLines } from '../_shared/pdf/rows.js';
 import { createClient } from '../_shared/deps.ts';
@@ -110,6 +110,7 @@ interface PdfRow {
 
 async function extractPdfPages(bytes: Uint8Array): Promise<unknown[][]> {
   const deadline = Date.now() + PARSE_DEADLINE_MS;
+  const { getDocument } = await getResolvedPDFJS();
   const loadingTask = getDocument({ data: bytes, useSystemFonts: true });
   try {
     const doc = await loadingTask.promise;

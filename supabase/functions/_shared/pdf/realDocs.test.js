@@ -2,12 +2,13 @@
 // Real-PDF check (WP26 Phase 2 / TODO 9.10 part A). Skipped unless
 // GRIPTRACK_TESTDOCS points at a folder of rental PDFs. Those are customer
 // documents: they stay on Chris's machine, nothing from them is committed,
-// and this test prints only file names and row counts.
+// and this test prints only file names, row counts and row numbers (never
+// row contents, including on failure).
 //
 //   GRIPTRACK_TESTDOCS=~/Documents/GripTrack-assets/TestDocs npx vitest run supabase/functions/_shared/pdf/realDocs.test.js
 //
 // Each PDF is parsed twice with the shared parser: with the web's pdf.js
-// (pdfjs-dist) and with the edge function's (pdfjs-serverless), and the test
+// (pdfjs-dist) and with the edge function's (unpdf), and the test
 // fails if the rows differ, because web and mobile would import different
 // things. Optional: an expected.json in that folder, { "<file name>": <row
 // count> }, also pins the count (e.g. 46 for the S4 list).
@@ -28,13 +29,21 @@ describe.skipIf(!dir)("real rental PDFs (local only)", () => {
   const expectedPath = dir ? path.join(dir, "expected.json") : "";
   const expected = dir && fs.existsSync(expectedPath) ? JSON.parse(fs.readFileSync(expectedPath, "utf8")) : {};
 
+  // Never pass rows to expect(): a failing toEqual prints the whole diff,
+  // which is customer text. Compare here and report only counts and indexes.
   it.each(files)("%s", (file) => {
     const full = path.join(dir, file);
     const web = parseWith("web", full);
     const edge = parseWith("edge", full);
-    console.log(`${file}: web ${web.length} rows, edge ${edge.length} rows${JSON.stringify(web) === JSON.stringify(edge) ? " (identical)" : " (DIFFERENT)"}`);
-    if (file in expected) expect(web.length).toBe(expected[file]);
-    else expect(web.length).toBeGreaterThan(0);
-    expect(edge).toEqual(web);
+    const same = (i) => JSON.stringify(web[i]) === JSON.stringify(edge[i]);
+    const differing = [];
+    for (let i = 0; i < Math.max(web.length, edge.length); i++) if (!same(i)) differing.push(i + 1);
+    console.log(
+      `${file}: web ${web.length} rows, edge ${edge.length} rows, ` +
+        (differing.length ? `${differing.length} rows differ (first: row ${differing[0]})` : "identical"),
+    );
+    if (file in expected) expect(web.length, "web row count").toBe(expected[file]);
+    else expect(web.length > 0, "web found rows").toBe(true);
+    expect(differing.length, `rows that differ between web and edge (first: row ${differing[0]})`).toBe(0);
   }, 60_000);
 });

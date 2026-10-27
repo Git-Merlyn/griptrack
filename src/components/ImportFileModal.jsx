@@ -12,9 +12,12 @@ import {
   stripRowKeys,
   withRowKeys,
 } from "@/lib/importRows";
-import * as pdfjsLib from "pdfjs-dist";
+// pdf.js 6.4.299, the same version the parse-rental-pdf function runs (via
+// unpdf), so web and mobile read a PDF's text identically (WP26). The legacy
+// build supports Safari 18+ / Chrome 125+; the default build needs newer.
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import { linesFromPages, rowsFromLines } from "@pdf/rows.js";
-import pdfWorker from "pdfjs-dist/build/pdf.worker?url";
+import pdfWorker from "pdfjs-dist/legacy/build/pdf.worker.mjs?url";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 

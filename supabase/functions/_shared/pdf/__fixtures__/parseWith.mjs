@@ -8,8 +8,8 @@ import { parseRentalPages } from "../rows.js";
 const [, , which, file] = process.argv;
 const lib =
   which === "edge"
-    ? await import("pdfjs-serverless") // the edge function's build (pdf.js 6.1)
-    : await import("pdfjs-dist/legacy/build/pdf.mjs"); // the web's build (Node needs legacy)
+    ? await (await import("unpdf")).getResolvedPDFJS() // the edge function's build
+    : await import("pdfjs-dist/legacy/build/pdf.mjs"); // the web's build
 const task = lib.getDocument({ data: new Uint8Array(fs.readFileSync(file)), useSystemFonts: true });
 const doc = await task.promise;
 const pages = [];
