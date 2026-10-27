@@ -13,7 +13,7 @@ import {
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
-import { InventoryStackParamList, ParsedPDFItem } from '../../lib/types';
+import { InventoryStackParamList, ParsedPDFItem, canManageInventory } from '../../lib/types';
 import { useEquipmentMutations } from '../../hooks/useEquipmentMutations';
 import { useSyncContext } from '../../context/SyncContext';
 import { UNASSIGNED_LOCATION } from '../../lib/importFile';
@@ -21,6 +21,7 @@ import { sanitizeQtyInput } from '../../lib/validation';
 import { generateId } from '../../lib/db';
 import { newParsedItem, parsedItemProblems } from '../../lib/importRows';
 import { supabase } from '../../lib/supabase';
+import { useAuthContext } from '../../context/AuthContext';
 import IconButton from '../../components/IconButton';
 import { GapMd } from '../../components/ListSeparators';
 
@@ -29,6 +30,17 @@ type Props = NativeStackScreenProps<InventoryStackParamList, 'PDFReview'>;
 export default function PDFReviewScreen({ navigation, route }: Props) {
   const [items, setItems] = useState<ParsedPDFItem[]>(route.params.parsedItems);
   const layout = route.params.layout ?? null;
+  const { pages, file } = route.params;
+  const { profile } = useAuthContext();
+  const canTeach = !!pages && !!file && profile?.role != null && canManageInventory(profile.role);
+
+  // "Teach it" returns here with the PDF re-read by the new layout: show
+  // those rows (render-time sync with the new params, not an effect).
+  const [shownItems, setShownItems] = useState(route.params.parsedItems);
+  if (shownItems !== route.params.parsedItems) {
+    setShownItems(route.params.parsedItems);
+    setItems(route.params.parsedItems);
+  }
   const [assignLocation, setAssignLocation] = useState('');
   const [committing, setCommitting] = useState(false);
 
@@ -159,6 +171,20 @@ export default function PDFReviewScreen({ navigation, route }: Props) {
         <Text className="text-slate-500 text-xs mt-2">
           {items.length} item{items.length !== 1 ? 's' : ''}
         </Text>
+        {canTeach && (
+          <TouchableOpacity
+            onPress={() =>
+              navigation.navigate('TeachLayout', { pages: pages!, file: file!, existing: layout })
+            }
+            className="mt-1.5 self-start"
+            activeOpacity={0.7}
+            accessibilityRole="button"
+          >
+            <Text className="text-accent text-xs">
+              {layout ? 'Wrong columns? Teach the layout again' : 'Rows look wrong? Teach this supplier\'s layout'}
+            </Text>
+          </TouchableOpacity>
+        )}
         {layout && (
           <Text
             testID="layout-note"

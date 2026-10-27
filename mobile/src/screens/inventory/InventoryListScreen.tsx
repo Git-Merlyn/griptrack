@@ -81,11 +81,32 @@ export default function InventoryListScreen({ navigation }: Props) {
       if (result.items.length === 0) {
         Alert.alert(
           'No Items Found',
-          "The PDF did not contain any recognizable line items. You can set up this supplier's layout once on the GripTrack website."
+          result.pages && result.file
+            ? "The PDF did not contain any recognizable line items. Show GripTrack this supplier's layout once and it will read their PDFs from then on."
+            : 'The PDF did not contain any recognizable line items.',
+          result.pages && result.file
+            ? [
+                { text: 'Not now', style: 'cancel' },
+                {
+                  text: 'Teach layout',
+                  onPress: () =>
+                    navigation.navigate('TeachLayout', {
+                      pages: result.pages!,
+                      file: result.file!,
+                      existing: result.layout,
+                    }),
+                },
+              ]
+            : undefined
         );
         return;
       }
-      navigation.navigate('PDFReview', { parsedItems: result.items, layout: result.layout });
+      navigation.navigate('PDFReview', {
+        parsedItems: result.items,
+        layout: result.layout,
+        pages: result.pages,
+        file: result.file,
+      });
     } catch (e: any) {
       Alert.alert('Parse Error', e.message ?? 'Failed to parse PDF');
     }

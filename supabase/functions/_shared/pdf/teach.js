@@ -1,7 +1,7 @@
 // "Teach it" for PDF imports (WP26 Phase 3, TODO 9.21): turns the choices
-// made in TeachLayoutDialog into a supplier template. Pure, so the dialog
-// and the tests share it. The template format and engine live in
-// supabase/functions/_shared/pdf/templates.js (shared with the server).
+// made in the web's TeachLayoutDialog or the app's TeachLayoutScreen into a
+// supplier template. Pure and shared, so web and mobile build identical
+// templates. The template format and engine are in ./templates.js.
 import {
   fingerprintFor,
   headingsFromLine,
@@ -9,7 +9,7 @@ import {
   LIMITS,
   markerKey,
   validateTemplate,
-} from "@pdf/templates.js";
+} from "./templates.js";
 
 export const lineText = (items) =>
   (items || [])
@@ -49,6 +49,7 @@ export function headingsFor(pages, headerIndex) {
  * @param {"column"|"heading"|"none"} choice.categoryFrom
  * @param {number} [choice.endIndex] page-1 line where the items end, -1 for none
  * @param {number[]} [choice.skipIndexes] page-1 lines whose kind should be skipped
+ * @returns {{ template?: import("./templates.js").PdfTemplate, errors?: string[] }}
  */
 export function buildTemplate(pages, choice) {
   const lines = pageOneLines(pages);
@@ -70,14 +71,16 @@ export function buildTemplate(pages, choice) {
     ...new Set((choice.skipIndexes || []).map((i) => marker(lineText(lines[i]))).filter(Boolean)),
   ].slice(0, LIMITS.markers);
 
-  const template = {
+  // Checked by validateTemplate below; the cast tells TypeScript readers
+  // (the app, Deno) that this is a PdfTemplate.
+  const template = /** @type {import("./templates.js").PdfTemplate} */ ({
     version: 1,
     fingerprint: fingerprintFor(lineText(header), lineText(lines[0])),
     table,
     columns,
     skip,
     category_from: choice.categoryFrom,
-  };
+  });
   const errors = validateTemplate(template);
   return errors.length ? { errors, template } : { template };
 }

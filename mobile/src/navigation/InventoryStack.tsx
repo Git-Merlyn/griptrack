@@ -6,6 +6,7 @@ import ItemDetailScreen from '../screens/inventory/ItemDetailScreen';
 import ItemFormScreen from '../screens/inventory/ItemFormScreen';
 import AuditLogScreen from '../screens/inventory/AuditLogScreen';
 import PDFReviewScreen from '../screens/inventory/PDFReviewScreen';
+import TeachLayoutScreen from '../screens/inventory/TeachLayoutScreen';
 import { STACK_HEADER } from './stackHeader';
 
 const Stack = createNativeStackNavigator<InventoryStackParamList>();
@@ -38,6 +39,11 @@ export default function InventoryStack() {
         name="PDFReview"
         component={PDFReviewScreen}
         options={{ title: 'Review Import' }}
+      />
+      <Stack.Screen
+        name="TeachLayout"
+        component={TeachLayoutScreen}
+        options={{ title: 'Teach Layout' }}
       />
     </Stack.Navigator>
   );

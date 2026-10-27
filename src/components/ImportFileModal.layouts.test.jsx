@@ -6,7 +6,7 @@ import EquipmentContext from "@/context/EquipmentContext";
 import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import { columnList } from "@pdf/__fixtures__/synthetic.js";
 import { itemLines } from "@pdf/templates.js";
-import { buildTemplate } from "@/lib/teachLayout";
+import { buildTemplate } from "@pdf/teach.js";
 import ImportFileModal from "./ImportFileModal";
 
 const h = vi.hoisted(() => ({ layouts: [], rpc: vi.fn() }));

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   assertHasText,
   classifyPdfError,
+  compactPages,
   NO_TEXT_CODE,
   NO_TEXT_MESSAGE,
   decodePdfBase64,
@@ -29,6 +30,7 @@ describe("parseRequestBody", () => {
       fileBase64: "QQ==",
       fileName: "a.pdf",
       version: 1,
+      withPages: false,
     });
   });
   it("asks for the { items, layout } response only with v: 2 (WP26)", () => {
@@ -124,5 +126,23 @@ describe("assertHasText (WP26 Phase 1)", () => {
 
   it("other request errors carry no code", () => {
     expect(classifyPdfError(new PdfRequestError(413, "too big"))).toEqual({ status: 413, error: "too big" });
+  });
+});
+
+describe("teach-it pages (WP26 Phase 3b)", () => {
+  it("are returned only with v: 2 and pages: true", () => {
+    expect(parseRequestBody('{"fileBase64":"QQ==","v":2,"pages":true}').withPages).toBe(true);
+    expect(parseRequestBody('{"fileBase64":"QQ==","pages":true}').withPages).toBe(false);
+    expect(parseRequestBody('{"fileBase64":"QQ==","v":2}').withPages).toBe(false);
+  });
+
+  it("keep the first 3 pages, drop empty items and round positions", () => {
+    const page = [
+      { str: "Qty", transform: [10, 0, 0, 10, 480.123, 700.987], width: 18.04 },
+      { str: "  ", transform: [1, 0, 0, 1, 1, 1], width: 1 },
+    ];
+    const out = compactPages([page, page, page, page]);
+    expect(out).toHaveLength(3);
+    expect(out[0]).toEqual([{ str: "Qty", transform: [1, 0, 0, 1, 480.1, 701], width: 18 }]);
   });
 });

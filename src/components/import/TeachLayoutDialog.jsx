@@ -15,7 +15,7 @@ import {
   headingsFor,
   lineText,
   pageOneLines,
-} from "@/lib/teachLayout";
+} from "@pdf/teach.js";
 
 const MAX_LINES_SHOWN = 80;
 const PREVIEW_ROWS = 10;

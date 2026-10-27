@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { ParsedPDFItem, PdfLayoutUse } from '../lib/types';
+import { ParsedPDFItem, PdfLayoutUse, PdfFileRef } from '../lib/types';
+import type { PdfPages } from '../lib/pdfLayouts';
 import { parseCSV } from '../lib/parseRentalFile';
 import { IMPORT_MIME_TYPES, classifyImportFile } from '../lib/importFile';
 import { invokeFn } from '../lib/invokeFn';
@@ -20,17 +21,60 @@ export interface PDFImportResult {
   items: ParsedPDFItem[];
   /** Saved supplier layout the server used; null for CSV or the general reader. */
   layout: PdfLayoutUse | null;
+  /** First pages' text items, for "teach it" (WP26 Phase 3b); null for CSV. */
+  pages: PdfPages | null;
+  /** The picked PDF, so "teach it" can read it again after saving; null for CSV. */
+  file: PdfFileRef | null;
+}
+
+function isLayoutUse(v: unknown): v is PdfLayoutUse {
+  const o = v as Record<string, unknown> | null;
+  return !!o && typeof o.id === 'string' && typeof o.name === 'string' && typeof o.drift === 'boolean';
+}
+
+function isPages(v: unknown): v is PdfPages {
+  return Array.isArray(v) && v.every((p) => Array.isArray(p));
+}
+
+/**
+ * Upload one PDF to parse-rental-pdf and return its rows, the saved layout
+ * used (if any) and the first pages' text items. Also used by "teach it" to
+ * re-read the same file once a layout is saved.
+ */
+export async function parsePdfFile(file: PdfFileRef): Promise<PDFImportResult> {
+  // Hermes (React Native's JS engine) doesn't support import.meta, so
+  // client-side PDF parsing libraries like pdfjs-dist can't run on device.
+  if (typeof file.size === 'number' && file.size > MAX_PDF_UPLOAD_BYTES) {
+    throw new Error(PDF_TOO_LARGE_MESSAGE);
+  }
+  const base64 = await FileSystem.readAsStringAsync(file.uri, { encoding: 'base64' });
+
+  // invokeFn surfaces the function's own error text (e.g. "Unauthorized",
+  // "fileBase64 is required") instead of the generic non-2xx message.
+  // v: 2 asks for { items, layout } (WP26 Phase 3) and pages: true for the
+  // teach-it pages (3b). A function that predates them answers with a bare
+  // array or without pages, so accept all three.
+  const data = await invokeFn<unknown>('parse-rental-pdf', {
+    body: { fileBase64: base64, fileName: file.name, v: 2, pages: true },
+  });
+
+  if (Array.isArray(data)) return { items: data as ParsedPDFItem[], layout: null, pages: null, file };
+  if (data && typeof data === 'object' && Array.isArray((data as { items?: unknown }).items)) {
+    const d = data as { items: ParsedPDFItem[]; layout?: unknown; pages?: unknown };
+    return {
+      items: d.items,
+      layout: isLayoutUse(d.layout) ? d.layout : null,
+      pages: isPages(d.pages) ? d.pages : null,
+      file,
+    };
+  }
+  throw new Error('Unexpected response from parse-rental-pdf');
 }
 
 interface UsePDFImportReturn {
   status: PDFImportStatus;
   error: string | null;
   pickAndParse: () => Promise<PDFImportResult | null>;
-}
-
-function isLayoutUse(v: unknown): v is PdfLayoutUse {
-  const o = v as Record<string, unknown> | null;
-  return !!o && typeof o.id === 'string' && typeof o.name === 'string' && typeof o.drift === 'boolean';
 }
 
 export function usePDFImport(): UsePDFImportReturn {
@@ -59,44 +103,16 @@ export function usePDFImport(): UsePDFImportReturn {
       }
       const isCsv = kind === 'csv';
 
-      let items: ParsedPDFItem[];
-      let layout: PdfLayoutUse | null = null;
-
+      let result: PDFImportResult;
       if (isCsv) {
         const text = await FileSystem.readAsStringAsync(asset.uri);
-        items = parseCSV(text);
+        result = { items: parseCSV(text), layout: null, pages: null, file: null };
       } else {
-        // Send the PDF to the Edge Function for server-side parsing.
-        // Hermes (React Native's JS engine) doesn't support import.meta, so
-        // client-side PDF parsing libraries like pdfjs-dist can't run on device.
-        if (typeof asset.size === 'number' && asset.size > MAX_PDF_UPLOAD_BYTES) {
-          throw new Error(PDF_TOO_LARGE_MESSAGE);
-        }
-        const base64 = await FileSystem.readAsStringAsync(asset.uri, {
-          encoding: 'base64',
-        });
-
-        // invokeFn surfaces the function's own error text (e.g. "Unauthorized",
-        // "fileBase64 is required") instead of the generic non-2xx message.
-        // v: 2 asks for { items, layout } (WP26 Phase 3). A function that
-        // predates it still answers with a bare array, so accept both.
-        const data = await invokeFn<unknown>('parse-rental-pdf', {
-          body: { fileBase64: base64, fileName: asset.name, v: 2 },
-        });
-
-        if (Array.isArray(data)) {
-          items = data as ParsedPDFItem[];
-        } else if (data && typeof data === 'object' && Array.isArray((data as { items?: unknown }).items)) {
-          items = (data as { items: ParsedPDFItem[] }).items;
-          const l = (data as { layout?: unknown }).layout;
-          layout = isLayoutUse(l) ? l : null;
-        } else {
-          throw new Error('Unexpected response from parse-rental-pdf');
-        }
+        result = await parsePdfFile({ uri: asset.uri, name: asset.name, size: asset.size ?? null });
       }
 
       setStatus('done');
-      return { items, layout };
+      return result;
     } catch (e: any) {
       const msg = e.message ?? 'Failed to parse file';
       setStatus('error');

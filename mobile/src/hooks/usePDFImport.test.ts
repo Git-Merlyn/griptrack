@@ -55,12 +55,12 @@ describe('usePDFImport size limit (audit L73)', () => {
     pick.mockResolvedValue(pdfAsset(MAX_PDF_UPLOAD_BYTES));
     const { result } = await renderHook(() => usePDFImport());
     await act(async () => {
-      await expect(result.current.pickAndParse()).resolves.toEqual({ items: [], layout: null });
+      await expect(result.current.pickAndParse()).resolves.toEqual({ items: [], layout: null, pages: null, file: expect.objectContaining({ name: 'list.pdf' }) });
     });
     expect(read).toHaveBeenCalledTimes(1);
     expect(invoke).toHaveBeenCalledWith(
       'parse-rental-pdf',
-      expect.objectContaining({ body: { fileBase64: 'JVBERi0=', fileName: 'list.pdf', v: 2 } }),
+      expect.objectContaining({ body: { fileBase64: 'JVBERi0=', fileName: 'list.pdf', v: 2, pages: true } }),
     );
   });
 
@@ -68,7 +68,7 @@ describe('usePDFImport size limit (audit L73)', () => {
     pick.mockResolvedValue(pdfAsset(undefined));
     const { result } = await renderHook(() => usePDFImport());
     await act(async () => {
-      await expect(result.current.pickAndParse()).resolves.toEqual({ items: [], layout: null });
+      await expect(result.current.pickAndParse()).resolves.toEqual({ items: [], layout: null, pages: null, file: expect.objectContaining({ name: 'list.pdf' }) });
     });
     expect(invoke).toHaveBeenCalledTimes(1);
   });
@@ -83,7 +83,7 @@ describe('usePDFImport saved layouts (WP26 Phase 3)', () => {
     invoke.mockResolvedValue({ data: { items: [item], layout }, error: null, response: { status: 200 } });
     const { result } = await renderHook(() => usePDFImport());
     await act(async () => {
-      await expect(result.current.pickAndParse()).resolves.toEqual({ items: [item], layout });
+      await expect(result.current.pickAndParse()).resolves.toMatchObject({ items: [item], layout, pages: null });
     });
   });
 
@@ -92,7 +92,22 @@ describe('usePDFImport saved layouts (WP26 Phase 3)', () => {
     invoke.mockResolvedValue({ data: [item], error: null, response: { status: 200 } });
     const { result } = await renderHook(() => usePDFImport());
     await act(async () => {
-      await expect(result.current.pickAndParse()).resolves.toEqual({ items: [item], layout: null });
+      await expect(result.current.pickAndParse()).resolves.toMatchObject({ items: [item], layout: null });
+    });
+  });
+
+  it('returns the teach-it pages and the file to read again', async () => {
+    pick.mockResolvedValue(pdfAsset(1000));
+    const pages = [[{ str: 'Qty', transform: [1, 0, 0, 1, 480, 700], width: 18 }]];
+    invoke.mockResolvedValue({ data: { items: [item], layout: null, pages }, error: null, response: { status: 200 } });
+    const { result } = await renderHook(() => usePDFImport());
+    await act(async () => {
+      await expect(result.current.pickAndParse()).resolves.toEqual({
+        items: [item],
+        layout: null,
+        pages,
+        file: { uri: 'file:///tmp/list.pdf', name: 'list.pdf', size: 1000 },
+      });
     });
   });
 
@@ -101,7 +116,7 @@ describe('usePDFImport saved layouts (WP26 Phase 3)', () => {
     invoke.mockResolvedValue({ data: { items: [item], layout: { id: 1 } }, error: null, response: { status: 200 } });
     const { result } = await renderHook(() => usePDFImport());
     await act(async () => {
-      await expect(result.current.pickAndParse()).resolves.toEqual({ items: [item], layout: null });
+      await expect(result.current.pickAndParse()).resolves.toMatchObject({ items: [item], layout: null });
     });
   });
 });
