@@ -108,7 +108,13 @@ interface PdfRow {
 // this function rebuilt pdf-parse's plain text and ran its own copy of the
 // regexes, which had drifted from the web.
 
-async function extractPdfPages(bytes: Uint8Array): Promise<unknown[][]> {
+/** What the shared parser reads from each pdf.js text item. */
+interface PdfTextItem {
+  str?: string;
+  transform?: number[];
+}
+
+async function extractPdfPages(bytes: Uint8Array): Promise<PdfTextItem[][]> {
   const deadline = Date.now() + PARSE_DEADLINE_MS;
   const { getDocument } = await getResolvedPDFJS();
   const loadingTask = getDocument({ data: bytes, useSystemFonts: true });
@@ -118,12 +124,12 @@ async function extractPdfPages(bytes: Uint8Array): Promise<unknown[][]> {
       throw new PdfRequestError(422, TOO_MANY_PAGES_MESSAGE);
     }
 
-    const pages: unknown[][] = [];
+    const pages: PdfTextItem[][] = [];
     for (let i = 1; i <= doc.numPages; i++) {
       if (Date.now() > deadline) throw new PdfRequestError(422, TOO_SLOW_MESSAGE);
       const page = await doc.getPage(i);
       const content = await page.getTextContent();
-      pages.push(content.items as unknown[]);
+      pages.push(content.items as PdfTextItem[]);
       page.cleanup();
     }
 
