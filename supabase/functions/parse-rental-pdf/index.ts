@@ -11,9 +11,11 @@
  * PDF gives the same rows on both (up to pdf.js version differences in how
  * text items are split; see WP26).
  *
- * Request body: { fileBase64: string, fileName: string, v?: 2 }
+ * Request body: { fileBase64: string, fileName: string, v?: 2, pages?: true }
  * Response:     200 ParsedPDFItem[]  (v absent: what shipped apps expect)
  *               200 { items: ParsedPDFItem[], layout: { id, name, drift } | null }  (v: 2)
+ *                   plus pages: the first 3 pages' text items, with v: 2 and pages: true
+ *                   (the app's "teach it" screen)
  *               400 bad JSON, missing or invalid fileBase64
  *               401 not signed in
  *               402 org is on the Free plan: { error: "Plan limit: …", code: "plan_limit:pdf_import" }
@@ -53,6 +55,7 @@ import { corsHeaders, json } from '../_shared/http.ts';
 import {
   assertHasText,
   classifyPdfError,
+  compactPages,
   decodePdfBase64,
   MAX_BODY_CHARS,
   MAX_PAGES,
@@ -233,7 +236,7 @@ Deno.serve(async (req: Request) => {
 
     // 400 bad JSON / missing fileBase64, 413 too large, 415 not a PDF.
     // fileName is accepted for future use but not used in parsing.
-    const { fileBase64, version } = parseRequestBody(await req.text());
+    const { fileBase64, version, withPages } = parseRequestBody(await req.text());
     const bytes = decodePdfBase64(fileBase64);
 
     const pages = await extractPdfPages(bytes);
@@ -254,7 +257,8 @@ Deno.serve(async (req: Request) => {
     }
 
     const items = rows.map(toParsedPDFItem);
-    return json(version === 2 ? { items, layout } : items);
+    if (version !== 2) return json(items);
+    return json(withPages ? { items, layout, pages: compactPages(pages) } : { items, layout });
   } catch (err) {
     const { status, error, code } = classifyPdfError(err);
     if (status >= 500) console.error('parse-rental-pdf error:', err);

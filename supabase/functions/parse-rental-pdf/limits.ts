@@ -47,7 +47,7 @@ export function assertHasText(fullText: string): void {
 /** Parse the JSON body. Throws PdfRequestError(400/413). */
 export function parseRequestBody(
   text: string,
-): { fileBase64: string; fileName: string; version: number } {
+): { fileBase64: string; fileName: string; version: number; withPages: boolean } {
   if (text.length > MAX_BODY_CHARS) throw new PdfRequestError(413, TOO_LARGE_MESSAGE);
   let body: unknown;
   try {
@@ -58,7 +58,7 @@ export function parseRequestBody(
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     throw new PdfRequestError(400, "Request body must be a JSON object.");
   }
-  const { fileBase64, fileName, v } = body as Record<string, unknown>;
+  const { fileBase64, fileName, v, pages } = body as Record<string, unknown>;
   if (typeof fileBase64 !== "string" || !fileBase64) {
     throw new PdfRequestError(400, "fileBase64 is required");
   }
@@ -68,6 +68,9 @@ export function parseRequestBody(
     // Response version: 1 (default) = bare item array, which shipped apps
     // expect; 2 = { items, layout } (WP26 Phase 3).
     version: v === 2 ? 2 : 1,
+    // v: 2 only: also return the first pages' text items, for "teach it" in
+    // the app (WP26 Phase 3b).
+    withPages: v === 2 && pages === true,
   };
 }
 
@@ -99,6 +102,24 @@ export function decodePdfBase64(fileBase64: string): Uint8Array {
  * recognised by `name` (the bundle's classes are not exported as values).
  * 5xx bodies never echo internal messages.
  */
+/** Pages returned for "teach it": enough to see the layout, small to send. */
+export const TEACH_PAGES = 3;
+
+/**
+ * The first pages' text items, rounded and stripped to what the shared
+ * template code reads ({ str, transform: [1,0,0,1,x,y], width }).
+ */
+export function compactPages(
+  pages: { str?: string; transform?: number[]; width?: number }[][],
+): { str: string; transform: number[]; width: number }[][] {
+  const r = (n: unknown) => (typeof n === "number" && Number.isFinite(n) ? Math.round(n * 10) / 10 : 0);
+  return pages.slice(0, TEACH_PAGES).map((items) =>
+    items
+      .filter((it) => typeof it.str === "string" && it.str.trim() !== "")
+      .map((it) => ({ str: it.str as string, transform: [1, 0, 0, 1, r(it.transform?.[4]), r(it.transform?.[5])], width: r(it.width) }))
+  );
+}
+
 export function classifyPdfError(err: unknown): { status: number; error: string; code?: string } {
   if (err instanceof PdfRequestError) {
     return err.code

@@ -122,10 +122,28 @@ export interface PdfLayoutUse {
   drift: boolean;
 }
 
+/** A picked PDF that can be read again (WP26 Phase 3b "teach it"). */
+export interface PdfFileRef {
+  uri: string;
+  name: string;
+  size: number | null;
+}
+
 export type InventoryStackParamList = {
   InventoryList: undefined;
   ItemDetail: { item: EquipmentItem };
   ItemForm: { mode: 'add' } | { mode: 'edit'; item: EquipmentItem };
   AuditLog: { item: EquipmentItem };
-  PDFReview: { parsedItems: ParsedPDFItem[]; layout?: PdfLayoutUse | null };
+  PDFReview: {
+    parsedItems: ParsedPDFItem[];
+    layout?: PdfLayoutUse | null;
+    /** First pages' text items and the file, for "teach it" (WP26 Phase 3b). */
+    pages?: { str: string; transform: number[]; width: number }[][] | null;
+    file?: PdfFileRef | null;
+  };
+  TeachLayout: {
+    pages: { str: string; transform: number[]; width: number }[][];
+    file: PdfFileRef;
+    existing: PdfLayoutUse | null;
+  };
 };

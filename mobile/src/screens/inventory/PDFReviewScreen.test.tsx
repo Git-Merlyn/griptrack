@@ -13,6 +13,9 @@ jest.mock('../../hooks/useEquipmentMutations', () => ({
   useEquipmentMutations: () => ({ addMultipleItems: mockAddMultiple }),
 }));
 jest.mock('../../context/SyncContext', () => ({ useSyncContext: () => ({ isOnline: true }) }));
+jest.mock('../../context/AuthContext', () => ({
+  useAuthContext: () => ({ profile: { org_id: 'org-1', role: 'admin' } }),
+}));
 jest.mock('../../lib/db', () => ({ generateId: () => `new-${++mockId}` }));
 const mockRpc = jest.fn((..._args: unknown[]) => Promise.resolve({ data: null, error: null }));
 jest.mock('../../lib/supabase', () => ({ supabase: { rpc: (...a: unknown[]) => mockRpc(...a) } }));
@@ -107,5 +110,27 @@ describe('PDFReviewScreen saved layout (WP26 Phase 3)', () => {
   it('says nothing for the general reader', async () => {
     await renderScreen(null);
     expect(screen.queryByTestId('layout-note')).toBeNull();
+  });
+});
+
+describe('PDFReviewScreen teach entry (WP26 Phase 3b)', () => {
+  const pages = [[{ str: 'Qty', transform: [1, 0, 0, 1, 480, 700], width: 18 }]];
+  const file = { uri: 'file:///x.pdf', name: 'x.pdf', size: 1 };
+
+  it('offers to teach the layout when the server sent the pages', async () => {
+    navigation.navigate.mockReset();
+    await render(
+      <PDFReviewScreen
+        navigation={navigation as never}
+        route={{ key: 'k', name: 'PDFReview', params: { parsedItems: parsed, layout: null, pages, file } } as never}
+      />
+    );
+    await fireEvent.press(screen.getByText("Rows look wrong? Teach this supplier's layout"));
+    expect(navigation.navigate).toHaveBeenCalledWith('TeachLayout', { pages, file, existing: null });
+  });
+
+  it('shows no teach entry without pages (CSV, or an older function)', async () => {
+    await renderScreen(null);
+    expect(screen.queryByText(/Teach/)).toBeNull();
   });
 });

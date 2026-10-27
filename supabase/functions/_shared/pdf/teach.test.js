@@ -1,7 +1,8 @@
+// @vitest-environment node
 import { describe, it, expect } from "vitest";
-import { applyTemplate } from "@pdf/templates.js";
-import { columnList } from "@pdf/__fixtures__/synthetic.js";
-import { buildTemplate, defaultLayoutName, headingsFor, lineText, pageOneLines } from "./teachLayout";
+import { applyTemplate } from "./templates.js";
+import { columnList } from "./__fixtures__/synthetic.js";
+import { buildTemplate, defaultLayoutName, headingsFor, lineText, pageOneLines } from "./teach.js";
 
 // Page 1 lines: 0 supplier, 1 dates, 2 headings, 3 "Grip", ..., 8 "Subtotal 24".
 const lines = pageOneLines(columnList);
