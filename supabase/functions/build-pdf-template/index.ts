@@ -14,9 +14,13 @@
  *               401 not signed in
  *               402 Free plan: { error, code: "plan_limit:pdf_layout" } (neutral text: shown in the apps)
  *               403 role cannot import
+ *               428 the account hasn't agreed yet: { error, code: "consent_required" }
+ *                   (profiles.layout_setup_consent_at, set by record_layout_setup_consent)
  *               422 no usable suggestion: { error, code: "no_suggestion" }
  *               429 daily limit (5 per organization): { error, code: "daily_limit" }
  *               503 not configured (no ANTHROPIC_API_KEY)
+ * Secrets: ANTHROPIC_API_KEY; ANTHROPIC_WORKSPACE_ID only when the key is
+ *          not scoped to a workspace (sent as anthropic-workspace-id).
  *               500 anything else (generic message)
  *
  * Privacy: page text goes to Anthropic only from here, and is never logged
@@ -65,6 +69,20 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Only owners, admins and department heads can set up layouts.' }, 403);
     }
 
+    // The account must have agreed (once) that page text goes to Anthropic.
+    const { data: profile, error: profileErr } = await admin
+      .from('profiles')
+      .select('layout_setup_consent_at')
+      .eq('id', user.id)
+      .maybeSingle();
+    if (profileErr) throw profileErr;
+    if (!(profile as { layout_setup_consent_at?: string | null } | null)?.layout_setup_consent_at) {
+      return json(
+        { error: 'Confirm that GripTrack may send this text to Anthropic first.', code: 'consent_required' },
+        428,
+      );
+    }
+
     const pages = parsePagesBody(await req.text());
 
     const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
@@ -88,7 +106,15 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const result = await suggestLayout(new Anthropic({ apiKey }), pages);
+    // A key that isn't scoped to a workspace must name one per request
+    // (Anthropic answers 400 otherwise). ANTHROPIC_WORKSPACE_ID is optional:
+    // a workspace-scoped key needs nothing.
+    const workspaceId = Deno.env.get('ANTHROPIC_WORKSPACE_ID');
+    const client = new Anthropic({
+      apiKey,
+      ...(workspaceId ? { defaultHeaders: { 'anthropic-workspace-id': workspaceId } } : {}),
+    });
+    const result = await suggestLayout(client, pages);
     return json(result);
   } catch (err) {
     if (err instanceof BuildError) {
