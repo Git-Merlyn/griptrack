@@ -3,8 +3,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { columnList } from "@pdf/__fixtures__/synthetic.js";
 
-const h = vi.hoisted(() => ({ insert: vi.fn(), update: vi.fn(), result: null, plan: "free", invoke: vi.fn() }));
-vi.mock("@/context/useUser", () => ({ default: () => ({ orgId: "org-1", effectivePlan: h.plan }) }));
+const h = vi.hoisted(() => ({
+  insert: vi.fn(),
+  update: vi.fn(),
+  result: null,
+  plan: "free",
+  invoke: vi.fn(),
+  rpc: vi.fn(),
+  consentAt: null,
+}));
+vi.mock("@/context/useUser", () => ({
+  default: () => ({ orgId: "org-1", effectivePlan: h.plan, authUser: { id: "u1" } }),
+}));
 vi.mock("@/lib/invokeFn", () => ({ invokeFn: (...a) => h.invoke(...a) }));
 vi.mock("@/lib/supabaseClient", () => {
   const chain = () => {
@@ -19,7 +29,12 @@ vi.mock("@/lib/supabaseClient", () => {
       from: () => ({
         insert: (row) => (h.insert(row), chain()),
         update: (row) => (h.update(row), chain()),
+        // profiles: has this account agreed to "Set up this layout for me"?
+        select: () => ({
+          eq: () => ({ maybeSingle: async () => ({ data: { layout_setup_consent_at: h.consentAt }, error: null }) }),
+        }),
       }),
+      rpc: async (...a) => (h.rpc(...a), { data: "2026-10-27T00:00:00Z", error: null }),
     },
   };
 });
@@ -40,6 +55,8 @@ function teach() {
 
 beforeEach(() => {
   h.plan = "free";
+  h.consentAt = null;
+  h.rpc.mockReset();
   h.invoke.mockReset();
   h.insert.mockReset();
   h.update.mockReset();
@@ -120,12 +137,13 @@ describe("TeachLayoutDialog: Set up this layout for me (WP26 Phase 4)", () => {
     expect(h.invoke).not.toHaveBeenCalled();
   });
 
-  it("fills in the suggested layout for the user to check and save", async () => {
+  it("asks once, records the agreement, then fills in the suggested layout", async () => {
     h.plan = "team";
     h.invoke.mockResolvedValue({ choice: suggested, rows: 4 });
     renderDialog();
     fireEvent.click(screen.getByRole("button", { name: "Set up this layout for me" }));
     fireEvent.click(await screen.findByRole("button", { name: "Set it up" }));
+    await waitFor(() => expect(h.rpc).toHaveBeenCalledWith("record_layout_setup_consent"));
 
     expect(await screen.findByText(/Here's the suggested layout/)).toBeInTheDocument();
     const [name, args] = h.invoke.mock.calls[0];
@@ -146,5 +164,27 @@ describe("TeachLayoutDialog: Set up this layout for me (WP26 Phase 4)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Set up this layout for me" }));
     fireEvent.click(await screen.findByRole("button", { name: "Set it up" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("used today's 5 layout setups");
+  });
+
+  it("does not ask again once the account has agreed", async () => {
+    h.plan = "pro";
+    h.consentAt = "2026-10-27T00:00:00Z";
+    h.invoke.mockResolvedValue({ choice: suggested, rows: 4 });
+    renderDialog();
+    // Let the profile lookup land before pressing the button.
+    await waitFor(() => expect(screen.getByTestId("setup-reminder")).toBeInTheDocument());
+    await new Promise((r) => setTimeout(r, 0));
+    fireEvent.click(screen.getByRole("button", { name: "Set up this layout for me" }));
+    expect(await screen.findByText(/Here's the suggested layout/)).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Set up this layout for you?" })).toBeNull();
+    expect(h.rpc).not.toHaveBeenCalled();
+  });
+
+  it("always shows the reminder of what is sent and to whom", () => {
+    h.plan = "pro";
+    renderDialog();
+    expect(screen.getByTestId("setup-reminder")).toHaveTextContent(
+      "Sends the text of the first two pages to Anthropic. Every item still comes from the PDF.",
+    );
   });
 });

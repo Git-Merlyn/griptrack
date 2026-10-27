@@ -9,6 +9,8 @@ jest.setTimeout(15000);
 const mockInsert = jest.fn();
 const mockUpdate = jest.fn();
 let mockResult: { data: unknown; error: unknown } = { data: { id: 't1' }, error: null };
+let mockConsentAt: string | null = null;
+const mockRpc = jest.fn();
 jest.mock('../../lib/supabase', () => {
   const chain = () => {
     const q: Record<string, unknown> = {};
@@ -22,12 +24,16 @@ jest.mock('../../lib/supabase', () => {
       from: () => ({
         insert: (row: unknown) => (mockInsert(row), chain()),
         update: (row: unknown) => (mockUpdate(row), chain()),
+        select: () => ({
+          eq: () => ({ maybeSingle: async () => ({ data: { layout_setup_consent_at: mockConsentAt }, error: null }) }),
+        }),
       }),
+      rpc: async (...a: unknown[]) => (mockRpc(...a), { data: '2026-10-27T00:00:00Z', error: null }),
     },
   };
 });
 jest.mock('../../context/AuthContext', () => ({
-  useAuthContext: () => ({ profile: { org_id: 'org-1', role: 'admin' } }),
+  useAuthContext: () => ({ profile: { id: 'u1', org_id: 'org-1', role: 'admin' } }),
 }));
 const mockParse = jest.fn();
 jest.mock('../../hooks/usePDFImport', () => ({ parsePdfFile: (...a: unknown[]) => mockParse(...a) }));
@@ -55,6 +61,7 @@ let alertSpy: jest.SpyInstance;
 beforeEach(() => {
   jest.clearAllMocks();
   mockResult = { data: { id: 't1' }, error: null };
+  mockConsentAt = null;
   mockParse.mockResolvedValue({ items: [{ id: 'x' }], layout: { id: 't1', name: 'CASCADE STUDIO RENTALS', drift: false }, pages: columnList, file });
   alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 });
@@ -134,11 +141,12 @@ describe('TeachLayoutScreen: Set up this layout for me (WP26 Phase 4)', () => {
     expect(mockInvoke).not.toHaveBeenCalled();
   });
 
-  it('fills in the suggestion for the user to check; nothing is saved yet', async () => {
+  it('asks once, records the agreement, then fills in the suggestion; nothing is saved yet', async () => {
     mockInvoke.mockResolvedValue({ choice, rows: 4 });
     await renderScreen();
     await fireEvent.press(screen.getByLabelText('Set up this layout for me'));
     await pressAlertButton('Set it up');
+    expect(mockRpc).toHaveBeenCalledWith('record_layout_setup_consent');
     expect(mockInvoke.mock.calls[0][0]).toBe('build-pdf-template');
     expect(mockInvoke.mock.calls[0][1].body.pages).toHaveLength(2);
     expect(screen.getByTestId('teach-count')).toHaveTextContent('4 items found on the first pages');
@@ -154,6 +162,28 @@ describe('TeachLayoutScreen: Set up this layout for me (WP26 Phase 4)', () => {
     expect(alertSpy).toHaveBeenLastCalledWith(
       "Couldn't set up this layout",
       "Couldn't work out this layout. Teach it yourself instead."
+    );
+  });
+
+  it('does not ask again once the account has agreed', async () => {
+    mockConsentAt = '2026-10-27T00:00:00Z';
+    mockInvoke.mockResolvedValue({ choice, rows: 4 });
+    await renderScreen();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await fireEvent.press(screen.getByLabelText('Set up this layout for me'));
+    });
+    expect(alertSpy).not.toHaveBeenCalled();
+    expect(mockRpc).not.toHaveBeenCalled();
+    expect(mockInvoke).toHaveBeenCalledTimes(1);
+  });
+
+  it('always shows what is sent and to whom', async () => {
+    await renderScreen();
+    expect(screen.getByTestId('setup-reminder')).toHaveTextContent(
+      'Sends the text of the first two pages to Anthropic. Every item still comes from the PDF.'
     );
   });
 });

@@ -22,7 +22,8 @@ export default defineConfig({
     globals: true,
     // The mobile app under mobile/ has its own jest suite — keep vitest out.
     // Spread the defaults so **/.git/** etc. stay excluded.
-    exclude: [...configDefaults.exclude, "mobile/**"],
+    // .claude/** holds Claude Code worktrees (full copies of the repo).
+    exclude: [...configDefaults.exclude, "mobile/**", ".claude/**"],
     // CI (GitHub sets CI=true) also writes a junit file that the workflow
     // uploads, so a flaky failure can be inspected after the fact.
     reporters: process.env.CI ? ["default", "junit"] : ["default"],

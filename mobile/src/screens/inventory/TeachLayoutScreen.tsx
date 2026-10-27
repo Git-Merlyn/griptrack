@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -67,6 +67,28 @@ export default function TeachLayoutScreen({ navigation, route }: Props) {
   const [saving, setSaving] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [suggested, setSuggested] = useState(false);
+  // Asked once per account (profiles.layout_setup_consent_at); after that the
+  // button goes straight ahead and the reminder line stays.
+  const [consented, setConsented] = useState(false);
+
+  useEffect(() => {
+    if (!profile?.id) return undefined;
+    let cancelled = false;
+    supabase
+      .from('profiles')
+      .select('layout_setup_consent_at')
+      .eq('id', profile.id)
+      .maybeSingle()
+      .then(
+        ({ data }) => {
+          if (!cancelled && data?.layout_setup_consent_at) setConsented(true);
+        },
+        () => {}
+      );
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.id]);
 
   const headings = useMemo(() => headingsFor(pages, headerIndex), [pages, headerIndex]);
   const built = useMemo(
@@ -111,19 +133,28 @@ export default function TeachLayoutScreen({ navigation, route }: Props) {
   // "Set up this layout for me" (WP26 Phase 4). The disclosure is in the
   // confirm step; the button says what it does (WP26 wording rule).
   function confirmSuggest() {
+    if (consented) {
+      void suggest(false);
+      return;
+    }
     Alert.alert(
       'Set up this layout for you?',
-      "GripTrack will send the text of the first two pages of this PDF to Anthropic, an outside service, to suggest where the columns are. The file itself isn't sent. You'll check the rows before anything is saved, and every item still comes from the PDF.",
+      "GripTrack will send the text of the first two pages of this PDF to Anthropic, an outside service, to suggest where the columns are. The file itself isn't sent. You'll check the rows before anything is saved, and every item still comes from the PDF. We'll only ask this once.",
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Set it up', onPress: () => void suggest() },
+        { text: 'Set it up', onPress: () => void suggest(true) },
       ]
     );
   }
 
-  async function suggest() {
+  async function suggest(recordConsent: boolean) {
     setSuggesting(true);
     try {
+      if (recordConsent) {
+        const { error } = await supabase.rpc('record_layout_setup_consent');
+        if (error) throw new Error(error.message);
+        setConsented(true);
+      }
       const { choice } = await invokeFn<{ choice: Choice }>('build-pdf-template', {
         body: { pages: pagesForSuggestion(pages) },
       });
@@ -227,6 +258,9 @@ export default function TeachLayoutScreen({ navigation, route }: Props) {
           {suggested
             ? "Here's the suggested layout. Check the rows below, change anything that's wrong, then save."
             : 'or teach it yourself below'}
+        </Text>
+        <Text className="text-text/70 text-xs text-center mb-4" testID="setup-reminder">
+          Sends the text of the first two pages to Anthropic. Every item still comes from the PDF.
         </Text>
 
         <View className="flex-row gap-2 mb-2" accessibilityRole="tablist">

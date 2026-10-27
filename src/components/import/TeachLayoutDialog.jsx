@@ -4,7 +4,7 @@
 // code optional), mark lines to skip and where the items end, and watch the
 // rows update. Saving stores an org template that later imports of this
 // supplier's PDFs use automatically (web and mobile).
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import DialogShell from "@/components/dialogs/DialogShell";
 import { supabase } from "@/lib/supabaseClient";
 import useUser from "@/context/useUser";
@@ -33,12 +33,34 @@ const MODES = [
 const selectClass = "border px-2 py-1 w-full bg-background text-text border-text/15 rounded";
 
 export default function TeachLayoutDialog({ isOpen, onClose, pages, existing, onSaved }) {
-  const { orgId, effectivePlan } = useUser();
+  const { orgId, effectivePlan, authUser } = useUser();
   const [confirm, confirmDialog] = useConfirm();
   // "Set up this layout for me" (WP26 Phase 4): Pro and Team.
   const canSuggest = planAllows(effectivePlan, "pro");
   const [suggesting, setSuggesting] = useState(false);
   const [suggestNote, setSuggestNote] = useState("");
+  // The account agreed once (profiles.layout_setup_consent_at); after that
+  // the button goes straight ahead and the reminder line below it stays.
+  const [consented, setConsented] = useState(false);
+
+  useEffect(() => {
+    if (!canSuggest || !authUser?.id) return undefined;
+    let cancelled = false;
+    supabase
+      .from("profiles")
+      .select("layout_setup_consent_at")
+      .eq("id", authUser.id)
+      .maybeSingle()
+      .then(
+        ({ data }) => {
+          if (!cancelled && data?.layout_setup_consent_at) setConsented(true);
+        },
+        () => {},
+      );
+    return () => {
+      cancelled = true;
+    };
+  }, [canSuggest, authUser?.id]);
   const lines = useMemo(() => pageOneLines(pages).slice(0, MAX_LINES_SHOWN), [pages]);
 
   const [mode, setMode] = useState("header");
@@ -89,18 +111,26 @@ export default function TeachLayoutDialog({ isOpen, onClose, pages, existing, on
 
   // Disclosure is honest and specific here, at the point of use; the
   // button itself says what it does, not how (WP26 wording rule).
+  // Asked once per account; the agreement is stored before anything is sent.
   const suggest = async () => {
-    const ok = await confirm({
-      title: "Set up this layout for you?",
-      message:
-        "GripTrack will send the text of the first two pages of this PDF to Anthropic, an outside service, to suggest where the columns are. The file itself isn't sent. You'll check the rows before anything is saved, and every item still comes from the PDF.",
-      confirmLabel: "Set it up",
-    });
-    if (!ok) return;
-    setSuggesting(true);
     setSuggestNote("");
     setSaveError("");
+    if (!consented) {
+      const ok = await confirm({
+        title: "Set up this layout for you?",
+        message:
+          "GripTrack will send the text of the first two pages of this PDF to Anthropic, an outside service, to suggest where the columns are. The file itself isn't sent. You'll check the rows before anything is saved, and every item still comes from the PDF. We'll only ask this once.",
+        confirmLabel: "Set it up",
+      });
+      if (!ok) return;
+    }
+    setSuggesting(true);
     try {
+      if (!consented) {
+        const { error } = await supabase.rpc("record_layout_setup_consent");
+        if (error) throw error;
+        setConsented(true);
+      }
       const { choice } = await invokeFn("build-pdf-template", { body: { pages: pagesForSuggestion(pages) } });
       applyChoice(choice);
       setSuggestNote("Here's the suggested layout. Check the rows below, change anything that's wrong, then save.");
@@ -190,6 +220,9 @@ export default function TeachLayoutDialog({ isOpen, onClose, pages, existing, on
             {suggesting ? "Setting up…" : "Set up this layout for me"}
           </button>
           <span className="text-xs text-gray-400">or teach it yourself below</span>
+          <p className="basis-full text-xs text-gray-500" data-testid="setup-reminder">
+            Sends the text of the first two pages to Anthropic. Every item still comes from the PDF.
+          </p>
         </div>
       )}
       {suggestNote && <p className="text-sm text-heading mb-3" role="status">{suggestNote}</p>}

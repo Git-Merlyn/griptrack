@@ -18,7 +18,7 @@ const hooksRules = Object.fromEntries(
 
 export default [
   // mobile/ is the Expo app with its own TS toolchain — not linted from here
-  { ignores: ['dist', 'mobile', 'coverage', 'reports'] },
+  { ignores: ['dist', 'mobile', 'coverage', 'reports', '.claude'] },
   {
     files: ['**/*.{js,jsx}'],
     languageOptions: {
