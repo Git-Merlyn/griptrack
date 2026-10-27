@@ -11,8 +11,9 @@
  * PDF gives the same rows on both (up to pdf.js version differences in how
  * text items are split; see WP26).
  *
- * Request body: { fileBase64: string, fileName: string }
- * Response:     200 ParsedPDFItem[]
+ * Request body: { fileBase64: string, fileName: string, v?: 2 }
+ * Response:     200 ParsedPDFItem[]  (v absent: what shipped apps expect)
+ *               200 { items: ParsedPDFItem[], layout: { id, name, drift } | null }  (v: 2)
  *               400 bad JSON, missing or invalid fileBase64
  *               401 not signed in
  *               402 org is on the Free plan: { error: "Plan limit: …", code: "plan_limit:pdf_import" }
@@ -46,6 +47,7 @@
 import { getResolvedPDFJS } from 'npm:unpdf@1.9.1';
 import { requireUser } from '../_shared/auth.ts';
 import { linesFromPages, rowsFromLines } from '../_shared/pdf/rows.js';
+import { applyTemplate, matchTemplate } from '../_shared/pdf/templates.js';
 import { createClient } from '../_shared/deps.ts';
 import { corsHeaders, json } from '../_shared/http.ts';
 import {
@@ -112,6 +114,7 @@ interface PdfRow {
 interface PdfTextItem {
   str?: string;
   transform?: number[];
+  width?: number;
 }
 
 async function extractPdfPages(bytes: Uint8Array): Promise<PdfTextItem[][]> {
@@ -138,6 +141,46 @@ async function extractPdfPages(bytes: Uint8Array): Promise<PdfTextItem[][]> {
     // Frees the parsed document and its worker-side state on every path,
     // including password/invalid-PDF errors (audit L73).
     await loadingTask.destroy().catch(() => {});
+  }
+}
+
+// ─── Saved supplier layouts ─────────────────────────────────────────────────
+
+interface LayoutRecord {
+  id: string;
+  name: string;
+  scope: string;
+  template: unknown;
+  success_count: number;
+}
+
+// The caller's org layouts plus global ones. Read with the service role, so
+// the org is resolved here (organization_members allows one org per user).
+async function loadLayouts(
+  admin: ReturnType<typeof createClient>,
+  userId: string,
+): Promise<LayoutRecord[]> {
+  try {
+    const { data: member } = await admin
+      .from('organization_members')
+      .select('org_id')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .maybeSingle();
+    const orgId = (member as { org_id?: string } | null)?.org_id;
+    const filter = orgId ? `scope.eq.global,org_id.eq.${orgId}` : 'scope.eq.global';
+    const { data, error } = await admin
+      .from('pdf_templates')
+      .select('id, name, scope, template, success_count')
+      .or(filter);
+    if (error) {
+      console.error('parse-rental-pdf: layout lookup failed', error);
+      return [];
+    }
+    return (data ?? []) as LayoutRecord[];
+  } catch (err) {
+    console.error('parse-rental-pdf: layout lookup failed', err);
+    return [];
   }
 }
 
@@ -187,7 +230,7 @@ Deno.serve(async (req: Request) => {
 
     // 400 bad JSON / missing fileBase64, 413 too large, 415 not a PDF.
     // fileName is accepted for future use but not used in parsing.
-    const { fileBase64 } = parseRequestBody(await req.text());
+    const { fileBase64, version } = parseRequestBody(await req.text());
     const bytes = decodePdfBase64(fileBase64);
 
     const pages = await extractPdfPages(bytes);
@@ -195,8 +238,20 @@ Deno.serve(async (req: Request) => {
     // 422 pdf_no_text for an image-only scan (WP26 Phase 1).
     assertHasText(lines.map((l: { text: string }) => l.text).join('\n'));
 
-    const rows = rowsFromLines(lines) as PdfRow[];
-    return json(rows.map(toParsedPDFItem));
+    // A saved supplier layout for the caller's org (or a global one) wins;
+    // otherwise the general reader (WP26 Phase 3). Never blocks an import.
+    const layouts = await loadLayouts(admin, user.id);
+    const record = matchTemplate(layouts, pages) as LayoutRecord | null;
+    let rows = rowsFromLines(lines) as PdfRow[];
+    let layout: { id: string; name: string; drift: boolean } | null = null;
+    if (record) {
+      const result = applyTemplate(record.template, pages) as { rows: PdfRow[]; drift: boolean };
+      if (result.rows.length > 0) rows = result.rows;
+      layout = { id: record.id, name: record.name, drift: result.rows.length === 0 || result.drift };
+    }
+
+    const items = rows.map(toParsedPDFItem);
+    return json(version === 2 ? { items, layout } : items);
   } catch (err) {
     const { status, error, code } = classifyPdfError(err);
     if (status >= 500) console.error('parse-rental-pdf error:', err);

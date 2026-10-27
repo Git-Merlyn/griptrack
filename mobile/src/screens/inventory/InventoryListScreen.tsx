@@ -76,13 +76,16 @@ export default function InventoryListScreen({ navigation }: Props) {
       return;
     }
     try {
-      const items = await pickAndParse();
-      if (!items) return; // user cancelled
-      if (items.length === 0) {
-        Alert.alert('No Items Found', 'The PDF did not contain any recognizable line items.');
+      const result = await pickAndParse();
+      if (!result) return; // user cancelled
+      if (result.items.length === 0) {
+        Alert.alert(
+          'No Items Found',
+          "The PDF did not contain any recognizable line items. You can set up this supplier's layout once on the GripTrack website."
+        );
         return;
       }
-      navigation.navigate('PDFReview', { parsedItems: items });
+      navigation.navigate('PDFReview', { parsedItems: result.items, layout: result.layout });
     } catch (e: any) {
       Alert.alert('Parse Error', e.message ?? 'Failed to parse PDF');
     }

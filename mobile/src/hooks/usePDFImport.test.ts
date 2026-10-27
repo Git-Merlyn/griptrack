@@ -55,12 +55,12 @@ describe('usePDFImport size limit (audit L73)', () => {
     pick.mockResolvedValue(pdfAsset(MAX_PDF_UPLOAD_BYTES));
     const { result } = await renderHook(() => usePDFImport());
     await act(async () => {
-      await expect(result.current.pickAndParse()).resolves.toEqual([]);
+      await expect(result.current.pickAndParse()).resolves.toEqual({ items: [], layout: null });
     });
     expect(read).toHaveBeenCalledTimes(1);
     expect(invoke).toHaveBeenCalledWith(
       'parse-rental-pdf',
-      expect.objectContaining({ body: { fileBase64: 'JVBERi0=', fileName: 'list.pdf' } }),
+      expect.objectContaining({ body: { fileBase64: 'JVBERi0=', fileName: 'list.pdf', v: 2 } }),
     );
   });
 
@@ -68,8 +68,40 @@ describe('usePDFImport size limit (audit L73)', () => {
     pick.mockResolvedValue(pdfAsset(undefined));
     const { result } = await renderHook(() => usePDFImport());
     await act(async () => {
-      await expect(result.current.pickAndParse()).resolves.toEqual([]);
+      await expect(result.current.pickAndParse()).resolves.toEqual({ items: [], layout: null });
     });
     expect(invoke).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('usePDFImport saved layouts (WP26 Phase 3)', () => {
+  const item = { id: 'u1', name: 'Apple Box', category: '', quantity: 4, source: '', location: '', start_date: null, end_date: null };
+
+  it('returns the layout the server used', async () => {
+    pick.mockResolvedValue(pdfAsset(1000));
+    const layout = { id: 't1', name: 'Cascade', drift: false };
+    invoke.mockResolvedValue({ data: { items: [item], layout }, error: null, response: { status: 200 } });
+    const { result } = await renderHook(() => usePDFImport());
+    await act(async () => {
+      await expect(result.current.pickAndParse()).resolves.toEqual({ items: [item], layout });
+    });
+  });
+
+  it('accepts the old bare-array response from a function that predates layouts', async () => {
+    pick.mockResolvedValue(pdfAsset(1000));
+    invoke.mockResolvedValue({ data: [item], error: null, response: { status: 200 } });
+    const { result } = await renderHook(() => usePDFImport());
+    await act(async () => {
+      await expect(result.current.pickAndParse()).resolves.toEqual({ items: [item], layout: null });
+    });
+  });
+
+  it('ignores a malformed layout', async () => {
+    pick.mockResolvedValue(pdfAsset(1000));
+    invoke.mockResolvedValue({ data: { items: [item], layout: { id: 1 } }, error: null, response: { status: 200 } });
+    const { result } = await renderHook(() => usePDFImport());
+    await act(async () => {
+      await expect(result.current.pickAndParse()).resolves.toEqual({ items: [item], layout: null });
+    });
   });
 });

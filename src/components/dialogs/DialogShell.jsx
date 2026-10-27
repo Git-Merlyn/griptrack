@@ -16,6 +16,7 @@ export default function DialogShell({
   closeOnOverlay = true,
   closeOnEscape = true,
   tone = "default", // "default" | "danger": colours the title
+  size = "md", // "md" | "wide" (e.g. the PDF layout teacher)
 }) {
   const { panelRef, titleId } = useDialog({ isOpen, onClose, closeOnEscape });
   if (!isOpen) return null;
@@ -34,7 +35,7 @@ export default function DialogShell({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="bg-surface border border-text/10 rounded-xl shadow-2xl w-full max-w-md max-h-[calc(100dvh-32px)] overflow-y-auto"
+        className={`bg-surface border border-text/10 rounded-xl shadow-2xl w-full ${size === "wide" ? "max-w-3xl" : "max-w-md"} max-h-[calc(100dvh-32px)] overflow-y-auto`}
       >
         <h2
           id={titleId}
