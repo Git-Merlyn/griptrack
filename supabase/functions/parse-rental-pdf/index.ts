@@ -146,18 +146,21 @@ async function extractPdfPages(bytes: Uint8Array): Promise<PdfTextItem[][]> {
 
 // ─── Saved supplier layouts ─────────────────────────────────────────────────
 
+type PdfTemplate = Parameters<typeof applyTemplate>[0];
+
 interface LayoutRecord {
   id: string;
   name: string;
   scope: string;
-  template: unknown;
+  template: PdfTemplate;
   success_count: number;
 }
 
 // The caller's org layouts plus global ones. Read with the service role, so
 // the org is resolved here (organization_members allows one org per user).
 async function loadLayouts(
-  admin: ReturnType<typeof createClient>,
+  // deno-lint-ignore no-explicit-any
+  admin: { from: (table: string) => any },
   userId: string,
 ): Promise<LayoutRecord[]> {
   try {
