@@ -3,7 +3,8 @@
     "jsx": "react-jsx",
     "paths": {
       "@/*": ["./src/*"],
-      "@shared/*": ["./shared/*"]
+      "@shared/*": ["./shared/*"],
+      "@pdf/*": ["./supabase/functions/_shared/pdf/*"]
     }
   },
   "include": ["src", "shared"]

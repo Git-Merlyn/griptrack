@@ -12,6 +12,8 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./src"),
       "@shared": path.resolve(__dirname, "./shared"),
+      // Parser shared with the parse-rental-pdf edge function (WP26).
+      "@pdf": path.resolve(__dirname, "./supabase/functions/_shared/pdf"),
     },
   },
   test: {
