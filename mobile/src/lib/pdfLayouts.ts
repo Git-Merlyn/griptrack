@@ -14,5 +14,7 @@ export {
   pageOneLines,
 } from '../../../supabase/functions/_shared/pdf/teach.js';
 
+export { pagesForSuggestion } from '../../../supabase/functions/_shared/pdf/suggest.js';
+
 /** pdf.js text items per page, as parse-rental-pdf returns them for teaching. */
 export type PdfPages = { str: string; transform: number[]; width: number }[][];

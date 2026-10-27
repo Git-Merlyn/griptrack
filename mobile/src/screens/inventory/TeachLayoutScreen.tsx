@@ -15,6 +15,7 @@ import { InventoryStackParamList } from '../../lib/types';
 import { supabase } from '../../lib/supabase';
 import { useAuthContext } from '../../context/AuthContext';
 import { parsePdfFile } from '../../hooks/usePDFImport';
+import { invokeFn } from '../../lib/invokeFn';
 import {
   applyTemplate,
   buildTemplate,
@@ -22,10 +23,21 @@ import {
   headingsFor,
   lineText,
   pageOneLines,
+  pagesForSuggestion,
 } from '../../lib/pdfLayouts';
 
 type Props = NativeStackScreenProps<InventoryStackParamList, 'TeachLayout'>;
 type Mode = 'header' | 'skip' | 'end';
+interface Choice {
+  headerIndex: number;
+  nameColumn: number;
+  quantityColumn: number;
+  categoryColumn: number;
+  codeColumn: number;
+  categoryFrom: 'column' | 'heading' | 'none';
+  endIndex: number;
+  skipIndexes: number[];
+}
 
 const MAX_LINES = 80;
 const PREVIEW_ROWS = 5;
@@ -53,6 +65,8 @@ export default function TeachLayoutScreen({ navigation, route }: Props) {
   const [skipIndexes, setSkipIndexes] = useState<number[]>([]);
   const [name, setName] = useState(existing?.name ?? defaultLayoutName(pages));
   const [saving, setSaving] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggested, setSuggested] = useState(false);
 
   const headings = useMemo(() => headingsFor(pages, headerIndex), [pages, headerIndex]);
   const built = useMemo(
@@ -91,6 +105,45 @@ export default function TeachLayoutScreen({ navigation, route }: Props) {
       } else {
         setEndIndex((prev) => (prev === i ? -1 : i));
       }
+    }
+  }
+
+  // "Set up this layout for me" (WP26 Phase 4). The disclosure is in the
+  // confirm step; the button says what it does (WP26 wording rule).
+  function confirmSuggest() {
+    Alert.alert(
+      'Set up this layout for you?',
+      "GripTrack will send the text of the first two pages of this PDF to Anthropic, an outside service, to suggest where the columns are. The file itself isn't sent. You'll check the rows before anything is saved, and every item still comes from the PDF.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Set it up', onPress: () => void suggest() },
+      ]
+    );
+  }
+
+  async function suggest() {
+    setSuggesting(true);
+    try {
+      const { choice } = await invokeFn<{ choice: Choice }>('build-pdf-template', {
+        body: { pages: pagesForSuggestion(pages) },
+      });
+      setHeaderIndex(choice.headerIndex);
+      setNameColumn(choice.nameColumn);
+      setQuantityColumn(choice.quantityColumn);
+      setCategoryColumn(choice.categoryColumn);
+      setCodeColumn(choice.codeColumn);
+      setCategoryFrom(choice.categoryFrom);
+      setEndIndex(choice.endIndex);
+      setSkipIndexes(choice.skipIndexes);
+      setMode('skip');
+      setSuggested(true);
+    } catch (e) {
+      Alert.alert(
+        "Couldn't set up this layout",
+        e instanceof Error && e.message ? e.message : 'Teach it yourself instead.'
+      );
+    } finally {
+      setSuggesting(false);
     }
   }
 
@@ -154,6 +207,26 @@ export default function TeachLayoutScreen({ navigation, route }: Props) {
         <Text className="text-text text-sm mb-4">
           Do this once per supplier. GripTrack remembers the layout and uses it for their next PDFs, in the app and
           on the web. Only the layout is saved, never the items.
+        </Text>
+
+        <TouchableOpacity
+          onPress={confirmSuggest}
+          disabled={suggesting || saving}
+          className={`rounded-lg py-3 items-center mb-2 border border-accent/40 ${suggesting ? 'opacity-50' : ''}`}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Set up this layout for me"
+        >
+          {suggesting ? (
+            <ActivityIndicator color="#4debf9" size="small" />
+          ) : (
+            <Text className="text-accent font-semibold text-sm">Set up this layout for me</Text>
+          )}
+        </TouchableOpacity>
+        <Text className="text-text text-xs text-center mb-4">
+          {suggested
+            ? "Here's the suggested layout. Check the rows below, change anything that's wrong, then save."
+            : 'or teach it yourself below'}
         </Text>
 
         <View className="flex-row gap-2 mb-2" accessibilityRole="tablist">

@@ -9,6 +9,10 @@ import DialogShell from "@/components/dialogs/DialogShell";
 import { supabase } from "@/lib/supabaseClient";
 import useUser from "@/context/useUser";
 import { applyTemplate } from "@pdf/templates.js";
+import { pagesForSuggestion } from "@pdf/suggest.js";
+import { invokeFn } from "@/lib/invokeFn";
+import { planAllows } from "@/lib/plan";
+import useConfirm from "@/hooks/useConfirm";
 import {
   buildTemplate,
   defaultLayoutName,
@@ -29,7 +33,12 @@ const MODES = [
 const selectClass = "border px-2 py-1 w-full bg-background text-text border-text/15 rounded";
 
 export default function TeachLayoutDialog({ isOpen, onClose, pages, existing, onSaved }) {
-  const { orgId } = useUser();
+  const { orgId, effectivePlan } = useUser();
+  const [confirm, confirmDialog] = useConfirm();
+  // "Set up this layout for me" (WP26 Phase 4): Pro and Team.
+  const canSuggest = planAllows(effectivePlan, "pro");
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestNote, setSuggestNote] = useState("");
   const lines = useMemo(() => pageOneLines(pages).slice(0, MAX_LINES_SHOWN), [pages]);
 
   const [mode, setMode] = useState("header");
@@ -65,6 +74,42 @@ export default function TeachLayoutDialog({ isOpen, onClose, pages, existing, on
     () => (built.errors ? null : applyTemplate(built.template, pages)),
     [built, pages],
   );
+
+  const applyChoice = (c) => {
+    setHeaderIndex(c.headerIndex);
+    setNameColumn(c.nameColumn);
+    setQuantityColumn(c.quantityColumn);
+    setCategoryColumn(c.categoryColumn);
+    setCodeColumn(c.codeColumn);
+    setCategoryFrom(c.categoryFrom);
+    setEndIndex(c.endIndex);
+    setSkipIndexes(c.skipIndexes);
+    setMode("skip");
+  };
+
+  // Disclosure is honest and specific here, at the point of use; the
+  // button itself says what it does, not how (WP26 wording rule).
+  const suggest = async () => {
+    const ok = await confirm({
+      title: "Set up this layout for you?",
+      message:
+        "GripTrack will send the text of the first two pages of this PDF to Anthropic, an outside service, to suggest where the columns are. The file itself isn't sent. You'll check the rows before anything is saved, and every item still comes from the PDF.",
+      confirmLabel: "Set it up",
+    });
+    if (!ok) return;
+    setSuggesting(true);
+    setSuggestNote("");
+    setSaveError("");
+    try {
+      const { choice } = await invokeFn("build-pdf-template", { body: { pages: pagesForSuggestion(pages) } });
+      applyChoice(choice);
+      setSuggestNote("Here's the suggested layout. Check the rows below, change anything that's wrong, then save.");
+    } catch (e) {
+      setSaveError(e?.message || "Couldn't set up this layout. Teach it yourself instead.");
+    } finally {
+      setSuggesting(false);
+    }
+  };
 
   const pickLine = (i) => {
     setSaveError("");
@@ -133,6 +178,21 @@ export default function TeachLayoutDialog({ isOpen, onClose, pages, existing, on
         Do this once per supplier. GripTrack remembers the layout and uses it for their next PDFs,
         on the web and in the app. Only the layout is saved, never the items.
       </p>
+
+      {canSuggest && (
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <button
+            type="button"
+            className={suggesting ? "btn-disabled" : "btn-accent-sm"}
+            disabled={suggesting}
+            onClick={suggest}
+          >
+            {suggesting ? "Setting up…" : "Set up this layout for me"}
+          </button>
+          <span className="text-xs text-gray-400">or teach it yourself below</span>
+        </div>
+      )}
+      {suggestNote && <p className="text-sm text-heading mb-3" role="status">{suggestNote}</p>}
 
       <div className="flex flex-wrap gap-1 mb-2" role="group" aria-label="What to mark">
         {MODES.map((m) => (
@@ -266,6 +326,7 @@ export default function TeachLayoutDialog({ isOpen, onClose, pages, existing, on
           {saving ? "Saving…" : "Save layout"}
         </button>
       </div>
+      {confirmDialog}
     </DialogShell>
   );
 }

@@ -31,6 +31,8 @@ jest.mock('../../context/AuthContext', () => ({
 }));
 const mockParse = jest.fn();
 jest.mock('../../hooks/usePDFImport', () => ({ parsePdfFile: (...a: unknown[]) => mockParse(...a) }));
+const mockInvoke = jest.fn();
+jest.mock('../../lib/invokeFn', () => ({ invokeFn: (...a: unknown[]) => mockInvoke(...a) }));
 
 const file = { uri: 'file:///cascade.pdf', name: 'cascade.pdf', size: 1 };
 const navigation = { popTo: jest.fn() };
@@ -101,5 +103,57 @@ describe('TeachLayoutScreen (WP26 Phase 3b)', () => {
     });
     expect(alertSpy).toHaveBeenCalledWith("Couldn't save the layout", 'new row violates row-level security policy');
     expect(navigation.popTo).not.toHaveBeenCalled();
+  });
+});
+
+describe('TeachLayoutScreen: Set up this layout for me (WP26 Phase 4)', () => {
+  const choice = {
+    headerIndex: 2,
+    nameColumn: 0,
+    quantityColumn: 2,
+    categoryColumn: 1,
+    codeColumn: -1,
+    categoryFrom: 'column',
+    endIndex: -1,
+    skipIndexes: [8],
+  };
+
+  async function pressAlertButton(text: string) {
+    const buttons = alertSpy.mock.calls[alertSpy.mock.calls.length - 1][2] as { text: string; onPress?: () => unknown }[];
+    await act(async () => {
+      await buttons.find((b) => b.text === text)?.onPress?.();
+    });
+  }
+
+  it('says what is sent and to whom, and sends nothing on Cancel', async () => {
+    await renderScreen();
+    await fireEvent.press(screen.getByLabelText('Set up this layout for me'));
+    expect(alertSpy.mock.calls[0][0]).toBe('Set up this layout for you?');
+    expect(alertSpy.mock.calls[0][1]).toMatch(/first two pages of this PDF to Anthropic, an outside service/);
+    await pressAlertButton('Cancel');
+    expect(mockInvoke).not.toHaveBeenCalled();
+  });
+
+  it('fills in the suggestion for the user to check; nothing is saved yet', async () => {
+    mockInvoke.mockResolvedValue({ choice, rows: 4 });
+    await renderScreen();
+    await fireEvent.press(screen.getByLabelText('Set up this layout for me'));
+    await pressAlertButton('Set it up');
+    expect(mockInvoke.mock.calls[0][0]).toBe('build-pdf-template');
+    expect(mockInvoke.mock.calls[0][1].body.pages).toHaveLength(2);
+    expect(screen.getByTestId('teach-count')).toHaveTextContent('4 items found on the first pages');
+    expect(screen.getByText(/Here's the suggested layout/)).toBeTruthy();
+    expect(mockInsert).not.toHaveBeenCalled();
+  });
+
+  it("shows the server's message when it cannot help", async () => {
+    mockInvoke.mockRejectedValue(new Error("Couldn't work out this layout. Teach it yourself instead."));
+    await renderScreen();
+    await fireEvent.press(screen.getByLabelText('Set up this layout for me'));
+    await pressAlertButton('Set it up');
+    expect(alertSpy).toHaveBeenLastCalledWith(
+      "Couldn't set up this layout",
+      "Couldn't work out this layout. Teach it yourself instead."
+    );
   });
 });
