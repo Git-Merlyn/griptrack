@@ -3,7 +3,7 @@
 import LegalLayout from "./LegalLayout";
 
 const PrivacyPage = () => (
-  <LegalLayout title="Privacy Policy" updated="October 21, 2026">
+  <LegalLayout title="Privacy Policy" updated="October 27, 2026">
     <p>
       GripTrack ("we", "us") is equipment inventory software for film and
       television crews, available at griptrack.app and as a mobile app. This
@@ -102,9 +102,9 @@ const PrivacyPage = () => (
       Only if you choose that option, the text of the first two pages of that
       PDF (not the file itself) is sent to Anthropic, an outside service, which
       suggests where the columns are. Anthropic does not use this text to train
-      its models and {/* TODO(WP26 Phase 4): retention, confirmed from Chris's Anthropic account before release */}
-      [RETENTION: e.g. &ldquo;does not keep it&rdquo; with zero data retention, or &ldquo;deletes it within N days&rdquo;].
-      You check the result before the layout is saved, and every item you
+      its models and deletes it within 30 days, unless it must keep it longer
+      for a safety investigation or by law. You check the result before the
+      layout is saved, and every item you
       import still comes from the PDF itself.
     </p>
 

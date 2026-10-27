@@ -1,3 +1,4 @@
+// @vitest-environment node
 // Guard (WP26 Phase 4): the Privacy Policy must not ship with a placeholder.
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
