@@ -51,4 +51,11 @@ export default [
       globals: globals.node,
     },
   },
+  {
+    // The shared PDF parser's local-only real-PDF test and its helper run in Node.
+    files: ['supabase/functions/_shared/pdf/realDocs.test.js', 'supabase/functions/_shared/pdf/__fixtures__/*.mjs'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
 ]

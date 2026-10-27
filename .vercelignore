@@ -1,7 +1,16 @@
-# Vercel only needs the web app: index.html, src/, shared/, public/ and root configs.
+# Vercel only needs the web app: index.html, src/, shared/, public/, root
+# configs and supabase/functions/_shared/pdf/.
 # Never add shared/ here — the web app imports @shared/roles.
 mobile
-supabase
+# All of supabase/ except the PDF parser the web imports (@pdf, WP26). A
+# negation cannot reach inside an excluded folder, so each level is opened
+# and re-closed.
+supabase/*
+!supabase/functions
+supabase/functions/*
+!supabase/functions/_shared
+supabase/functions/_shared/*
+!supabase/functions/_shared/pdf
 screenshots
 TestDocs
 Concept Art

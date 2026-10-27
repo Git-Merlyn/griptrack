@@ -4,13 +4,13 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import useUser from "@/context/useUser";
 import EquipmentContext from "@/context/EquipmentContext";
 import { SCANNED_PDF_MESSAGE } from "@/lib/importRows";
-import * as pdfjs from "pdfjs-dist";
+import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import ImportFileModal from "./ImportFileModal";
 
 vi.mock("@/context/useUser");
 vi.mock("@/lib/supabaseClient", () => ({ supabase: {} }));
-vi.mock("pdfjs-dist", () => ({ GlobalWorkerOptions: {}, getDocument: vi.fn() }));
-vi.mock("pdfjs-dist/build/pdf.worker?url", () => ({ default: "worker.js" }));
+vi.mock("pdfjs-dist/legacy/build/pdf.mjs", () => ({ GlobalWorkerOptions: {}, getDocument: vi.fn() }));
+vi.mock("pdfjs-dist/legacy/build/pdf.worker.mjs?url", () => ({ default: "worker.js" }));
 
 const NO_LOCATIONS = [];
 const ctx = { pdfParsingStatus: "idle", setPdfParsingStatus: vi.fn(), registerLocation: vi.fn() };
