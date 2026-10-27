@@ -408,7 +408,7 @@ s3_access_key = "env(S3_ACCESS_KEY)"
 s3_secret_key = "env(S3_SECRET_KEY)"
 
 # Edge functions. Declared explicitly so a bare `supabase functions deploy`
-# never changes JWT settings. The five below take a user JWT at the gateway
+# never changes JWT settings. The six below take a user JWT at the gateway
 # AND check for a real signed-in user in the handler (_shared/auth.ts
 # requireUser), because the public anon key also passes verify_jwt.
 # stripe-webhook (below) is the only one with verify_jwt = false.
@@ -438,6 +438,11 @@ entrypoint = "./functions/invite-staff/index.ts"
 enabled = true
 verify_jwt = true
 entrypoint = "./functions/parse-rental-pdf/index.ts"
+
+[functions.build-pdf-template]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/build-pdf-template/index.ts"
 
 [functions.stripe-webhook]
 enabled = true

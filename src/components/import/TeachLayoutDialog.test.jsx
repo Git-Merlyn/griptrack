@@ -1,10 +1,11 @@
 // "Teach it" dialog (WP26 Phase 3): pick headings, map columns, preview, save.
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { columnList } from "@pdf/__fixtures__/synthetic.js";
 
-const h = vi.hoisted(() => ({ insert: vi.fn(), update: vi.fn(), result: null }));
-vi.mock("@/context/useUser", () => ({ default: () => ({ orgId: "org-1" }) }));
+const h = vi.hoisted(() => ({ insert: vi.fn(), update: vi.fn(), result: null, plan: "free", invoke: vi.fn() }));
+vi.mock("@/context/useUser", () => ({ default: () => ({ orgId: "org-1", effectivePlan: h.plan }) }));
+vi.mock("@/lib/invokeFn", () => ({ invokeFn: (...a) => h.invoke(...a) }));
 vi.mock("@/lib/supabaseClient", () => {
   const chain = () => {
     const q = {};
@@ -38,6 +39,8 @@ function teach() {
 }
 
 beforeEach(() => {
+  h.plan = "free";
+  h.invoke.mockReset();
   h.insert.mockReset();
   h.update.mockReset();
   h.result = { data: { id: "t1", name: "CASCADE STUDIO RENTALS", scope: "org", template: {} }, error: null };
@@ -85,5 +88,63 @@ describe("TeachLayoutDialog", () => {
     teach();
     fireEvent.click(screen.getByRole("button", { name: "Save layout" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("You already have a layout with this name");
+  });
+});
+
+describe("TeachLayoutDialog: Set up this layout for me (WP26 Phase 4)", () => {
+  const suggested = {
+    headerIndex: 2,
+    nameColumn: 0,
+    quantityColumn: 2,
+    categoryColumn: 1,
+    codeColumn: -1,
+    categoryFrom: "column",
+    endIndex: -1,
+    skipIndexes: [8],
+  };
+
+  it("is not offered on the Free plan", () => {
+    renderDialog();
+    expect(screen.queryByRole("button", { name: "Set up this layout for me" })).toBeNull();
+  });
+
+  it("says what is sent and to whom before sending anything", async () => {
+    h.plan = "pro";
+    renderDialog();
+    fireEvent.click(screen.getByRole("button", { name: "Set up this layout for me" }));
+    const dialog = await screen.findByRole("dialog", { name: "Set up this layout for you?" });
+    expect(dialog).toHaveTextContent("first two pages of this PDF to Anthropic, an outside service");
+    expect(dialog).toHaveTextContent("The file itself isn't sent.");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Set up this layout for you?" })).toBeNull());
+    expect(h.invoke).not.toHaveBeenCalled();
+  });
+
+  it("fills in the suggested layout for the user to check and save", async () => {
+    h.plan = "team";
+    h.invoke.mockResolvedValue({ choice: suggested, rows: 4 });
+    renderDialog();
+    fireEvent.click(screen.getByRole("button", { name: "Set up this layout for me" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Set it up" }));
+
+    expect(await screen.findByText(/Here's the suggested layout/)).toBeInTheDocument();
+    const [name, args] = h.invoke.mock.calls[0];
+    expect(name).toBe("build-pdf-template");
+    expect(args.body.pages).toHaveLength(2);
+    expect(args.body.pages[0][0]).toEqual({ str: "CASCADE STUDIO RENTALS", transform: [1, 0, 0, 1, 40, 760], width: 160 });
+    expect(screen.getByLabelText("Item name column")).toHaveValue("0");
+    expect(screen.getByLabelText("Quantity column")).toHaveValue("2");
+    expect(screen.getByText("4 items found")).toBeInTheDocument();
+    // Nothing is saved until the user saves.
+    expect(h.insert).not.toHaveBeenCalled();
+  });
+
+  it("shows the server's message when it cannot help (e.g. the daily limit)", async () => {
+    h.plan = "pro";
+    h.invoke.mockRejectedValue(new Error("Your organization has used today's 5 layout setups."));
+    renderDialog();
+    fireEvent.click(screen.getByRole("button", { name: "Set up this layout for me" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Set it up" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("used today's 5 layout setups");
   });
 });

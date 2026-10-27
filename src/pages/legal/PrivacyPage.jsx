@@ -26,6 +26,12 @@ const PrivacyPage = () => (
         belongs to your organization.
       </li>
       <li>
+        <strong>Supplier layouts.</strong> If you save how a supplier&apos;s rental
+        PDFs are laid out, we keep that layout for your organization: column
+        positions, column-heading words, and which lines to skip. A layout never
+        contains your items, quantities, or prices.
+      </li>
+      <li>
         <strong>Diagnostics.</strong> If the app crashes or errors, we collect
         technical details (browser/device type, the error, and a session
         replay of the interface interactions that led to it) through Sentry so
@@ -63,6 +69,11 @@ const PrivacyPage = () => (
       <li><strong>Resend</strong> — transactional email delivery.</li>
       <li><strong>Stripe</strong> — payment processing.</li>
       <li><strong>Google Workspace</strong> — support email.</li>
+      <li>
+        <strong>Anthropic</strong> — suggests the column layout of a supplier&apos;s
+        rental PDF, only when you choose &ldquo;Set up this layout for me&rdquo;
+        (see PDF imports below).
+      </li>
     </ul>
     <p>
       Your data is stored and processed in the <strong>United States</strong>.
@@ -76,9 +87,25 @@ const PrivacyPage = () => (
       The mobile app stores a copy of your organization's inventory on your
       device (so it works offline) and your login token in your device's
       secure storage. It does not access your camera, photos, contacts, or
-      location. When you import a rental PDF, the file is sent to our server
-      to read its line items and is not stored; CSV files are read on your
-      device.
+      location. CSV files are read on your device.
+    </p>
+
+    <h2>PDF imports</h2>
+    <p>
+      On the web, rental PDFs are read in your browser and never uploaded. In
+      the mobile app, the PDF is sent to our server to read its line items and
+      is not stored.
+    </p>
+    <p>
+      When GripTrack doesn&apos;t yet know a supplier&apos;s layout, you can teach it
+      yourself or choose <strong>&ldquo;Set up this layout for me&rdquo;</strong>.
+      Only if you choose that option, the text of the first two pages of that
+      PDF (not the file itself) is sent to Anthropic, an outside service, which
+      suggests where the columns are. Anthropic does not use this text to train
+      its models and {/* TODO(WP26 Phase 4): retention, confirmed from Chris's Anthropic account before release */}
+      [RETENTION: e.g. &ldquo;does not keep it&rdquo; with zero data retention, or &ldquo;deletes it within N days&rdquo;].
+      You check the result before the layout is saved, and every item you
+      import still comes from the PDF itself.
     </p>
 
     <h2>Your rights</h2>
