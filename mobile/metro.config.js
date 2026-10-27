@@ -12,5 +12,12 @@ config.watchFolders = [
   // PDF layout code shared with the web and the parse-rental-pdf function (WP26).
   path.resolve(__dirname, '../supabase/functions/_shared/pdf'),
 ];
+// Files in those folders resolve packages from mobile/node_modules as well,
+// so a build that installs only this folder (EAS Build, CI) still finds
+// them (e.g. @babel/runtime helpers added when the shared code is compiled).
+config.resolver.nodeModulesPaths = [
+  ...(config.resolver.nodeModulesPaths ?? []),
+  path.resolve(__dirname, 'node_modules'),
+];
 
 module.exports = withNativeWind(config, { input: './global.css' });
