@@ -14,6 +14,8 @@ jest.mock('../../hooks/useEquipmentMutations', () => ({
 }));
 jest.mock('../../context/SyncContext', () => ({ useSyncContext: () => ({ isOnline: true }) }));
 jest.mock('../../lib/db', () => ({ generateId: () => `new-${++mockId}` }));
+const mockRpc = jest.fn((..._args: unknown[]) => Promise.resolve({ data: null, error: null }));
+jest.mock('../../lib/supabase', () => ({ supabase: { rpc: (...a: unknown[]) => mockRpc(...a) } }));
 
 const parsed: ParsedPDFItem[] = [
   {
@@ -29,11 +31,11 @@ const parsed: ParsedPDFItem[] = [
 ];
 
 const navigation = { navigate: jest.fn() };
-const renderScreen = () =>
+const renderScreen = (layout: { id: string; name: string; drift: boolean } | null = null) =>
   render(
     <PDFReviewScreen
       navigation={navigation as never}
-      route={{ key: 'k', name: 'PDFReview', params: { parsedItems: parsed } } as never}
+      route={{ key: 'k', name: 'PDFReview', params: { parsedItems: parsed, layout } } as never}
     />
   );
 
@@ -83,5 +85,27 @@ describe('PDFReviewScreen add row (WP26)', () => {
       start_date: '2026-11-01',
       end_date: '2026-11-08',
     });
+  });
+});
+
+describe('PDFReviewScreen saved layout (WP26 Phase 3)', () => {
+  it('says which saved layout read the PDF and counts the import', async () => {
+    await renderScreen({ id: 't1', name: 'Cascade', drift: false });
+    expect(screen.getByTestId('layout-note')).toHaveTextContent('Read with your saved layout "Cascade".');
+    await act(async () => {
+      await fireEvent.press(screen.getByText('Import 1 Item'));
+    });
+    expect(mockAddMultiple).toHaveBeenCalled();
+    expect(mockRpc).toHaveBeenCalledWith('record_pdf_template_use', { p_template: 't1', p_ok: true });
+  });
+
+  it('warns when the layout no longer fits', async () => {
+    await renderScreen({ id: 't1', name: 'Cascade', drift: true });
+    expect(screen.getByTestId('layout-note')).toHaveTextContent(/seems to have changed/);
+  });
+
+  it('says nothing for the general reader', async () => {
+    await renderScreen(null);
+    expect(screen.queryByTestId('layout-note')).toBeNull();
   });
 });

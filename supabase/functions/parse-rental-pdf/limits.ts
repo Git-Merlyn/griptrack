@@ -45,7 +45,9 @@ export function assertHasText(fullText: string): void {
 }
 
 /** Parse the JSON body. Throws PdfRequestError(400/413). */
-export function parseRequestBody(text: string): { fileBase64: string; fileName: string } {
+export function parseRequestBody(
+  text: string,
+): { fileBase64: string; fileName: string; version: number } {
   if (text.length > MAX_BODY_CHARS) throw new PdfRequestError(413, TOO_LARGE_MESSAGE);
   let body: unknown;
   try {
@@ -56,11 +58,17 @@ export function parseRequestBody(text: string): { fileBase64: string; fileName: 
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     throw new PdfRequestError(400, "Request body must be a JSON object.");
   }
-  const { fileBase64, fileName } = body as Record<string, unknown>;
+  const { fileBase64, fileName, v } = body as Record<string, unknown>;
   if (typeof fileBase64 !== "string" || !fileBase64) {
     throw new PdfRequestError(400, "fileBase64 is required");
   }
-  return { fileBase64, fileName: typeof fileName === "string" ? fileName : "" };
+  return {
+    fileBase64,
+    fileName: typeof fileName === "string" ? fileName : "",
+    // Response version: 1 (default) = bare item array, which shipped apps
+    // expect; 2 = { items, layout } (WP26 Phase 3).
+    version: v === 2 ? 2 : 1,
+  };
 }
 
 /** Decode base64 to bytes and check size and the %PDF- signature. Throws PdfRequestError(400/413/415). */

@@ -20,6 +20,7 @@ import { UNASSIGNED_LOCATION } from '../../lib/importFile';
 import { sanitizeQtyInput } from '../../lib/validation';
 import { generateId } from '../../lib/db';
 import { newParsedItem, parsedItemProblems } from '../../lib/importRows';
+import { supabase } from '../../lib/supabase';
 import IconButton from '../../components/IconButton';
 import { GapMd } from '../../components/ListSeparators';
 
@@ -27,6 +28,7 @@ type Props = NativeStackScreenProps<InventoryStackParamList, 'PDFReview'>;
 
 export default function PDFReviewScreen({ navigation, route }: Props) {
   const [items, setItems] = useState<ParsedPDFItem[]>(route.params.parsedItems);
+  const layout = route.params.layout ?? null;
   const [assignLocation, setAssignLocation] = useState('');
   const [committing, setCommitting] = useState(false);
 
@@ -64,6 +66,12 @@ export default function PDFReviewScreen({ navigation, route }: Props) {
     setCommitting(true);
     try {
       await addMultipleItems(items);
+      if (layout) {
+        // Usage count for the supplier-layout library (WP26); failures don't matter.
+        supabase
+          .rpc('record_pdf_template_use', { p_template: layout.id, p_ok: true })
+          .then(() => {}, () => {});
+      }
       const count = items.length;
       Alert.alert(
         'Imported',
@@ -151,6 +159,16 @@ export default function PDFReviewScreen({ navigation, route }: Props) {
         <Text className="text-slate-500 text-xs mt-2">
           {items.length} item{items.length !== 1 ? 's' : ''}
         </Text>
+        {layout && (
+          <Text
+            testID="layout-note"
+            className={`text-xs mt-1 ${layout.drift ? 'text-warning' : 'text-slate-500'}`}
+          >
+            {layout.drift
+              ? `This supplier's layout seems to have changed since "${layout.name}" was saved. Check the items.`
+              : `Read with your saved layout "${layout.name}".`}
+          </Text>
+        )}
       </View>
 
       <FlatList

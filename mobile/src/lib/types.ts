@@ -115,10 +115,17 @@ export interface ParsedPDFItem {
   end_date: string | null;
 }
 
+/** Saved supplier layout used to read a PDF (WP26 Phase 3); null = general reader. */
+export interface PdfLayoutUse {
+  id: string;
+  name: string;
+  drift: boolean;
+}
+
 export type InventoryStackParamList = {
   InventoryList: undefined;
   ItemDetail: { item: EquipmentItem };
   ItemForm: { mode: 'add' } | { mode: 'edit'; item: EquipmentItem };
   AuditLog: { item: EquipmentItem };
-  PDFReview: { parsedItems: ParsedPDFItem[] };
+  PDFReview: { parsedItems: ParsedPDFItem[]; layout?: PdfLayoutUse | null };
 };

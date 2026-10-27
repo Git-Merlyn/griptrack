@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { ParsedPDFItem } from '../lib/types';
+import { ParsedPDFItem, PdfLayoutUse } from '../lib/types';
 import { parseCSV } from '../lib/parseRentalFile';
 import { IMPORT_MIME_TYPES, classifyImportFile } from '../lib/importFile';
 import { invokeFn } from '../lib/invokeFn';
@@ -16,17 +16,28 @@ export type PDFImportStatus = 'idle' | 'parsing' | 'done' | 'error';
 export const MAX_PDF_UPLOAD_BYTES = 10 * 1024 * 1024;
 export const PDF_TOO_LARGE_MESSAGE = 'This PDF is too large. The limit is 10 MB.';
 
+export interface PDFImportResult {
+  items: ParsedPDFItem[];
+  /** Saved supplier layout the server used; null for CSV or the general reader. */
+  layout: PdfLayoutUse | null;
+}
+
 interface UsePDFImportReturn {
   status: PDFImportStatus;
   error: string | null;
-  pickAndParse: () => Promise<ParsedPDFItem[] | null>;
+  pickAndParse: () => Promise<PDFImportResult | null>;
+}
+
+function isLayoutUse(v: unknown): v is PdfLayoutUse {
+  const o = v as Record<string, unknown> | null;
+  return !!o && typeof o.id === 'string' && typeof o.name === 'string' && typeof o.drift === 'boolean';
 }
 
 export function usePDFImport(): UsePDFImportReturn {
   const [status, setStatus] = useState<PDFImportStatus>('idle');
   const [error, setError] = useState<string | null>(null);
 
-  const pickAndParse = useCallback(async (): Promise<ParsedPDFItem[] | null> => {
+  const pickAndParse = useCallback(async (): Promise<PDFImportResult | null> => {
     setError(null);
     setStatus('idle');
 
@@ -49,6 +60,7 @@ export function usePDFImport(): UsePDFImportReturn {
       const isCsv = kind === 'csv';
 
       let items: ParsedPDFItem[];
+      let layout: PdfLayoutUse | null = null;
 
       if (isCsv) {
         const text = await FileSystem.readAsStringAsync(asset.uri);
@@ -66,17 +78,25 @@ export function usePDFImport(): UsePDFImportReturn {
 
         // invokeFn surfaces the function's own error text (e.g. "Unauthorized",
         // "fileBase64 is required") instead of the generic non-2xx message.
+        // v: 2 asks for { items, layout } (WP26 Phase 3). A function that
+        // predates it still answers with a bare array, so accept both.
         const data = await invokeFn<unknown>('parse-rental-pdf', {
-          body: { fileBase64: base64, fileName: asset.name },
+          body: { fileBase64: base64, fileName: asset.name, v: 2 },
         });
 
-        if (!Array.isArray(data)) throw new Error('Unexpected response from parse-rental-pdf');
-
-        items = data as ParsedPDFItem[];
+        if (Array.isArray(data)) {
+          items = data as ParsedPDFItem[];
+        } else if (data && typeof data === 'object' && Array.isArray((data as { items?: unknown }).items)) {
+          items = (data as { items: ParsedPDFItem[] }).items;
+          const l = (data as { layout?: unknown }).layout;
+          layout = isLayoutUse(l) ? l : null;
+        } else {
+          throw new Error('Unexpected response from parse-rental-pdf');
+        }
       }
 
       setStatus('done');
-      return items;
+      return { items, layout };
     } catch (e: any) {
       const msg = e.message ?? 'Failed to parse file';
       setStatus('error');

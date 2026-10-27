@@ -24,8 +24,16 @@ function statusOf(fn: () => unknown): number | undefined {
 }
 
 describe("parseRequestBody", () => {
-  it("returns fileBase64 and fileName", () => {
-    expect(parseRequestBody('{"fileBase64":"QQ==","fileName":"a.pdf"}')).toEqual({ fileBase64: "QQ==", fileName: "a.pdf" });
+  it("returns fileBase64 and fileName, response version 1 by default", () => {
+    expect(parseRequestBody('{"fileBase64":"QQ==","fileName":"a.pdf"}')).toEqual({
+      fileBase64: "QQ==",
+      fileName: "a.pdf",
+      version: 1,
+    });
+  });
+  it("asks for the { items, layout } response only with v: 2 (WP26)", () => {
+    expect(parseRequestBody('{"fileBase64":"QQ==","v":2}').version).toBe(2);
+    expect(parseRequestBody('{"fileBase64":"QQ==","v":"2"}').version).toBe(1);
   });
   it("defaults a missing fileName to empty string", () => {
     expect(parseRequestBody('{"fileBase64":"QQ=="}').fileName).toBe("");

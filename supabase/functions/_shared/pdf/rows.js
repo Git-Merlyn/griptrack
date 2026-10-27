@@ -15,24 +15,26 @@
 // Every value comes from the PDF's own text: no model is involved here.
 
 /**
- * @typedef {{ str?: string, transform?: number[] }} PdfTextItem
+ * @typedef {{ str?: string, transform?: number[], width?: number }} PdfTextItem
  * @typedef {{ text: string, codeX: number, descX: number, hasCode: boolean, pageNum: number }} PdfLine
  * @typedef {{ code: string, name: string, category: string, quantity: number, startDate: string, endDate: string }} PdfRow
  */
 
 /**
- * One page's pdf.js text items to lines, top to bottom.
+ * Group one page's text items into rows of items by y (tolerance 1.0),
+ * top to bottom, each row sorted left to right. Shared by the generic
+ * parser (pageToLines) and templates (templates.js).
  * @param {PdfTextItem[]} items
- * @param {number} pageNum 1-based
- * @returns {PdfLine[]}
+ * @returns {{ str: string, x: number, y: number, width: number }[][]}
  */
-export function pageToLines(items, pageNum) {
+export function groupItemsByLine(items) {
   const chunks = (items || [])
     .map((it) => {
       const t = it.transform || [];
       const x = t[4] ?? 0;
       const y = t[5] ?? 0;
-      return { str: String(it.str || "").trim(), x, y };
+      const width = Number.isFinite(it.width) ? it.width : 0;
+      return { str: String(it.str || "").trim(), x, y, width };
     })
     .filter((it) => it.str.length > 0);
 
@@ -54,13 +56,21 @@ export function pageToLines(items, pageNum) {
   }
 
   const ys = Array.from(lines.keys()).sort((a, b) => b - a);
+  return ys.map((y) => (lines.get(y) || []).sort((a, b) => a.x - b.x));
+}
+
+/**
+ * One page's pdf.js text items to lines, top to bottom.
+ * @param {PdfTextItem[]} items
+ * @param {number} pageNum 1-based
+ * @returns {PdfLine[]}
+ */
+export function pageToLines(items, pageNum) {
   const out = [];
+
   const codeTokenRe = /^([A-Z]{3,}[A-Z0-9]*\d{3,})$/;
 
-  for (const y of ys) {
-    const row = lines.get(y) || [];
-    row.sort((a, b) => a.x - b.x);
-
+  for (const row of groupItemsByLine(items)) {
     const text = row
       .map((r) => r.str)
       .join(" ")
@@ -96,6 +106,58 @@ export function pageToLines(items, pageNum) {
  */
 export function linesFromPages(pages) {
   return (pages || []).flatMap((items, i) => pageToLines(items, i + 1));
+}
+
+// Normalise raw date strings to YYYY-MM-DD for Supabase.
+// Handles: MM/DD/YYYY, MM-DD-YYYY, YYYY/MM/DD, DD.MM.YYYY, and existing ISO.
+function normalizeDate(raw) {
+  const s = String(raw || "").trim().replace(/\s+/g, "");
+  if (!s) return "";
+  // Already ISO
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // MM/DD/YYYY or MM-DD-YYYY (US)
+  const mdy = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (mdy) {
+    return `${mdy[3]}-${mdy[1].padStart(2, "0")}-${mdy[2].padStart(2, "0")}`;
+  }
+  // YYYY/MM/DD
+  const ymd = s.match(/^(\d{4})[/-](\d{2})[/-](\d{2})$/);
+  if (ymd) return `${ymd[1]}-${ymd[2]}-${ymd[3]}`;
+  // DD.MM.YYYY (European)
+  const dmy = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (dmy) {
+    return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
+  }
+  return raw.trim(); // unknown format — store as-is
+}
+
+// Try multiple field-name aliases used by different rental houses.
+function extractDate(text, type) {
+  const pats =
+    type === "start"
+      ? [
+          /(?:ship|out|start|delivery|pickup|rental\s*start)\s*date\s*[:-]?\s*([0-9][0-9./-]+)/i,
+          /date\s*(?:out|shipped|start)\s*[:-]?\s*([0-9][0-9./-]+)/i,
+        ]
+      : [
+          /(?:return|due|end|rental\s*end)\s*date\s*[:-]?\s*([0-9][0-9./-]+)/i,
+          /date\s*(?:in|due|return|back)\s*[:-]?\s*([0-9][0-9./-]+)/i,
+          /expected\s*return\s*[:-]?\s*([0-9][0-9./-]+)/i,
+        ];
+  for (const re of pats) {
+    const m = text.match(re);
+    if (m?.[1]) return normalizeDate(m[1]);
+  }
+  return "";
+}
+
+/**
+ * Rental start and end dates from the document's text (any page).
+ * @param {string} fullText
+ * @returns {{ startDate: string, endDate: string }}
+ */
+export function extractDates(fullText) {
+  return { startDate: extractDate(fullText, "start"), endDate: extractDate(fullText, "end") };
 }
 
 /**
@@ -202,51 +264,7 @@ export function rowsFromLines(allLineObjs) {
 
   const fullTextForDates = allLines.join("\n");
 
-  // Normalise raw date strings to YYYY-MM-DD for Supabase.
-  // Handles: MM/DD/YYYY, MM-DD-YYYY, YYYY/MM/DD, DD.MM.YYYY, and existing ISO.
-  const normalizeDate = (raw) => {
-    const s = String(raw || "").trim().replace(/\s+/g, "");
-    if (!s) return "";
-    // Already ISO
-    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-    // MM/DD/YYYY or MM-DD-YYYY (US)
-    const mdy = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
-    if (mdy) {
-      return `${mdy[3]}-${mdy[1].padStart(2, "0")}-${mdy[2].padStart(2, "0")}`;
-    }
-    // YYYY/MM/DD
-    const ymd = s.match(/^(\d{4})[/-](\d{2})[/-](\d{2})$/);
-    if (ymd) return `${ymd[1]}-${ymd[2]}-${ymd[3]}`;
-    // DD.MM.YYYY (European)
-    const dmy = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
-    if (dmy) {
-      return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
-    }
-    return raw.trim(); // unknown format — store as-is
-  };
-
-  // Try multiple field-name aliases used by different rental houses.
-  const extractDate = (text, type) => {
-    const pats =
-      type === "start"
-        ? [
-            /(?:ship|out|start|delivery|pickup|rental\s*start)\s*date\s*[:-]?\s*([0-9][0-9./-]+)/i,
-            /date\s*(?:out|shipped|start)\s*[:-]?\s*([0-9][0-9./-]+)/i,
-          ]
-        : [
-            /(?:return|due|end|rental\s*end)\s*date\s*[:-]?\s*([0-9][0-9./-]+)/i,
-            /date\s*(?:in|due|return|back)\s*[:-]?\s*([0-9][0-9./-]+)/i,
-            /expected\s*return\s*[:-]?\s*([0-9][0-9./-]+)/i,
-          ];
-    for (const re of pats) {
-      const m = text.match(re);
-      if (m?.[1]) return normalizeDate(m[1]);
-    }
-    return "";
-  };
-
-  const shipDate = extractDate(fullTextForDates, "start");
-  const returnDate = extractDate(fullTextForDates, "end");
+  const { startDate: shipDate, endDate: returnDate } = extractDates(fullTextForDates);
 
   const items = [];
   const codeRe = /\b([A-Z]{3,}[A-Z0-9]*\d{3,})\b/;

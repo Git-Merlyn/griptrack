@@ -17,6 +17,9 @@ import {
 // build supports Safari 18+ / Chrome 125+; the default build needs newer.
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import { linesFromPages, rowsFromLines } from "@pdf/rows.js";
+import { applyTemplate, matchTemplate } from "@pdf/templates.js";
+import { supabase } from "@/lib/supabaseClient";
+import TeachLayoutDialog from "./import/TeachLayoutDialog";
 import pdfWorker from "pdfjs-dist/legacy/build/pdf.worker.mjs?url";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -79,6 +82,11 @@ const ImportFileModal = ({
   // Rows the last Submit refused (empty name, quantity under 1); cleared as
   // soon as they are fixed.
   const [showRowProblems, setShowRowProblems] = useState(false);
+  // Supplier layouts (WP26 Phase 3): the PDF's text items (kept for "teach
+  // it"), the saved layout used for this import, and whether it still fits.
+  const [pdfPages, setPdfPages] = useState(null);
+  const [layoutUse, setLayoutUse] = useState(null); // { record, drift } | null
+  const [teachOpen, setTeachOpen] = useState(false);
   const problemRows = new Set(
     showRowProblems ? rowProblems(parsedData).map((p) => p.index) : [],
   );
@@ -133,6 +141,8 @@ const ImportFileModal = ({
   };
 
   const extractDataFromCSV = async (file) => {
+    setPdfPages(null);
+    setLayoutUse(null);
     try {
       setPdfParsingStatus && setPdfParsingStatus("parsing");
       setImportInProgress && setImportInProgress(true);
@@ -271,6 +281,65 @@ const ImportFileModal = ({
     }
   };
 
+  // The org's saved layouts plus global ones (RLS). Never blocks an import:
+  // on any error the general reader is used.
+  const loadLayouts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("pdf_templates")
+        .select("id, name, scope, template, success_count");
+      return error || !Array.isArray(data) ? [] : data;
+    } catch {
+      return [];
+    }
+  };
+
+  const readRows = (pages, lineObjs, layouts) => {
+    const record = matchTemplate(layouts, pages);
+    if (record) {
+      const result = applyTemplate(record.template, pages);
+      if (result.rows.length > 0) {
+        return { rows: result.rows, use: { record, drift: result.drift } };
+      }
+      return { rows: rowsFromLines(lineObjs), use: { record, drift: true } };
+    }
+    return { rows: rowsFromLines(lineObjs), use: null };
+  };
+
+  const toItem = (r) => ({
+    id: r.code,
+    name: r.name,
+    category: r.category,
+    status: "Available",
+    source: "",
+    quantity: r.quantity,
+    startDate: r.startDate,
+    endDate: r.endDate,
+    location: "",
+  });
+
+  // A layout was just taught: read this PDF with it straight away.
+  const handleLayoutSaved = (record) => {
+    setTeachOpen(false);
+    const result = applyTemplate(record.template, pdfPages);
+    setLayoutUse({ record, drift: result.drift });
+    if (result.rows.length > 0) {
+      setShowRowProblems(false);
+      setParsedData(
+        withRowKeys(
+          result.rows.map((r) => ({
+            ...toItem(r),
+            location: mode === "import" ? defaultLocation : "",
+            source: mode === "import" ? defaultSource : "",
+          })),
+        ),
+      );
+      setPdfParsingStatus && setPdfParsingStatus("done");
+      setErrorMessage("");
+    }
+    window.toast?.success?.(`Saved the layout "${record.name}".`);
+  };
+
   const extractDataFromPDF = async (file) => {
     try {
       if (setPdfParsingStatus) setPdfParsingStatus("parsing");
@@ -299,17 +368,11 @@ const ImportFileModal = ({
         return;
       }
 
-      const items = rowsFromLines(allLineObjs).map((r) => ({
-        id: r.code,
-        name: r.name,
-        category: r.category,
-        status: "Available",
-        source: "",
-        quantity: r.quantity,
-        startDate: r.startDate,
-        endDate: r.endDate,
-        location: "",
-      }));
+      // A saved layout for this supplier wins; otherwise the general reader.
+      setPdfPages(pages);
+      const { rows, use } = readRows(pages, allLineObjs, await loadLayouts());
+      setLayoutUse(use);
+      const items = rows.map(toItem);
 
       if (items.length > 0) {
         setShowRowProblems(false);
@@ -318,7 +381,7 @@ const ImportFileModal = ({
       } else {
         setPdfParsingStatus && setPdfParsingStatus("error");
         const msg =
-          "No items found in PDF. The file may use an unsupported format — try exporting as CSV from the rental house's system.";
+          "No items found in PDF. Teach GripTrack this supplier's layout below, or export a CSV from the rental house's system.";
         setErrorMessage(msg);
         window.toast?.error?.(msg);
       }
@@ -456,6 +519,12 @@ const ImportFileModal = ({
     if (setImportInProgress) setImportInProgress(true);
     try {
       await onUpload(stripRowKeys(parsedData));
+      if (layoutUse?.record?.id) {
+        // Usage count for the layout library (Phase 4); failures don't matter.
+        supabase
+          .rpc("record_pdf_template_use", { p_template: layoutUse.record.id, p_ok: true })
+          .then(() => {}, () => {});
+      }
 
       setParsedData([]);
       setDefaultLocation("");
@@ -528,6 +597,10 @@ const ImportFileModal = ({
             <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
             Uploading items, please wait...
           </div>
+        )}
+
+        {pdfPages && pdfParsingStatus !== "parsing" && (
+          <LayoutBanner use={layoutUse} onTeach={() => setTeachOpen(true)} />
         )}
 
         {pdfParsingStatus === "error" && !errorMessage && (
@@ -823,6 +896,15 @@ const ImportFileModal = ({
           </>
         )}
       </div>
+      {teachOpen && pdfPages && (
+        <TeachLayoutDialog
+          isOpen
+          pages={pdfPages}
+          existing={layoutUse?.record?.scope === "org" ? layoutUse.record : null}
+          onClose={() => setTeachOpen(false)}
+          onSaved={handleLayoutSaved}
+        />
+      )}
       {showMissingLocationConfirm && (
         <div
           className="fixed inset-0 flex items-center justify-center bg-black/60 z-50"
@@ -865,5 +947,27 @@ const ImportFileModal = ({
     </Modal>
   );
 };
+
+// Which reader produced the rows, and the way into "teach it" (WP26 Phase 3).
+function LayoutBanner({ use, onTeach }) {
+  const name = use?.record?.name;
+  const [tone, text, action] = !use
+    ? ["text-gray-400", "Read with the general reader.", "Rows look wrong? Teach GripTrack this layout"]
+    : use.drift
+      ? [
+          "text-warning",
+          `This supplier's layout seems to have changed since "${name}" was saved. Check the rows below.`,
+          "Teach it again",
+        ]
+      : ["text-gray-400", `Read with your saved layout "${name}".`, "Wrong columns? Teach it again"];
+  return (
+    <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-sm ${tone}`} data-testid="layout-banner">
+      <span>{text}</span>
+      <button type="button" className="text-accent underline underline-offset-2" onClick={onTeach}>
+        {action}
+      </button>
+    </div>
+  );
+}
 
 export default ImportFileModal;

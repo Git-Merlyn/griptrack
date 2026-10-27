@@ -63,3 +63,43 @@ export const codelessList = [
 
 /** An image-only scan: no text at all, or a stray page number. */
 export const scannedPages = [[], [at("1", 300, 20)]];
+
+// Items with widths (pdf.js reports width per item), for templates.
+const w = (str, x, y, width) => ({ str, transform: [1, 0, 0, 1, x, y], width });
+
+/**
+ * A columnar list with no item codes: "Item Description" heading made of two
+ * items, a Category column, right-aligned quantities under "Qty", section
+ * headings, a total line, and a second page that repeats the supplier name.
+ */
+export const columnList = [
+  [
+    w("CASCADE STUDIO RENTALS", 40, 760, 160),
+    w("Out Date: 03/02/2027", 40, 740, 105),
+    w("Return Date: 03/09/2027", 300, 740, 125),
+    w("Item", 40, 700, 22),
+    w("Description", 66, 700, 60),
+    w("Category", 300, 700, 48),
+    w("Qty", 480, 700, 18),
+    w("Grip", 40, 680, 24),
+    w("Apple Box Full", 40, 665, 75),
+    w("Boxes", 300, 665, 30),
+    w("4", 490, 665, 6),
+    w("Sandbag 25lb", 40, 650, 70),
+    w("Weights", 300, 650, 40),
+    w("12", 486, 650, 11),
+    w("Electric", 40, 630, 40),
+    w("Stinger 25ft", 40, 615, 60),
+    w("Cable", 300, 615, 28),
+    w("8", 490, 615, 6),
+    w("Subtotal 24", 40, 600, 60),
+  ],
+  [
+    w("CASCADE STUDIO RENTALS", 40, 760, 160),
+    w("Furniture Pad", 40, 700, 70),
+    w("Blankets", 300, 700, 45),
+    w("20", 486, 700, 11),
+    w("Total items 44", 40, 680, 75),
+    w("Thank you for renting", 40, 660, 110),
+  ],
+];
