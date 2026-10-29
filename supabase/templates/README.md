@@ -4,11 +4,11 @@ All six Supabase Auth emails share one layout in the app's dark palette (cyan `#
 
 | File | Dashboard template | Subject |
 |---|---|---|
-| `confirmation.html` | Confirm signup | Confirm your GripTrack account |
+| `confirmation.html` | Confirm signup | Confirm your GripTrack Account |
 | `invite.html` | Invite user | You've been invited to GripTrack |
 | `magic_link.html` | Magic link | Your GripTrack sign-in link |
 | `email_change.html` | Change email address | Confirm your new GripTrack email |
-| `recovery.html` | Reset password | Reset your GripTrack password |
+| `recovery.html` | Reset password | Reset your GripTrack Password |
 | `reauthentication.html` | Reauthentication | Your GripTrack verification code |
 
 **Edit** `build.py`, not the HTML, then run `python3 supabase/templates/build.py`. It rewrites the HTML files and the `[auth.email.template.*]` blocks in `supabase/config.toml`.

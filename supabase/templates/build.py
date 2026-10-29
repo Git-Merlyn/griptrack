@@ -93,7 +93,7 @@ FOOT = (
 
 TEMPLATES = {
     "confirmation": dict(
-        subject="Confirm your GripTrack account",
+        subject="Confirm your GripTrack Account",
         heading="Confirm your email",
         preheader="One click to finish creating your GripTrack account.",
         body=GREETING
@@ -119,7 +119,7 @@ TEMPLATES = {
         footer="This email was sent to {{ .Email }} by GripTrack. If you weren&rsquo;t expecting an invite, you can ignore this email.",
     ),
     "recovery": dict(
-        subject="Reset your GripTrack password",
+        subject="Reset your GripTrack Password",
         heading="Reset your password",
         preheader="Choose a new password for your GripTrack account.",
         body=GREETING
