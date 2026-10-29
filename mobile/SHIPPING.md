@@ -74,8 +74,9 @@ every production build. `app.json` deliberately has no `buildNumber` /
 
 1. Pushed SQL / edge-function changes the build depends on are already deployed
    (`supabase db push`, `supabase functions deploy <name>`).
-2. If `package.json` has an `expo.install.exclude` list (added 2026-10-27 for
-   native patch releases of `expo` and `expo-file-system`), remove it, run
+2. If `package.json` has an `expo.install.exclude` list (added 2026-10-27 and
+   extended 2026-10-29 for native patch releases of `expo`, `react-native` and
+   other Expo packages), remove it, run
    `npx expo install --check`, and raise `expo.version` in `app.json`: the
    upgrade changes native code.
 3. `cd mobile && npx jest --ci && npx tsc --noEmit` pass.
