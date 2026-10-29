@@ -74,8 +74,12 @@ every production build. `app.json` deliberately has no `buildNumber` /
 
 1. Pushed SQL / edge-function changes the build depends on are already deployed
    (`supabase db push`, `supabase functions deploy <name>`).
-2. `cd mobile && npx jest --ci && npx tsc --noEmit` pass.
-3. Build and submit (from the repo root):
+2. If `package.json` has an `expo.install.exclude` list (added 2026-10-27 for
+   native patch releases of `expo` and `expo-file-system`), remove it, run
+   `npx expo install --check`, and raise `expo.version` in `app.json`: the
+   upgrade changes native code.
+3. `cd mobile && npx jest --ci && npx tsc --noEmit` pass.
+4. Build and submit (from the repo root):
 
 ```bash
 npm run mobile:ios              # production iOS build
@@ -84,10 +88,10 @@ npm run mobile:android          # production Android app bundle (.aab)
 npm run mobile:android:submit   # upload latest .aab to the Play internal track
 ```
 
-4. iOS: the build appears in App Store Connect → TestFlight after processing
+5. iOS: the build appears in App Store Connect → TestFlight after processing
    (~10–30 min). Internal testers get it straight away. External testers need
    Apple's beta review for a new version.
-5. Android: the internal track rolls out to the tester list as soon as Play
+6. Android: the internal track rolls out to the tester list as soon as Play
    finishes processing.
 
 ### Submit credentials

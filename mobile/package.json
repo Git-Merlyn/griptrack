@@ -14,6 +14,7 @@
     "test:run": "jest --ci",
     "lint": "expo lint"
   },
+  "//": "2026-10-27: expo and expo-file-system are in expo.install.exclude because Expo 58.0.20 / expo-file-system 58.0.12 change native code (Android Kotlin, iOS Swift), so they cannot ship as an OTA update to existing store builds. Remove both entries, run npx expo install --check, and raise expo.version in app.json in the next store build (see SHIPPING.md).",
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -61,5 +62,13 @@
     "fsevents@2.3.3": true,
     "unrs-resolver@1.12.2": true,
     "@parcel/watcher@2.6.0": true
+  },
+  "expo": {
+    "install": {
+      "exclude": [
+        "expo",
+        "expo-file-system"
+      ]
+    }
   }
 }
