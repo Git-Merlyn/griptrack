@@ -2,6 +2,10 @@
 import { requireUser } from "../_shared/auth.ts";
 import { createClient } from "../_shared/deps.ts";
 import { corsHeaders, getAppUrl, json } from "../_shared/http.ts";
+import { buildJoinEmail, DEFAULT_FROM, sendJoinEmail, shouldNotify } from "./logic.ts";
+
+// Supabase's edge runtime keeps the worker alive for promises passed here.
+declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined;
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -176,7 +180,7 @@ Deno.serve(async (req: Request) => {
     //   them: handing the caller a magic link for someone else's account is an
     //   account takeover (audit C1). The org_invites row upserted above is all
     //   an existing user needs; accept_org_invite_for_user() attaches them the
-    //   next time they sign in.
+    //   next time they sign in. They get a plain notice below (no link).
     // Both outcomes return the identical body, so the response never reveals
     // whether an address has an account.
     const { error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
@@ -200,7 +204,20 @@ Deno.serve(async (req: Request) => {
       if (!isAlreadyRegistered) {
         return json({ error: inviteErr.message }, 400);
       }
-      // Existing account: nothing more to send (see comment above).
+      // Existing account with no real org yet (TODO 9.24): send a plain
+      // "sign in to join" notice through Resend, never a sign-in link. It runs
+      // after the response, and any failure is only logged, so the body and
+      // timing match every other outcome.
+      if (shouldNotify(target)) {
+        const notice = sendJoinEmail(
+          buildJoinEmail({ to: email, orgName, inviterName, appUrl: getAppUrl() }),
+          {
+            apiKey: Deno.env.get("RESEND_API_KEY"),
+            from: Deno.env.get("INVITE_EMAIL_FROM") || DEFAULT_FROM,
+          },
+        ).catch((e) => console.error("invite-staff: join notice not sent:", (e as Error)?.message));
+        if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(notice);
+      }
     }
 
     // Shipped mobile builds (4/5) still look for the old "already registered"
