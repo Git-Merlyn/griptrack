@@ -76,8 +76,8 @@ Every user belongs to an organization (a production or company). Membership and 
 |---|---|
 | `owner` | Everything, including billing and app settings. Never assignable by invite. |
 | `admin` | Manage staff and invites, see and switch all teams, delete items. |
-| `department_head` | Manage inventory (add/edit items, approve requests) within their team. |
-| `crew` | View inventory, move gear, file requests and damage reports. |
+| `department_head` | Manage inventory (add/edit items, add and edit locations) within their team. Cannot review requests (owner/admin only). |
+| `crew` | View inventory, move gear and edit own-team item details, file requests and damage reports. |
 
 Invites: an admin invites by email (`invite-staff` edge function → `org_invites` row + Supabase Auth email sent through Resend SMTP). The invitee signs in or signs up and the `accept_org_invite_for_user` RPC attaches them to the org. Web login loads org, role, subscription, team and profile in one `bootstrap_session()` RPC call.
 

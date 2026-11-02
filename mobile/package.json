@@ -14,7 +14,7 @@
     "test:run": "jest --ci",
     "lint": "expo lint"
   },
-  "//": "2026-10-27/28: expo, expo-file-system, expo-font, expo-splash-screen, expo-updates, react-native and jest-expo are in expo.install.exclude because their Oct 27-28 patch releases (expo 58.0.20, react-native 0.88.1, etc.) change native code or must move together with it, so they cannot ship as an OTA update to existing store builds. Remove every entry, run npx expo install --check, and raise expo.version in app.json in the next store build (see SHIPPING.md).",
+  "//": "2026-10-27/28: expo, expo-file-system, expo-font, expo-splash-screen, expo-updates, react-native and jest-expo are in expo.install.exclude because their Oct 27-28 patch releases (expo 58.0.20, react-native 0.88.1, etc.) change native code or must move together with it, so they cannot ship as an OTA update to existing store builds. Remove every entry, run npx expo install --check, and raise expo.version in app.json in the next store build (see SHIPPING.md). 2026-11-02: expo-build-properties 58.0.12, expo-sqlite 58.0.15 and react-native-screens 4.30.1 added for the same reason (patch releases on the native side); same removal step at the next store build.",
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -67,12 +67,15 @@
     "install": {
       "exclude": [
         "expo",
+        "expo-build-properties",
         "expo-file-system",
         "expo-font",
         "expo-splash-screen",
+        "expo-sqlite",
         "expo-updates",
         "jest-expo",
-        "react-native"
+        "react-native",
+        "react-native-screens"
       ]
     }
   }
